@@ -1,0 +1,74 @@
+{
+  "name": "dev-toolbox",
+  "version": "0.1.0",
+  "description": "Local-first desktop toolkit for frontend asset conversion.",
+  "productName": "Dev Toolbox",
+  "main": "dist/main/index.js",
+  "private": true,
+  "scripts": {
+    "dev": "npm-run-all -p dev:renderer dev:electron",
+    "dev:renderer": "vite --host 127.0.0.1 --port 5173",
+    "dev:electron": "wait-on tcp:5173 && npm run build:main && cross-env VITE_DEV_SERVER_URL=http://127.0.0.1:5173 electron .",
+    "build": "npm-run-all build:main build:renderer",
+    "build:main": "tsc -p tsconfig.node.json",
+    "build:renderer": "vite build",
+    "typecheck": "npm-run-all build:main typecheck:renderer",
+    "typecheck:renderer": "vue-tsc --noEmit",
+    "dist": "npm run build && electron-builder"
+  },
+  "dependencies": {
+    "@vueuse/core": "^13.1.0",
+    "ffmpeg-static": "^5.2.0",
+    "fonteditor-core": "^2.4.0",
+    "pinia": "^3.0.2",
+    "png-to-ico": "^2.1.8",
+    "remixicon": "^4.9.1",
+    "sharp": "^0.34.1",
+    "sql.js": "^1.12.0",
+    "vue": "^3.5.13",
+    "vue-router": "^4.5.0",
+    "wawoff2": "^2.0.1",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.14.1",
+    "@types/sql.js": "^1.4.9",
+    "@vitejs/plugin-vue": "^5.2.3",
+    "cross-env": "^7.0.3",
+    "electron": "^35.1.5",
+    "electron-builder": "^26.0.12",
+    "npm-run-all": "^4.1.5",
+    "typescript": "^5.8.3",
+    "vite": "^6.2.6",
+    "vue-tsc": "^2.2.8",
+    "wait-on": "^8.0.3"
+  },
+  "build": {
+    "appId": "com.devtoolbox.app",
+    "productName": "Dev Toolbox",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "package.json",
+      "node_modules/**/*"
+    ],
+    "asarUnpack": [
+      "node_modules/ffmpeg-static/**/*",
+      "node_modules/sharp/**/*",
+      "node_modules/@img/**/*",
+      "node_modules/wawoff2/**/*",
+      "node_modules/sql.js/dist/*.wasm"
+    ],
+    "win": {
+      "target": "nsis"
+    },
+    "mac": {
+      "target": "dmg"
+    },
+    "linux": {
+      "target": "AppImage"
+    }
+  }
+}

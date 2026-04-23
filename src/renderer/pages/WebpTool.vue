@@ -1,0 +1,100 @@
+<script setup lang="ts">
+import { computed, ref } from "vue";
+import type { ConversionResult, ImageOutputFormat } from "../../shared/types";
+import DropZone from "../components/DropZone.vue";
+import OutputPicker from "../components/OutputPicker.vue";
+import OptionGrid from "../components/OptionGrid.vue";
+import ResultPanel from "../components/ResultPanel.vue";
+import SelectMenu from "../components/SelectMenu.vue";
+
+const input = ref<string[]>([]);
+const outputDir = ref("");
+const outputFormat = ref<ImageOutputFormat>("webp");
+const quality = ref(82);
+const lossless = ref(false);
+const keepMetadata = ref(false);
+const maxWidth = ref<number | null>(null);
+const maxHeight = ref<number | null>(null);
+const busy = ref(false);
+const result = ref<ConversionResult | null>(null);
+const formatOptions = [
+  { label: "WebP", value: "webp", icon: "ri-image-line" },
+  { label: "PNG", value: "png", icon: "ri-image-2-line" },
+  { label: "JPEG", value: "jpeg", icon: "ri-image-circle-line" },
+  { label: "AVIF", value: "avif", icon: "ri-gallery-line" }
+];
+
+const canRun = computed(() => input.value.length > 0 && outputDir.value && !busy.value);
+
+async function run() {
+  if (!canRun.value) return;
+  busy.value = true;
+  result.value = await window.devToolbox.convertWebp({
+    inputPaths: input.value,
+    outputDir: outputDir.value,
+    outputFormat: outputFormat.value,
+    quality: quality.value,
+    lossless: lossless.value,
+    keepMetadata: keepMetadata.value,
+    maxWidth: maxWidth.value || undefined,
+    maxHeight: maxHeight.value || undefined
+  });
+  busy.value = false;
+}
+</script>
+
+<template>
+  <section class="tool-page">
+    <div class="tool-header">
+      <div>
+        <h2>Image Converter</h2>
+        <p>WebP, PNG, JPEG, AVIF</p>
+      </div>
+      <button type="button" class="primary-button" :disabled="!canRun" @click="run">
+        <i class="ri-play-fill" aria-hidden="true"></i>
+        Convert
+      </button>
+    </div>
+
+    <div class="tool-layout">
+      <div class="tool-main">
+        <DropZone
+          v-model="input"
+          title="Source images"
+          :filters="[{ name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'webp', 'avif', 'tiff'] }]"
+        />
+        <OutputPicker v-model="outputDir" />
+
+        <OptionGrid>
+          <label class="field">
+            <span>Format</span>
+            <SelectMenu v-model="outputFormat" :options="formatOptions" />
+          </label>
+          <label class="field">
+            <span>Quality</span>
+            <input v-model.number="quality" type="range" min="1" max="100" />
+            <strong>{{ quality }}</strong>
+          </label>
+          <label class="field">
+            <span>Max width</span>
+            <input v-model.number="maxWidth" type="number" min="1" placeholder="Original" />
+          </label>
+          <label class="field">
+            <span>Max height</span>
+            <input v-model.number="maxHeight" type="number" min="1" placeholder="Original" />
+          </label>
+          <label class="check-row">
+            <input v-model="lossless" type="checkbox" />
+            <span>Lossless</span>
+          </label>
+          <label class="check-row">
+            <input v-model="keepMetadata" type="checkbox" />
+            <span>Metadata</span>
+          </label>
+        </OptionGrid>
+      </div>
+
+      <ResultPanel :result="result" :busy="busy" />
+    </div>
+  </section>
+</template>
