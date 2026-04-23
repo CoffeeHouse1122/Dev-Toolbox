@@ -207,10 +207,141 @@ button {
   align-items: start;
 }
 
+.video-page {
+  display: grid;
+  gap: 18px;
+}
+
+.video-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 18px;
+  align-items: end;
+  padding: 22px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+.video-title {
+  min-width: 0;
+}
+
+.video-title h2 {
+  margin: 0;
+  font-size: 28px;
+  line-height: 1.2;
+}
+
+.video-title p {
+  margin: 8px 0 0;
+  color: var(--muted);
+}
+
+.video-hero-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.video-state {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  min-width: 230px;
+  max-width: 320px;
+  min-height: 38px;
+  padding: 7px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface-subtle);
+  color: var(--muted);
+}
+
+.video-state span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.video-run-button {
+  min-width: 118px;
+}
+
+.video-output-strip {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.video-output-item {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  grid-template-rows: auto auto;
+  column-gap: 10px;
+  row-gap: 2px;
+  align-items: center;
+  min-height: 64px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--muted);
+}
+
+.video-output-item i {
+  grid-row: span 2;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  background: var(--surface-subtle);
+  font-size: 17px;
+}
+
+.video-output-item span,
+.video-output-item small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.video-output-item span {
+  color: var(--text);
+  font-weight: 700;
+}
+
+.video-output-item small {
+  color: var(--muted);
+}
+
+.video-output-item.active {
+  border-color: color-mix(in srgb, var(--success) 38%, var(--border));
+  background: color-mix(in srgb, var(--success) 7%, var(--surface));
+}
+
+.video-output-item.active i {
+  color: var(--success);
+  background: color-mix(in srgb, var(--success) 12%, transparent);
+}
+
+.video-workbench {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 0.78fr) 390px;
+  gap: 18px;
+  align-items: start;
+}
+
 .tool-main,
 .result-panel,
 .history-table,
-.settings-block {
+.settings-block,
+.video-source-panel,
+.video-control-panel {
   padding: 18px;
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -221,6 +352,58 @@ button {
 .tool-main {
   display: grid;
   gap: 18px;
+}
+
+.video-source-panel,
+.video-control-panel {
+  display: grid;
+  gap: 18px;
+}
+
+.panel-heading {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.panel-heading h3 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.panel-heading p {
+  margin: 6px 0 0;
+  color: var(--muted);
+}
+
+.video-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.range-field {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 42px;
+  gap: 10px;
+  align-items: center;
+}
+
+.range-field strong {
+  display: grid;
+  place-items: center;
+  min-height: 32px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface-subtle);
+}
+
+.video-check-row {
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface-subtle);
 }
 
 .drop-zone {
@@ -638,8 +821,29 @@ button:disabled {
   }
 
   .tool-layout,
-  .settings-grid {
+  .settings-grid,
+  .video-workbench {
     grid-template-columns: 1fr;
+  }
+
+  .video-hero {
+    grid-template-columns: 1fr;
+    align-items: start;
+  }
+
+  .video-hero-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .video-state,
+  .video-run-button {
+    width: 100%;
+    max-width: none;
+  }
+
+  .video-output-strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .history-row {
@@ -649,5 +853,16 @@ button:disabled {
   .history-row span:nth-child(4),
   .history-row span:nth-child(5) {
     display: none;
+  }
+}
+
+@media (max-width: 560px) {
+  .video-output-strip,
+  .video-form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .video-title h2 {
+    font-size: 24px;
   }
 }

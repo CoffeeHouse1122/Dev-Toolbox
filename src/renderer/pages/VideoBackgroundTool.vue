@@ -3,7 +3,6 @@ import { computed, ref } from "vue";
 import type { ConversionResult, VideoPackMode } from "../../shared/types";
 import DropZone from "../components/DropZone.vue";
 import OutputPicker from "../components/OutputPicker.vue";
-import OptionGrid from "../components/OptionGrid.vue";
 import ResultPanel from "../components/ResultPanel.vue";
 import SelectMenu from "../components/SelectMenu.vue";
 
@@ -15,6 +14,7 @@ const crf = ref(24);
 const makePoster = ref(true);
 const busy = ref(false);
 const result = ref<ConversionResult | null>(null);
+
 const modeOptions = [
   { label: "背景视频完整包", value: "background-pack", icon: "ri-layout-masonry-line" },
   { label: "仅 MP4", value: "mp4", icon: "ri-file-video-line" },
@@ -22,7 +22,25 @@ const modeOptions = [
   { label: "仅 HLS", value: "hls", icon: "ri-route-line" }
 ];
 
+const outputItems = computed(() => {
+  const base = [
+    { name: "MP4", detail: "background.mp4", icon: "ri-file-video-line", active: mode.value === "background-pack" || mode.value === "mp4" },
+    { name: "WebM", detail: "background.webm", icon: "ri-film-line", active: mode.value === "background-pack" || mode.value === "webm" },
+    { name: "HLS", detail: "index.m3u8 + .ts", icon: "ri-route-line", active: mode.value === "background-pack" || mode.value === "hls" },
+    { name: "封面", detail: "poster.png", icon: "ri-image-line", active: makePoster.value },
+    { name: "片段", detail: "HTML snippet", icon: "ri-code-s-slash-line", active: mode.value === "background-pack" }
+  ];
+
+  return base;
+});
+
+const selectedFileName = computed(() => input.value[0]?.split(/[\\/]/).pop() ?? "未选择视频");
 const canRun = computed(() => input.value.length === 1 && outputDir.value && !busy.value);
+const crfTone = computed(() => {
+  if (crf.value <= 20) return "高画质";
+  if (crf.value <= 28) return "均衡";
+  return "小体积";
+});
 
 async function run() {
   if (!canRun.value) return;
@@ -40,20 +58,36 @@ async function run() {
 </script>
 
 <template>
-  <section class="tool-page">
-    <div class="tool-header">
-      <div>
+  <section class="video-page">
+    <div class="video-hero">
+      <div class="video-title">
+        <span class="eyebrow">移动端背景视频</span>
         <h2>背景视频兼容包</h2>
-        <p>生成 MP4、WebM、HLS 和 TS 切片</p>
+        <p>MP4、WebM、HLS、TS、封面与 HTML 片段</p>
       </div>
-      <button type="button" class="primary-button" :disabled="!canRun" @click="run">
-        <i class="ri-play-fill" aria-hidden="true"></i>
-        开始转换
-      </button>
+
+      <div class="video-hero-actions">
+        <div class="video-state">
+          <i class="ri-movie-2-line" aria-hidden="true"></i>
+          <span>{{ selectedFileName }}</span>
+        </div>
+        <button type="button" class="primary-button video-run-button" :disabled="!canRun" @click="run">
+          <i class="ri-play-fill" aria-hidden="true"></i>
+          开始转换
+        </button>
+      </div>
     </div>
 
-    <div class="tool-layout">
-      <div class="tool-main">
+    <div class="video-output-strip" aria-label="输出内容">
+      <div v-for="item in outputItems" :key="item.name" class="video-output-item" :class="{ active: item.active }">
+        <i :class="item.icon" aria-hidden="true"></i>
+        <span>{{ item.name }}</span>
+        <small>{{ item.detail }}</small>
+      </div>
+    </div>
+
+    <div class="video-workbench">
+      <section class="video-source-panel">
         <DropZone
           v-model="input"
           title="源视频"
@@ -61,10 +95,20 @@ async function run() {
           :filters="[{ name: '视频', extensions: ['mp4', 'webm', 'mov', 'mkv', 'avi'] }]"
         />
         <OutputPicker v-model="outputDir" />
+      </section>
 
-        <OptionGrid>
-          <label class="field">
-            <span>预设</span>
+      <section class="video-control-panel">
+        <div class="panel-heading">
+          <div>
+            <h3>转换参数</h3>
+            <p>{{ crfTone }} · {{ width || "原始" }}px</p>
+          </div>
+          <span class="status-pill running" v-if="busy">运行中</span>
+        </div>
+
+        <div class="video-form-grid">
+          <label class="field span-2">
+            <span>输出预设</span>
             <SelectMenu v-model="mode" :options="modeOptions" />
           </label>
           <label class="field">
@@ -73,15 +117,17 @@ async function run() {
           </label>
           <label class="field">
             <span>CRF</span>
-            <input v-model.number="crf" type="range" min="12" max="40" />
-            <strong>{{ crf }}</strong>
+            <div class="range-field">
+              <input v-model.number="crf" type="range" min="12" max="40" />
+              <strong>{{ crf }}</strong>
+            </div>
           </label>
-          <label class="check-row">
+          <label class="check-row span-2 video-check-row">
             <input v-model="makePoster" type="checkbox" />
-            <span>生成封面</span>
+            <span>生成封面 poster.png</span>
           </label>
-        </OptionGrid>
-      </div>
+        </div>
+      </section>
 
       <ResultPanel :result="result" :busy="busy" />
     </div>
