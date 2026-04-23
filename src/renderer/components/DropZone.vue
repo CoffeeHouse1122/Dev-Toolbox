@@ -7,6 +7,7 @@ const props = defineProps<{
   filters?: DialogFileFilter[];
   multiple?: boolean;
   title: string;
+  preview?: "image" | "video";
 }>();
 
 const emit = defineEmits<{
@@ -16,6 +17,11 @@ const emit = defineEmits<{
 const isDragging = ref(false);
 
 const fileNames = computed(() => props.modelValue.map((item) => item.split(/[\\/]/).pop()).join(", "));
+const previewUrl = computed(() => {
+  const first = props.modelValue[0];
+  if (!first || !props.preview) return "";
+  return encodeURI(`file:///${first.replace(/\\/g, "/")}`);
+});
 
 async function pickFiles() {
   const paths = await window.devToolbox.selectFiles(props.filters, props.multiple ?? true);
@@ -33,20 +39,33 @@ function onDrop(event: DragEvent) {
     emit("update:modelValue", props.multiple === false ? [paths[0]] : paths);
   }
 }
+
+function onKeydown(event: KeyboardEvent) {
+  if (event.key === "Enter" || event.key === " ") {
+    event.preventDefault();
+    void pickFiles();
+  }
+}
 </script>
 
 <template>
-  <button
-    type="button"
+  <div
     class="drop-zone"
-    :class="{ active: isDragging }"
+    :class="{ active: isDragging, 'has-preview': Boolean(previewUrl) }"
+    role="button"
+    tabindex="0"
     @click="pickFiles"
+    @keydown="onKeydown"
     @dragover.prevent="isDragging = true"
     @dragleave="isDragging = false"
     @drop="onDrop"
   >
-    <span class="drop-icon"><i class="ri-upload-cloud-2-line" aria-hidden="true"></i></span>
+    <div v-if="previewUrl" class="drop-preview">
+      <img v-if="preview === 'image'" class="drop-preview-media" :src="previewUrl" alt="图片预览" />
+      <video v-else class="drop-preview-media" :src="previewUrl" muted preload="metadata" playsinline />
+    </div>
+    <span v-else class="drop-icon"><i class="ri-upload-cloud-2-line" aria-hidden="true"></i></span>
     <span class="drop-title">{{ title }}</span>
     <span class="drop-files">{{ fileNames || "未选择文件" }}</span>
-  </button>
+  </div>
 </template>

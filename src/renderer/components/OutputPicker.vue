@@ -16,7 +16,7 @@ async function pickDir() {
 </script>
 
 <template>
-  <div class="field-row">
+  <div class="field-row output-picker">
     <label class="field grow">
       <span>输出目录</span>
       <input :value="modelValue" readonly placeholder="请选择输出目录" />

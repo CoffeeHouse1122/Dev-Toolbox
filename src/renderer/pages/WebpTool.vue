@@ -61,6 +61,7 @@ async function run() {
         <DropZone
           v-model="input"
           title="源图片"
+          preview="image"
           :filters="[{ name: '图片', extensions: ['png', 'jpg', 'jpeg', 'webp', 'avif', 'tiff'] }]"
         />
         <OutputPicker v-model="outputDir" />

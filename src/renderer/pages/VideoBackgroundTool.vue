@@ -54,53 +54,28 @@ async function run() {
 </script>
 
 <template>
-  <section class="video-page">
-    <div class="video-hero">
-      <div class="video-title">
-        <span class="eyebrow">移动端兼容</span>
+  <section class="tool-page">
+    <div class="tool-header">
+      <div>
         <h2>视频转化</h2>
-        <p>生成 MP4、WebM、HLS、TS、封面与 HTML 片段</p>
+        <p>{{ selectedFileName }} · {{ crfTone }} · {{ width || "原始" }}px</p>
       </div>
-
-      <div class="video-hero-actions">
-        <div class="video-state">
-          <i class="ri-movie-2-line" aria-hidden="true"></i>
-          <span>{{ selectedFileName }}</span>
-        </div>
-        <button type="button" class="primary-button video-run-button" :disabled="!canRun" @click="run">
-          <i class="ri-play-fill" aria-hidden="true"></i>
-          开始转换
-        </button>
-      </div>
+      <button type="button" class="primary-button" :disabled="!canRun" @click="run">
+        <i class="ri-play-fill" aria-hidden="true"></i>
+        开始转换
+      </button>
     </div>
 
-    <div class="video-output-strip" aria-label="输出内容">
-      <div v-for="item in outputItems" :key="item.name" class="video-output-item" :class="{ active: item.active }">
-        <i :class="item.icon" aria-hidden="true"></i>
-        <span>{{ item.name }}</span>
-        <small>{{ item.detail }}</small>
-      </div>
-    </div>
-
-    <div class="video-workbench">
-      <section class="video-source-panel">
+    <div class="media-tool-layout">
+      <section class="tool-main media-tool-main">
         <DropZone
           v-model="input"
           title="源视频"
+          preview="video"
           :multiple="false"
           :filters="[{ name: '视频', extensions: ['mp4', 'webm', 'mov', 'mkv', 'avi'] }]"
         />
         <OutputPicker v-model="outputDir" />
-      </section>
-
-      <section class="video-control-panel">
-        <div class="panel-heading">
-          <div>
-            <h3>转换参数</h3>
-            <p>{{ crfTone }} · {{ width || "原始" }}px</p>
-          </div>
-          <span v-if="busy" class="status-pill running">运行中</span>
-        </div>
 
         <div class="video-form-grid">
           <div class="field span-2">
@@ -125,7 +100,22 @@ async function run() {
         </div>
       </section>
 
-      <ResultPanel :result="result" :busy="busy" />
+      <aside class="media-tool-side">
+        <section class="output-summary">
+          <div class="section-title">
+            <h2>输出内容</h2>
+          </div>
+          <div class="output-summary-list">
+            <div v-for="item in outputItems" :key="item.name" class="video-output-item" :class="{ active: item.active }">
+              <i :class="item.icon" aria-hidden="true"></i>
+              <span>{{ item.name }}</span>
+              <small>{{ item.detail }}</small>
+            </div>
+          </div>
+        </section>
+
+        <ResultPanel :result="result" :busy="busy" />
+      </aside>
     </div>
   </section>
 </template>
