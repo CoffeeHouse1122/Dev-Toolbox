@@ -20,7 +20,8 @@ const fileNames = computed(() => props.modelValue.map((item) => item.split(/[\\/
 const previewUrl = computed(() => {
   const first = props.modelValue[0];
   if (!first || !props.preview) return "";
-  return encodeURI(`file:///${first.replace(/\\/g, "/")}`);
+  const url = `devtoolbox-file://preview/${encodeURIComponent(first)}`;
+  return props.preview === "video" ? `${url}#t=0.1` : url;
 });
 
 async function pickFiles() {

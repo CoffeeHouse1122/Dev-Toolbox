@@ -1,8 +1,29 @@
-import { app, BrowserWindow } from "electron";
+import { app, BrowserWindow, net, protocol } from "electron";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 import { registerIpc } from "./ipc";
 
 const isDev = Boolean(process.env.VITE_DEV_SERVER_URL);
+
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: "devtoolbox-file",
+    privileges: {
+      standard: true,
+      secure: true,
+      supportFetchAPI: true,
+      stream: true
+    }
+  }
+]);
+
+function registerPreviewProtocol() {
+  protocol.handle("devtoolbox-file", (request) => {
+    const url = new URL(request.url);
+    const filePath = decodeURIComponent(url.pathname.slice(1));
+    return net.fetch(pathToFileURL(filePath).toString());
+  });
+}
 
 function createWindow() {
   const win = new BrowserWindow({
@@ -29,6 +50,7 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
+  registerPreviewProtocol();
   registerIpc();
   createWindow();
 
@@ -44,4 +66,3 @@ app.on("window-all-closed", () => {
     app.quit();
   }
 });
-
