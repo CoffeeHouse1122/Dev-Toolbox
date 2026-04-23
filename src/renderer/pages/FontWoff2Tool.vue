@@ -19,7 +19,7 @@ async function run() {
   if (!canRun.value) return;
   busy.value = true;
   result.value = await window.devToolbox.convertFontWoff2({
-    inputPaths: input.value,
+    inputPaths: [...input.value],
     outputDir: outputDir.value,
     generateCss: generateCss.value,
     fontFamily: fontFamily.value || undefined
@@ -32,12 +32,12 @@ async function run() {
   <section class="tool-page">
     <div class="tool-header">
       <div>
-        <h2>WOFF2 Converter</h2>
-        <p>TTF, OTF, WOFF</p>
+        <h2>WOFF2 字体转换</h2>
+        <p>支持 TTF、OTF、WOFF、WOFF2</p>
       </div>
       <button type="button" class="primary-button" :disabled="!canRun" @click="run">
         <i class="ri-play-fill" aria-hidden="true"></i>
-        Convert
+        开始转换
       </button>
     </div>
 
@@ -45,19 +45,19 @@ async function run() {
       <div class="tool-main">
         <DropZone
           v-model="input"
-          title="Source fonts"
-          :filters="[{ name: 'Fonts', extensions: ['ttf', 'otf', 'woff', 'woff2'] }]"
+          title="源字体"
+          :filters="[{ name: '字体', extensions: ['ttf', 'otf', 'woff', 'woff2'] }]"
         />
         <OutputPicker v-model="outputDir" />
 
         <OptionGrid>
           <label class="field span-2">
-            <span>Font family</span>
-            <input v-model="fontFamily" placeholder="File name" />
+            <span>字体名称</span>
+            <input v-model="fontFamily" placeholder="默认使用文件名" />
           </label>
           <label class="check-row">
             <input v-model="generateCss" type="checkbox" />
-            <span>@font-face CSS</span>
+            <span>生成 @font-face CSS</span>
           </label>
         </OptionGrid>
 

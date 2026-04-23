@@ -8,19 +8,22 @@ import type {
   WebpOptions
 } from "../shared/types";
 
+function toPlain<T>(value: T): T {
+  return JSON.parse(JSON.stringify(value)) as T;
+}
+
 const api: DevToolboxApi = {
   selectFiles: (filters?: DialogFileFilter[], multiSelections = true) =>
-    ipcRenderer.invoke("dialog:select-files", filters, multiSelections),
+    ipcRenderer.invoke("dialog:select-files", filters ? toPlain(filters) : undefined, multiSelections),
   selectOutputDir: () => ipcRenderer.invoke("dialog:select-output-dir"),
-  convertFavicon: (options: FaviconOptions) => ipcRenderer.invoke("convert:favicon", options),
-  convertWebp: (options: WebpOptions) => ipcRenderer.invoke("convert:webp", options),
-  convertFontWoff2: (options: FontWoff2Options) => ipcRenderer.invoke("convert:font-woff2", options),
+  convertFavicon: (options: FaviconOptions) => ipcRenderer.invoke("convert:favicon", toPlain(options)),
+  convertWebp: (options: WebpOptions) => ipcRenderer.invoke("convert:webp", toPlain(options)),
+  convertFontWoff2: (options: FontWoff2Options) => ipcRenderer.invoke("convert:font-woff2", toPlain(options)),
   convertVideoBackground: (options: VideoBackgroundOptions) =>
-    ipcRenderer.invoke("convert:video-background", options),
+    ipcRenderer.invoke("convert:video-background", toPlain(options)),
   listHistory: (limit?: number) => ipcRenderer.invoke("history:list", limit),
   clearHistory: () => ipcRenderer.invoke("history:clear"),
   revealPath: (filePath: string) => ipcRenderer.invoke("shell:reveal-path", filePath)
 };
 
 contextBridge.exposeInMainWorld("devToolbox", api);
-

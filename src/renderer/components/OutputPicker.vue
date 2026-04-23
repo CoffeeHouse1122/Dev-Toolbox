@@ -18,10 +18,10 @@ async function pickDir() {
 <template>
   <div class="field-row">
     <label class="field grow">
-      <span>Output</span>
-      <input :value="modelValue" readonly placeholder="Select output directory" />
+      <span>输出目录</span>
+      <input :value="modelValue" readonly placeholder="请选择输出目录" />
     </label>
-    <button type="button" class="icon-button" title="Select output directory" @click="pickDir">
+    <button type="button" class="icon-button" title="选择输出目录" @click="pickDir">
       <i class="ri-folder-open-line" aria-hidden="true"></i>
     </button>
   </div>

@@ -16,10 +16,10 @@ const makePoster = ref(true);
 const busy = ref(false);
 const result = ref<ConversionResult | null>(null);
 const modeOptions = [
-  { label: "Background pack", value: "background-pack", icon: "ri-layout-masonry-line" },
-  { label: "MP4 only", value: "mp4", icon: "ri-file-video-line" },
-  { label: "WebM only", value: "webm", icon: "ri-film-line" },
-  { label: "HLS only", value: "hls", icon: "ri-route-line" }
+  { label: "背景视频完整包", value: "background-pack", icon: "ri-layout-masonry-line" },
+  { label: "仅 MP4", value: "mp4", icon: "ri-file-video-line" },
+  { label: "仅 WebM", value: "webm", icon: "ri-film-line" },
+  { label: "仅 HLS", value: "hls", icon: "ri-route-line" }
 ];
 
 const canRun = computed(() => input.value.length === 1 && outputDir.value && !busy.value);
@@ -43,12 +43,12 @@ async function run() {
   <section class="tool-page">
     <div class="tool-header">
       <div>
-        <h2>Background Video Pack</h2>
-        <p>MP4, WebM, HLS, TS</p>
+        <h2>背景视频兼容包</h2>
+        <p>生成 MP4、WebM、HLS 和 TS 切片</p>
       </div>
       <button type="button" class="primary-button" :disabled="!canRun" @click="run">
         <i class="ri-play-fill" aria-hidden="true"></i>
-        Convert
+        开始转换
       </button>
     </div>
 
@@ -56,19 +56,19 @@ async function run() {
       <div class="tool-main">
         <DropZone
           v-model="input"
-          title="Source video"
+          title="源视频"
           :multiple="false"
-          :filters="[{ name: 'Videos', extensions: ['mp4', 'webm', 'mov', 'mkv', 'avi'] }]"
+          :filters="[{ name: '视频', extensions: ['mp4', 'webm', 'mov', 'mkv', 'avi'] }]"
         />
         <OutputPicker v-model="outputDir" />
 
         <OptionGrid>
           <label class="field">
-            <span>Preset</span>
+            <span>预设</span>
             <SelectMenu v-model="mode" :options="modeOptions" />
           </label>
           <label class="field">
-            <span>Width</span>
+            <span>宽度</span>
             <input v-model.number="width" type="number" min="320" step="2" />
           </label>
           <label class="field">
@@ -78,7 +78,7 @@ async function run() {
           </label>
           <label class="check-row">
             <input v-model="makePoster" type="checkbox" />
-            <span>Poster</span>
+            <span>生成封面</span>
           </label>
         </OptionGrid>
       </div>

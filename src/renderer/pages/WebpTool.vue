@@ -30,7 +30,7 @@ async function run() {
   if (!canRun.value) return;
   busy.value = true;
   result.value = await window.devToolbox.convertWebp({
-    inputPaths: input.value,
+    inputPaths: [...input.value],
     outputDir: outputDir.value,
     outputFormat: outputFormat.value,
     quality: quality.value,
@@ -47,12 +47,12 @@ async function run() {
   <section class="tool-page">
     <div class="tool-header">
       <div>
-        <h2>Image Converter</h2>
-        <p>WebP, PNG, JPEG, AVIF</p>
+        <h2>图片格式转换</h2>
+        <p>支持 WebP、PNG、JPEG、AVIF</p>
       </div>
       <button type="button" class="primary-button" :disabled="!canRun" @click="run">
         <i class="ri-play-fill" aria-hidden="true"></i>
-        Convert
+        开始转换
       </button>
     </div>
 
@@ -60,36 +60,36 @@ async function run() {
       <div class="tool-main">
         <DropZone
           v-model="input"
-          title="Source images"
-          :filters="[{ name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'webp', 'avif', 'tiff'] }]"
+          title="源图片"
+          :filters="[{ name: '图片', extensions: ['png', 'jpg', 'jpeg', 'webp', 'avif', 'tiff'] }]"
         />
         <OutputPicker v-model="outputDir" />
 
         <OptionGrid>
           <label class="field">
-            <span>Format</span>
+            <span>目标格式</span>
             <SelectMenu v-model="outputFormat" :options="formatOptions" />
           </label>
           <label class="field">
-            <span>Quality</span>
+            <span>质量</span>
             <input v-model.number="quality" type="range" min="1" max="100" />
             <strong>{{ quality }}</strong>
           </label>
           <label class="field">
-            <span>Max width</span>
-            <input v-model.number="maxWidth" type="number" min="1" placeholder="Original" />
+            <span>最大宽度</span>
+            <input v-model.number="maxWidth" type="number" min="1" placeholder="保持原始" />
           </label>
           <label class="field">
-            <span>Max height</span>
-            <input v-model.number="maxHeight" type="number" min="1" placeholder="Original" />
+            <span>最大高度</span>
+            <input v-model.number="maxHeight" type="number" min="1" placeholder="保持原始" />
           </label>
           <label class="check-row">
             <input v-model="lossless" type="checkbox" />
-            <span>Lossless</span>
+            <span>无损压缩</span>
           </label>
           <label class="check-row">
             <input v-model="keepMetadata" type="checkbox" />
-            <span>Metadata</span>
+            <span>保留元数据</span>
           </label>
         </OptionGrid>
       </div>

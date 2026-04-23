@@ -27,7 +27,7 @@ async function run() {
   result.value = await window.devToolbox.convertFavicon({
     inputPath: input.value[0],
     outputDir: outputDir.value,
-    sizes: sizes.value,
+    sizes: [...sizes.value],
     includePng: includePng.value,
     includeManifest: includeManifest.value
   });
@@ -39,12 +39,12 @@ async function run() {
   <section class="tool-page">
     <div class="tool-header">
       <div>
-        <h2>Favicon Package</h2>
-        <p>ICO, PNG icons, manifest</p>
+        <h2>Favicon 图标包</h2>
+        <p>生成 ICO、PNG 图标和 manifest</p>
       </div>
       <button type="button" class="primary-button" :disabled="!canRun" @click="run">
         <i class="ri-play-fill" aria-hidden="true"></i>
-        Convert
+        开始转换
       </button>
     </div>
 
@@ -52,15 +52,15 @@ async function run() {
       <div class="tool-main">
         <DropZone
           v-model="input"
-          title="Source image"
+          title="源图片"
           :multiple="false"
-          :filters="[{ name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'webp', 'svg'] }]"
+          :filters="[{ name: '图片', extensions: ['png', 'jpg', 'jpeg', 'webp', 'svg'] }]"
         />
         <OutputPicker v-model="outputDir" />
 
         <OptionGrid>
           <label class="field span-2">
-            <span>Sizes</span>
+            <span>尺寸</span>
             <div class="size-grid">
               <button
                 v-for="size in availableSizes"
@@ -76,11 +76,11 @@ async function run() {
           </label>
           <label class="check-row">
             <input v-model="includePng" type="checkbox" />
-            <span>PNG files</span>
+            <span>生成 PNG 文件</span>
           </label>
           <label class="check-row">
             <input v-model="includeManifest" type="checkbox" />
-            <span>Manifest</span>
+            <span>生成 Manifest</span>
           </label>
         </OptionGrid>
       </div>

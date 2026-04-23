@@ -47,6 +47,6 @@ function onDrop(event: DragEvent) {
   >
     <span class="drop-icon"><i class="ri-upload-cloud-2-line" aria-hidden="true"></i></span>
     <span class="drop-title">{{ title }}</span>
-    <span class="drop-files">{{ fileNames || "No file selected" }}</span>
+    <span class="drop-files">{{ fileNames || "未选择文件" }}</span>
   </button>
 </template>
