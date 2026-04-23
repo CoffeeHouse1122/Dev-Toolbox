@@ -66,10 +66,10 @@ async function run() {
         <OutputPicker v-model="outputDir" />
 
         <OptionGrid>
-          <label class="field">
+          <div class="field">
             <span>目标格式</span>
             <SelectMenu v-model="outputFormat" :options="formatOptions" />
-          </label>
+          </div>
           <label class="field">
             <span>质量</span>
             <input v-model.number="quality" type="range" min="1" max="100" />

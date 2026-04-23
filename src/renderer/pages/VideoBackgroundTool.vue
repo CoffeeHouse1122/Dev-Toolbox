@@ -16,23 +16,19 @@ const busy = ref(false);
 const result = ref<ConversionResult | null>(null);
 
 const modeOptions = [
-  { label: "背景视频完整包", value: "background-pack", icon: "ri-layout-masonry-line" },
+  { label: "视频完整包", value: "background-pack", icon: "ri-layout-masonry-line" },
   { label: "仅 MP4", value: "mp4", icon: "ri-file-video-line" },
   { label: "仅 WebM", value: "webm", icon: "ri-film-line" },
   { label: "仅 HLS", value: "hls", icon: "ri-route-line" }
 ];
 
-const outputItems = computed(() => {
-  const base = [
-    { name: "MP4", detail: "background.mp4", icon: "ri-file-video-line", active: mode.value === "background-pack" || mode.value === "mp4" },
-    { name: "WebM", detail: "background.webm", icon: "ri-film-line", active: mode.value === "background-pack" || mode.value === "webm" },
-    { name: "HLS", detail: "index.m3u8 + .ts", icon: "ri-route-line", active: mode.value === "background-pack" || mode.value === "hls" },
-    { name: "封面", detail: "poster.png", icon: "ri-image-line", active: makePoster.value },
-    { name: "片段", detail: "HTML snippet", icon: "ri-code-s-slash-line", active: mode.value === "background-pack" }
-  ];
-
-  return base;
-});
+const outputItems = computed(() => [
+  { name: "MP4", detail: "background.mp4", icon: "ri-file-video-line", active: mode.value === "background-pack" || mode.value === "mp4" },
+  { name: "WebM", detail: "background.webm", icon: "ri-film-line", active: mode.value === "background-pack" || mode.value === "webm" },
+  { name: "HLS", detail: "index.m3u8 + .ts", icon: "ri-route-line", active: mode.value === "background-pack" || mode.value === "hls" },
+  { name: "封面", detail: "poster.png", icon: "ri-image-line", active: makePoster.value },
+  { name: "片段", detail: "HTML snippet", icon: "ri-code-s-slash-line", active: mode.value === "background-pack" }
+]);
 
 const selectedFileName = computed(() => input.value[0]?.split(/[\\/]/).pop() ?? "未选择视频");
 const canRun = computed(() => input.value.length === 1 && outputDir.value && !busy.value);
@@ -61,9 +57,9 @@ async function run() {
   <section class="video-page">
     <div class="video-hero">
       <div class="video-title">
-        <span class="eyebrow">移动端背景视频</span>
-        <h2>背景视频兼容包</h2>
-        <p>MP4、WebM、HLS、TS、封面与 HTML 片段</p>
+        <span class="eyebrow">移动端兼容</span>
+        <h2>视频转化</h2>
+        <p>生成 MP4、WebM、HLS、TS、封面与 HTML 片段</p>
       </div>
 
       <div class="video-hero-actions">
@@ -103,14 +99,14 @@ async function run() {
             <h3>转换参数</h3>
             <p>{{ crfTone }} · {{ width || "原始" }}px</p>
           </div>
-          <span class="status-pill running" v-if="busy">运行中</span>
+          <span v-if="busy" class="status-pill running">运行中</span>
         </div>
 
         <div class="video-form-grid">
-          <label class="field span-2">
+          <div class="field span-2">
             <span>输出预设</span>
             <SelectMenu v-model="mode" :options="modeOptions" />
-          </label>
+          </div>
           <label class="field">
             <span>宽度</span>
             <input v-model.number="width" type="number" min="320" step="2" />

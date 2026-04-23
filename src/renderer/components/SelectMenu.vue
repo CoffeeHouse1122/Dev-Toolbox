@@ -53,14 +53,14 @@ onBeforeUnmount(() => {
 <template>
   <div ref="root" class="select-menu">
     <span v-if="label" class="select-label">{{ label }}</span>
-    <button type="button" class="select-trigger" :aria-expanded="open" @click="open = !open">
+    <button type="button" class="select-trigger" :aria-expanded="open" @click.stop="open = !open">
       <span class="select-value">
         <i v-if="selected?.icon" :class="selected.icon" aria-hidden="true"></i>
         <span>{{ selected?.label }}</span>
       </span>
       <i class="ri-arrow-down-s-line" aria-hidden="true"></i>
     </button>
-    <div v-if="open" class="select-popover" role="listbox">
+    <div v-if="open" class="select-popover" role="listbox" @pointerdown.stop @click.stop>
       <button
         v-for="option in options"
         :key="option.value"
@@ -69,7 +69,7 @@ onBeforeUnmount(() => {
         :class="{ selected: option.value === modelValue }"
         role="option"
         :aria-selected="option.value === modelValue"
-        @click="choose(option.value)"
+        @click.stop="choose(option.value)"
       >
         <i v-if="option.icon" :class="option.icon" aria-hidden="true"></i>
         <span>{{ option.label }}</span>
@@ -78,4 +78,3 @@ onBeforeUnmount(() => {
     </div>
   </div>
 </template>
-

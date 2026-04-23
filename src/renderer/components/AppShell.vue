@@ -9,7 +9,7 @@ const tools = [
   { to: "/favicon", label: "图标生成", icon: "ri-star-smile-line" },
   { to: "/webp", label: "图片转换", icon: "ri-image-edit-line" },
   { to: "/woff2", label: "字体转换", icon: "ri-font-size-2" },
-  { to: "/video-background", label: "视频背景", icon: "ri-movie-2-line" },
+  { to: "/video-background", label: "视频转化", icon: "ri-movie-2-line" },
   { to: "/history", label: "历史记录", icon: "ri-history-line" },
   { to: "/settings", label: "设置", icon: "ri-settings-3-line" }
 ];
