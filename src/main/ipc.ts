@@ -3,8 +3,13 @@ import { z } from "zod";
 import { createHistoryService } from "./services/history.service";
 import { compressImages, createFaviconPackage, convertImages, resizeImages } from "./services/image.service";
 import { convertFontsToWoff2 } from "./services/font.service";
+import { subsetFont } from "./services/font-tools.service";
 import { convertVideoAnimation, createVideoBackgroundPack, removeVideoAudio } from "./services/video.service";
+import { convertAudio } from "./services/audio.service";
 import { base64ToImage, exportMarkdown, imageToBase64, renameFiles } from "./services/utility.service";
+import { generateQrCode } from "./services/qr.service";
+import { getIpInfo } from "./services/network.service";
+import { generateAssetManifest } from "./services/asset-manifest.service";
 import {
   connectSharedDisk,
   disconnectSharedDisk,
@@ -14,11 +19,15 @@ import {
 } from "./services/shared-disk.service";
 import type {
   DialogFileFilter,
+  AssetManifestOptions,
+  AudioConvertOptions,
   FaviconOptions,
+  FontSubsetOptions,
   FontWoff2Options,
   ImageCompressOptions,
   ImageResizeOptions,
   MarkdownExportOptions,
+  QrCodeOptions,
   RenameOptions,
   SharedDiskConfig,
   VideoBackgroundOptions,
@@ -69,6 +78,15 @@ const fontSchema = z.object({
   fontFamily: z.string().optional()
 });
 
+const fontSubsetSchema = z.object({
+  inputPath: z.string().min(1),
+  outputDir: z.string().min(1),
+  text: z.string().min(1),
+  outputFormat: z.enum(["ttf", "woff2"]),
+  fontFamily: z.string().optional(),
+  generateCss: z.boolean()
+});
+
 const videoSchema = z.object({
   inputPath: z.string().min(1),
   outputDir: z.string().min(1),
@@ -93,6 +111,14 @@ const videoMuteSchema = z.object({
   outputDir: z.string().min(1)
 });
 
+const audioConvertSchema = z.object({
+  inputPaths: z.array(z.string().min(1)).min(1),
+  outputDir: z.string().min(1),
+  outputFormat: z.enum(["mp3", "wav", "aac", "ogg", "flac", "m4a"]),
+  bitrate: z.string().optional(),
+  sampleRate: z.number().int().positive().optional()
+});
+
 const markdownExportSchema = z.object({
   markdown: z.string(),
   outputDir: z.string().min(1),
@@ -106,6 +132,24 @@ const renameSchema = z.object({
   start: z.number().int().min(0),
   replaceFrom: z.string().optional(),
   replaceTo: z.string().optional()
+});
+
+const qrCodeSchema = z.object({
+  text: z.string().min(1),
+  outputDir: z.string().min(1),
+  fileName: z.string().min(1),
+  format: z.enum(["png", "svg"]),
+  size: z.number().int().min(128).max(2048),
+  margin: z.number().int().min(0).max(12),
+  darkColor: z.string().min(4),
+  lightColor: z.string().min(4)
+});
+
+const assetManifestSchema = z.object({
+  sourceDir: z.string().min(1),
+  outputDir: z.string().min(1),
+  baseName: z.string().min(1),
+  includeHash: z.boolean()
 });
 
 const sharedDiskSchema = z.object({
@@ -165,6 +209,11 @@ export function registerIpc() {
     return convertFontsToWoff2(options, history);
   });
 
+  ipcMain.handle("convert:font-subset", async (_event, raw: FontSubsetOptions) => {
+    const options = fontSubsetSchema.parse(raw);
+    return subsetFont(options, history);
+  });
+
   ipcMain.handle("convert:video-background", async (_event, raw: VideoBackgroundOptions) => {
     const options = videoSchema.parse(raw);
     return createVideoBackgroundPack(options, history);
@@ -180,6 +229,11 @@ export function registerIpc() {
     return removeVideoAudio(options, history);
   });
 
+  ipcMain.handle("convert:audio", async (_event, raw: AudioConvertOptions) => {
+    const options = audioConvertSchema.parse(raw);
+    return convertAudio(options, history);
+  });
+
   ipcMain.handle("convert:markdown-export", async (_event, raw: MarkdownExportOptions) => {
     const options = markdownExportSchema.parse(raw);
     return exportMarkdown(options, history);
@@ -188,6 +242,20 @@ export function registerIpc() {
   ipcMain.handle("files:rename", async (_event, raw: RenameOptions) => {
     const options = renameSchema.parse(raw);
     return renameFiles(options, history);
+  });
+
+  ipcMain.handle("qr:generate", async (_event, raw: QrCodeOptions) => {
+    const options = qrCodeSchema.parse(raw);
+    return generateQrCode(options, history);
+  });
+
+  ipcMain.handle("network:ip-info", async () => {
+    return getIpInfo();
+  });
+
+  ipcMain.handle("assets:manifest", async (_event, raw: AssetManifestOptions) => {
+    const options = assetManifestSchema.parse(raw);
+    return generateAssetManifest(options, history);
   });
 
   ipcMain.handle("base64:image-to-base64", async (_event, inputPath: string) => {

@@ -14,6 +14,15 @@ import RenameTool from "../pages/RenameTool.vue";
 import ImageCompressTool from "../pages/ImageCompressTool.vue";
 import ImageResizeTool from "../pages/ImageResizeTool.vue";
 import SharedDiskTool from "../pages/SharedDiskTool.vue";
+import IpQueryTool from "../pages/IpQueryTool.vue";
+import QrCodeTool from "../pages/QrCodeTool.vue";
+import AudioConvertTool from "../pages/AudioConvertTool.vue";
+import RegexTesterTool from "../pages/RegexTesterTool.vue";
+import FontPreviewTool from "../pages/FontPreviewTool.vue";
+import FontSubsetTool from "../pages/FontSubsetTool.vue";
+import FontFaceGeneratorTool from "../pages/FontFaceGeneratorTool.vue";
+import CssVariablesTool from "../pages/CssVariablesTool.vue";
+import AssetManifestTool from "../pages/AssetManifestTool.vue";
 import HistoryPage from "../pages/HistoryPage.vue";
 import SettingsPage from "../pages/SettingsPage.vue";
 
@@ -36,6 +45,15 @@ export const router = createRouter({
     { path: "/shared-disk", component: SharedDiskTool },
     { path: "/image-compress", component: ImageCompressTool },
     { path: "/image-resize", component: ImageResizeTool },
+    { path: "/ip-query", component: IpQueryTool },
+    { path: "/qr-code", component: QrCodeTool },
+    { path: "/audio-convert", component: AudioConvertTool },
+    { path: "/regex-tester", component: RegexTesterTool },
+    { path: "/font-preview", component: FontPreviewTool },
+    { path: "/font-subset", component: FontSubsetTool },
+    { path: "/font-face", component: FontFaceGeneratorTool },
+    { path: "/css-variables", component: CssVariablesTool },
+    { path: "/asset-manifest", component: AssetManifestTool },
     { path: "/history", component: HistoryPage },
     { path: "/settings", component: SettingsPage }
   ]

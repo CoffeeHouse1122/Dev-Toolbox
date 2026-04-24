@@ -69,7 +69,7 @@ body {
 
 button,
 input,
-select {
+textarea {
   font: inherit;
 }
 
@@ -1211,6 +1211,119 @@ input,
   white-space: nowrap;
 }
 
+.metric-card,
+.info-panel,
+.qr-preview,
+.match-item {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-subtle);
+}
+
+.metric-card {
+  display: grid;
+  gap: 8px;
+  padding: 16px;
+}
+
+.metric-card span,
+.metric-card small,
+.info-row span,
+.info-row small,
+.match-item span,
+.match-item small {
+  color: var(--muted);
+}
+
+.metric-card strong {
+  overflow-wrap: anywhere;
+  font-size: 24px;
+}
+
+.info-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.info-panel {
+  display: grid;
+  align-content: start;
+  gap: 12px;
+  padding: 14px;
+}
+
+.info-panel h3 {
+  margin: 0;
+  font-size: 15px;
+}
+
+.info-list,
+.match-list {
+  display: grid;
+  gap: 8px;
+}
+
+.info-row {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  padding: 9px;
+  border-radius: 6px;
+  background: var(--surface);
+}
+
+.info-row strong {
+  overflow-wrap: anywhere;
+  font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+  font-size: 13px;
+}
+
+.qr-preview {
+  display: grid;
+  place-items: center;
+  min-height: 220px;
+  padding: 16px;
+}
+
+.qr-preview img {
+  width: min(260px, 100%);
+  height: auto;
+  border-radius: 6px;
+}
+
+.match-item {
+  display: grid;
+  gap: 5px;
+  padding: 10px;
+}
+
+.match-item strong,
+.code-output {
+  font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+}
+
+.match-item strong {
+  overflow-wrap: anywhere;
+}
+
+.font-preview-panel {
+  min-height: 420px;
+}
+
+.font-preview-box {
+  display: flex;
+  align-items: center;
+  min-height: 300px;
+  overflow-wrap: anywhere;
+  line-height: 1.35;
+}
+
+.code-output {
+  min-height: 280px;
+  font-size: 13px;
+}
+
 @media (max-width: 980px) {
   .app-shell {
     grid-template-columns: 1fr;
@@ -1224,6 +1337,10 @@ input,
 
   .video-output-strip {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .info-grid {
+    grid-template-columns: 1fr;
   }
 }
 

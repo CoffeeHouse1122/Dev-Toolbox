@@ -9,7 +9,11 @@ export type ToolType =
   | "markdown-export"
   | "batch-rename"
   | "image-compress"
-  | "image-resize";
+  | "image-resize"
+  | "qr-code"
+  | "audio-convert"
+  | "font-subset"
+  | "asset-manifest";
 
 export type TaskStatus = "success" | "error";
 
@@ -109,6 +113,14 @@ export interface VideoMuteOptions {
   outputDir: string;
 }
 
+export interface AudioConvertOptions {
+  inputPaths: string[];
+  outputDir: string;
+  outputFormat: "mp3" | "wav" | "aac" | "ogg" | "flac" | "m4a";
+  bitrate?: string;
+  sampleRate?: number;
+}
+
 export interface MarkdownExportOptions {
   markdown: string;
   outputDir: string;
@@ -122,6 +134,47 @@ export interface RenameOptions {
   start: number;
   replaceFrom?: string;
   replaceTo?: string;
+}
+
+export interface QrCodeOptions {
+  text: string;
+  outputDir: string;
+  fileName: string;
+  format: "png" | "svg";
+  size: number;
+  margin: number;
+  darkColor: string;
+  lightColor: string;
+}
+
+export interface IpAddressItem {
+  name: string;
+  family: "IPv4" | "IPv6";
+  address: string;
+  internal: boolean;
+  mac: string;
+}
+
+export interface IpInfo {
+  internal: IpAddressItem[];
+  externalIp: string;
+  externalError?: string;
+}
+
+export interface FontSubsetOptions {
+  inputPath: string;
+  outputDir: string;
+  text: string;
+  outputFormat: "ttf" | "woff2";
+  fontFamily?: string;
+  generateCss: boolean;
+}
+
+export interface AssetManifestOptions {
+  sourceDir: string;
+  outputDir: string;
+  baseName: string;
+  includeHash: boolean;
 }
 
 export interface SharedDiskConfig {
@@ -154,11 +207,16 @@ export interface DevToolboxApi {
   compressImages(options: ImageCompressOptions): Promise<ConversionResult>;
   resizeImages(options: ImageResizeOptions): Promise<ConversionResult>;
   convertFontWoff2(options: FontWoff2Options): Promise<ConversionResult>;
+  subsetFont(options: FontSubsetOptions): Promise<ConversionResult>;
   convertVideoBackground(options: VideoBackgroundOptions): Promise<ConversionResult>;
   convertVideoAnimation(options: VideoAnimationOptions): Promise<ConversionResult>;
   removeVideoAudio(options: VideoMuteOptions): Promise<ConversionResult>;
+  convertAudio(options: AudioConvertOptions): Promise<ConversionResult>;
   exportMarkdown(options: MarkdownExportOptions): Promise<ConversionResult>;
   renameFiles(options: RenameOptions): Promise<ConversionResult>;
+  generateQrCode(options: QrCodeOptions): Promise<ConversionResult>;
+  getIpInfo(): Promise<IpInfo>;
+  generateAssetManifest(options: AssetManifestOptions): Promise<ConversionResult>;
   loadSharedDiskConfig(): Promise<SharedDiskConfig>;
   saveSharedDiskConfig(config: SharedDiskConfig): Promise<SharedDiskConfig>;
   connectSharedDisk(config: SharedDiskConfig): Promise<SharedDiskConnectResult>;
