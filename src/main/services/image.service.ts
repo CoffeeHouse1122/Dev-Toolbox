@@ -2,7 +2,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import sharp from "sharp";
 import pngToIco from "png-to-ico";
-import type { ConversionResult, FaviconOptions, WebpOptions } from "../../shared/types";
+import type { ConversionResult, FaviconOptions, ImageCompressOptions, ImageResizeOptions, WebpOptions } from "../../shared/types";
 import type { HistoryService } from "./history.service";
 import { ensureDir, safeBaseName, uniqueId, writeTextFile } from "./file-utils";
 
@@ -130,6 +130,113 @@ export async function convertImages(options: WebpOptions, history: HistoryServic
       await pipeline.toFile(output);
       files.push(output);
       logs.push(`Converted ${path.basename(inputPath)} to ${path.basename(output)}.`);
+    }
+
+    await history.finishTask(id, "success");
+    return { id, status: "success", files, outputPath: options.outputDir, logs };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    await history.finishTask(id, "error", message);
+    return { id, status: "error", files, outputPath: options.outputDir, logs, errorMessage: message };
+  }
+}
+
+function outputExtension(format: string) {
+  return format === "jpeg" ? "jpg" : format;
+}
+
+async function writeByInputFormat(inputPath: string, outputPath: string, quality: number, keepMetadata = false) {
+  const metadata = await sharp(inputPath).metadata();
+  const format = metadata.format ?? path.extname(inputPath).slice(1).toLowerCase();
+  let pipeline = sharp(inputPath, { limitInputPixels: false }).rotate();
+
+  if (keepMetadata) {
+    pipeline = pipeline.withMetadata();
+  }
+
+  if (format === "png") {
+    pipeline = pipeline.png({ compressionLevel: 9, quality });
+  } else if (format === "jpg" || format === "jpeg") {
+    pipeline = pipeline.jpeg({ quality, mozjpeg: true });
+  } else if (format === "webp") {
+    pipeline = pipeline.webp({ quality });
+  } else if (format === "avif") {
+    pipeline = pipeline.avif({ quality });
+  } else {
+    pipeline = pipeline.webp({ quality });
+  }
+
+  await pipeline.toFile(outputPath);
+}
+
+export async function compressImages(options: ImageCompressOptions, history: HistoryService): Promise<ConversionResult> {
+  const id = uniqueId("image-compress");
+  const logs: string[] = [];
+  const files: string[] = [];
+
+  await history.startTask({
+    id,
+    toolType: "image-compress",
+    sourcePath: options.inputPaths.join(";"),
+    outputPath: options.outputDir,
+    options
+  });
+
+  try {
+    await ensureDir(options.outputDir);
+
+    for (const inputPath of options.inputPaths) {
+      const metadata = await sharp(inputPath).metadata();
+      const detectedFormat = metadata.format ?? (path.extname(inputPath).slice(1).toLowerCase() || "webp");
+      const ext = outputExtension(detectedFormat);
+      const output = path.join(options.outputDir, `${safeBaseName(inputPath)}-compressed.${ext}`);
+      await writeByInputFormat(inputPath, output, options.quality, options.keepMetadata);
+      files.push(output);
+      logs.push(`Compressed ${path.basename(inputPath)}.`);
+    }
+
+    await history.finishTask(id, "success");
+    return { id, status: "success", files, outputPath: options.outputDir, logs };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    await history.finishTask(id, "error", message);
+    return { id, status: "error", files, outputPath: options.outputDir, logs, errorMessage: message };
+  }
+}
+
+export async function resizeImages(options: ImageResizeOptions, history: HistoryService): Promise<ConversionResult> {
+  const id = uniqueId("image-resize");
+  const logs: string[] = [];
+  const files: string[] = [];
+
+  await history.startTask({
+    id,
+    toolType: "image-resize",
+    sourcePath: options.inputPaths.join(";"),
+    outputPath: options.outputDir,
+    options
+  });
+
+  try {
+    await ensureDir(options.outputDir);
+
+    for (const inputPath of options.inputPaths) {
+      const metadata = await sharp(inputPath).metadata();
+      const detectedFormat = metadata.format ?? (path.extname(inputPath).slice(1).toLowerCase() || "png");
+      const ext = outputExtension(detectedFormat);
+      const baseWidth = metadata.width ?? options.width;
+      const baseHeight = metadata.height ?? options.height;
+      const width = options.mode === "scale" && baseWidth ? Math.max(1, Math.round(baseWidth * ((options.scale ?? 100) / 100))) : options.width;
+      const height = options.mode === "scale" && baseHeight ? Math.max(1, Math.round(baseHeight * ((options.scale ?? 100) / 100))) : options.height;
+      const output = path.join(options.outputDir, `${safeBaseName(inputPath)}-resized.${ext}`);
+
+      await sharp(inputPath, { limitInputPixels: false })
+        .rotate()
+        .resize({ width, height, fit: "inside", withoutEnlargement: false })
+        .toFile(output);
+
+      files.push(output);
+      logs.push(`Resized ${path.basename(inputPath)}.`);
     }
 
     await history.finishTask(id, "success");

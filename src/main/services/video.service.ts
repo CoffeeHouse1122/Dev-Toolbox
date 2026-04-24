@@ -2,7 +2,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { spawn } from "node:child_process";
 import ffmpegPath from "ffmpeg-static";
-import type { ConversionResult, VideoBackgroundOptions } from "../../shared/types";
+import type { ConversionResult, VideoAnimationOptions, VideoBackgroundOptions, VideoMuteOptions } from "../../shared/types";
 import type { HistoryService } from "./history.service";
 import { ensureDir, uniqueId, writeTextFile } from "./file-utils";
 
@@ -50,6 +50,17 @@ async function runFfmpeg(args: string[], logs: string[]): Promise<void> {
 
 function scaleArgs(width?: number) {
   return width ? ["-vf", `scale=${width}:-2`] : [];
+}
+
+function seekArgs(startSeconds?: number, durationSeconds?: number) {
+  const args: string[] = [];
+  if (startSeconds && startSeconds > 0) {
+    args.push("-ss", String(startSeconds));
+  }
+  if (durationSeconds && durationSeconds > 0) {
+    args.push("-t", String(durationSeconds));
+  }
+  return args;
 }
 
 async function writeSnippet(outputDir: string, files: string[]) {
@@ -179,6 +190,92 @@ export async function createVideoBackgroundPack(
 
     if (options.mode === "background-pack") {
       await writeSnippet(options.outputDir, files);
+    }
+
+    await history.finishTask(id, "success");
+    return { id, status: "success", files, outputPath: options.outputDir, logs };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    await history.finishTask(id, "error", message);
+    return { id, status: "error", files, outputPath: options.outputDir, logs, errorMessage: message };
+  }
+}
+
+export async function convertVideoAnimation(
+  options: VideoAnimationOptions,
+  history: HistoryService
+): Promise<ConversionResult> {
+  const id = uniqueId("video-animation");
+  const logs: string[] = [];
+  const files: string[] = [];
+
+  await history.startTask({
+    id,
+    toolType: "video-animation",
+    sourcePath: options.inputPath,
+    outputPath: options.outputDir,
+    options
+  });
+
+  try {
+    await ensureDir(options.outputDir);
+    const output = path.join(options.outputDir, `${path.basename(options.inputPath, path.extname(options.inputPath))}.${options.outputFormat}`);
+    const vf = [`fps=${options.fps}`, `scale=${options.width ?? -1}:-2:flags=lanczos`].join(",");
+
+    if (options.outputFormat === "gif") {
+      await runFfmpeg(["-y", ...seekArgs(options.startSeconds, options.durationSeconds), "-i", options.inputPath, "-vf", vf, output], logs);
+    } else {
+      await runFfmpeg(
+        [
+          "-y",
+          ...seekArgs(options.startSeconds, options.durationSeconds),
+          "-i",
+          options.inputPath,
+          "-vf",
+          vf,
+          "-an",
+          "-loop",
+          "0",
+          "-c:v",
+          "libwebp",
+          "-quality",
+          "82",
+          output
+        ],
+        logs
+      );
+    }
+
+    files.push(output);
+    await history.finishTask(id, "success");
+    return { id, status: "success", files, outputPath: options.outputDir, logs };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    await history.finishTask(id, "error", message);
+    return { id, status: "error", files, outputPath: options.outputDir, logs, errorMessage: message };
+  }
+}
+
+export async function removeVideoAudio(options: VideoMuteOptions, history: HistoryService): Promise<ConversionResult> {
+  const id = uniqueId("video-mute");
+  const logs: string[] = [];
+  const files: string[] = [];
+
+  await history.startTask({
+    id,
+    toolType: "video-mute",
+    sourcePath: options.inputPaths.join(";"),
+    outputPath: options.outputDir,
+    options
+  });
+
+  try {
+    await ensureDir(options.outputDir);
+
+    for (const inputPath of options.inputPaths) {
+      const output = path.join(options.outputDir, `${path.basename(inputPath, path.extname(inputPath))}-muted${path.extname(inputPath) || ".mp4"}`);
+      await runFfmpeg(["-y", "-i", inputPath, "-c", "copy", "-an", output], logs);
+      files.push(output);
     }
 
     await history.finishTask(id, "success");
