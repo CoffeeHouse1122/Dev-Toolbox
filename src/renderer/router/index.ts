@@ -13,6 +13,7 @@ import UuidTool from "../pages/UuidTool.vue";
 import RenameTool from "../pages/RenameTool.vue";
 import ImageCompressTool from "../pages/ImageCompressTool.vue";
 import ImageResizeTool from "../pages/ImageResizeTool.vue";
+import SharedDiskTool from "../pages/SharedDiskTool.vue";
 import HistoryPage from "../pages/HistoryPage.vue";
 import SettingsPage from "../pages/SettingsPage.vue";
 
@@ -32,6 +33,7 @@ export const router = createRouter({
     { path: "/timestamp", component: TimestampTool },
     { path: "/uuid", component: UuidTool },
     { path: "/rename", component: RenameTool },
+    { path: "/shared-disk", component: SharedDiskTool },
     { path: "/image-compress", component: ImageCompressTool },
     { path: "/image-resize", component: ImageResizeTool },
     { path: "/history", component: HistoryPage },

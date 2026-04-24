@@ -124,6 +124,22 @@ export interface RenameOptions {
   replaceTo?: string;
 }
 
+export interface SharedDiskConfig {
+  url: string;
+  username: string;
+  password: string;
+  basePath: string;
+  defaultDirectory: string;
+  persistent: boolean;
+}
+
+export interface SharedDiskConnectResult {
+  shareRoot: string;
+  baseUncPath: string;
+  defaultDirectory: string;
+  message: string;
+}
+
 export interface Base64ImageResult {
   mimeType: string;
   base64: string;
@@ -143,6 +159,11 @@ export interface DevToolboxApi {
   removeVideoAudio(options: VideoMuteOptions): Promise<ConversionResult>;
   exportMarkdown(options: MarkdownExportOptions): Promise<ConversionResult>;
   renameFiles(options: RenameOptions): Promise<ConversionResult>;
+  loadSharedDiskConfig(): Promise<SharedDiskConfig>;
+  saveSharedDiskConfig(config: SharedDiskConfig): Promise<SharedDiskConfig>;
+  connectSharedDisk(config: SharedDiskConfig): Promise<SharedDiskConnectResult>;
+  disconnectSharedDisk(config: SharedDiskConfig): Promise<SharedDiskConnectResult>;
+  openSharedDiskDirectory(targetPath: string): Promise<string>;
   imageToBase64(inputPath: string): Promise<Base64ImageResult>;
   base64ToImage(data: string, outputDir: string, fileName: string): Promise<ConversionResult>;
   listHistory(limit?: number): Promise<ConversionRecord[]>;

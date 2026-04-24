@@ -5,6 +5,13 @@ import { compressImages, createFaviconPackage, convertImages, resizeImages } fro
 import { convertFontsToWoff2 } from "./services/font.service";
 import { convertVideoAnimation, createVideoBackgroundPack, removeVideoAudio } from "./services/video.service";
 import { base64ToImage, exportMarkdown, imageToBase64, renameFiles } from "./services/utility.service";
+import {
+  connectSharedDisk,
+  disconnectSharedDisk,
+  loadSharedDiskConfig,
+  openSharedDiskDirectory,
+  saveSharedDiskConfig
+} from "./services/shared-disk.service";
 import type {
   DialogFileFilter,
   FaviconOptions,
@@ -13,6 +20,7 @@ import type {
   ImageResizeOptions,
   MarkdownExportOptions,
   RenameOptions,
+  SharedDiskConfig,
   VideoBackgroundOptions,
   VideoAnimationOptions,
   VideoMuteOptions,
@@ -100,6 +108,15 @@ const renameSchema = z.object({
   replaceTo: z.string().optional()
 });
 
+const sharedDiskSchema = z.object({
+  url: z.string().min(1),
+  username: z.string(),
+  password: z.string(),
+  basePath: z.string().min(1),
+  defaultDirectory: z.string(),
+  persistent: z.boolean()
+});
+
 export function registerIpc() {
   const history = createHistoryService();
 
@@ -179,6 +196,29 @@ export function registerIpc() {
 
   ipcMain.handle("base64:base64-to-image", async (_event, data: string, outputDir: string, fileName: string) => {
     return base64ToImage(data, outputDir, fileName);
+  });
+
+  ipcMain.handle("shared-disk:load", async () => {
+    return loadSharedDiskConfig();
+  });
+
+  ipcMain.handle("shared-disk:save", async (_event, raw: SharedDiskConfig) => {
+    const options = sharedDiskSchema.parse(raw);
+    return saveSharedDiskConfig(options);
+  });
+
+  ipcMain.handle("shared-disk:connect", async (_event, raw: SharedDiskConfig) => {
+    const options = sharedDiskSchema.parse(raw);
+    return connectSharedDisk(options);
+  });
+
+  ipcMain.handle("shared-disk:disconnect", async (_event, raw: SharedDiskConfig) => {
+    const options = sharedDiskSchema.parse(raw);
+    return disconnectSharedDisk(options);
+  });
+
+  ipcMain.handle("shared-disk:open", async (_event, targetPath: string) => {
+    return openSharedDiskDirectory(targetPath);
   });
 
   ipcMain.handle("history:list", async (_event, limit?: number) => {
