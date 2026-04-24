@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
-import type { SharedDiskConfig, SharedDiskConnectResult } from "../../shared/types";
+import { computed, onBeforeUnmount, onMounted, ref } from "vue";
+import type { SharedDiskConfig, SharedDiskConnectResult, SharedDiskStatus } from "../../shared/types";
 
 const config = ref<SharedDiskConfig>({
   url: "http://10.0.15.5:5000",
@@ -13,6 +13,8 @@ const config = ref<SharedDiskConfig>({
 const busy = ref(false);
 const status = ref("");
 const lastResult = ref<SharedDiskConnectResult | null>(null);
+const diskStatus = ref<SharedDiskStatus>({ connected: false, shareRoot: "", message: "未检查" });
+let pollTimer: ReturnType<typeof setInterval> | null = null;
 
 const canConnect = computed(() => config.value.url && config.value.basePath && config.value.username && config.value.password);
 
@@ -29,6 +31,19 @@ function plainConfig(): SharedDiskConfig {
 
 async function loadConfig() {
   config.value = await window.devToolbox.loadSharedDiskConfig();
+  await refreshStatus();
+}
+
+async function refreshStatus() {
+  if (!config.value.url || !config.value.basePath) {
+    diskStatus.value = { connected: false, shareRoot: "", message: "未配置共享路径" };
+    return;
+  }
+  try {
+    diskStatus.value = await window.devToolbox.getSharedDiskStatus(plainConfig());
+  } catch (error) {
+    diskStatus.value = { connected: false, shareRoot: "", message: error instanceof Error ? error.message : String(error) };
+  }
 }
 
 async function saveConfig() {
@@ -49,6 +64,7 @@ async function connect() {
   try {
     lastResult.value = await window.devToolbox.connectSharedDisk(plainConfig());
     status.value = lastResult.value.message;
+    await refreshStatus();
   } catch (error) {
     status.value = error instanceof Error ? error.message : String(error);
   } finally {
@@ -61,6 +77,7 @@ async function disconnect() {
   try {
     lastResult.value = await window.devToolbox.disconnectSharedDisk(plainConfig());
     status.value = lastResult.value.message;
+    await refreshStatus();
   } catch (error) {
     status.value = error instanceof Error ? error.message : String(error);
   } finally {
@@ -82,7 +99,14 @@ async function openDefaultDirectory() {
   }
 }
 
-onMounted(loadConfig);
+onMounted(() => {
+  void loadConfig();
+  pollTimer = setInterval(refreshStatus, 6000);
+});
+
+onBeforeUnmount(() => {
+  if (pollTimer) clearInterval(pollTimer);
+});
 </script>
 
 <template>
@@ -137,20 +161,30 @@ onMounted(loadConfig);
       <aside class="result-panel">
         <div class="section-title">
           <h2>连接状态</h2>
-          <span v-if="busy" class="status-pill running">运行中</span>
+          <span
+            class="status-pill"
+            :class="{ success: diskStatus.connected, error: !diskStatus.connected && !busy, running: busy }"
+          >{{ busy ? "运行中" : diskStatus.connected ? "已连接" : "未连接" }}</span>
         </div>
         <div class="result-content">
-          <p class="empty-state">{{ status || "尚未连接" }}</p>
-          <div v-if="lastResult" class="file-list">
+          <p class="empty-state">{{ diskStatus.message }}</p>
+          <p v-if="status" class="empty-state">{{ status }}</p>
+          <div v-if="lastResult || diskStatus.shareRoot" class="file-list">
             <button type="button" class="file-item" @click="openDefaultDirectory">
               <i class="ri-folder-open-line" aria-hidden="true"></i>
-              <span>{{ config.defaultDirectory || lastResult.baseUncPath }}</span>
+              <span>{{ config.defaultDirectory || lastResult?.baseUncPath || diskStatus.shareRoot }}</span>
             </button>
           </div>
-          <button type="button" class="secondary-button" :disabled="busy" @click="disconnect">
-            <i class="ri-logout-box-line" aria-hidden="true"></i>
-            断开连接
-          </button>
+          <div style="display: flex; gap: 8px;">
+            <button type="button" class="secondary-button" :disabled="busy" @click="refreshStatus">
+              <i class="ri-refresh-line" aria-hidden="true"></i>
+              刷新状态
+            </button>
+            <button type="button" class="secondary-button" :disabled="busy" @click="disconnect">
+              <i class="ri-logout-box-line" aria-hidden="true"></i>
+              断开连接
+            </button>
+          </div>
         </div>
       </aside>
     </div>

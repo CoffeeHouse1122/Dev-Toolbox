@@ -95,6 +95,16 @@ function removeLink(id: string) {
   status.value = target ? `已删除：${target.title}` : "已删除。";
 }
 
+function moveLink(id: string, direction: -1 | 1) {
+  const index = links.value.findIndex((item) => item.id === id);
+  const next = index + direction;
+  if (index < 0 || next < 0 || next >= links.value.length) return;
+  const copy = [...links.value];
+  const [item] = copy.splice(index, 1);
+  copy.splice(next, 0, item);
+  links.value = copy;
+}
+
 async function openLink(url: string) {
   await window.devToolbox.openExternal(normalizeUrl(url));
 }
@@ -209,6 +219,12 @@ watch(
             <button type="button" class="primary-button" @click="openLink(item.url)">
               <i class="ri-external-link-line" aria-hidden="true"></i>
               打开
+            </button>
+            <button type="button" class="icon-button" title="上移" @click="moveLink(item.id, -1)">
+              <i class="ri-arrow-up-s-line" aria-hidden="true"></i>
+            </button>
+            <button type="button" class="icon-button" title="下移" @click="moveLink(item.id, 1)">
+              <i class="ri-arrow-down-s-line" aria-hidden="true"></i>
             </button>
             <button type="button" class="icon-button" title="编辑" @click="openEdit(item)">
               <i class="ri-edit-line" aria-hidden="true"></i>

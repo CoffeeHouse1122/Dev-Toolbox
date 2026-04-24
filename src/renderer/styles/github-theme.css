@@ -139,6 +139,53 @@ button {
   gap: 4px;
 }
 
+.nav-group-head {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  margin: 0;
+  padding: 6px 10px;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  text-align: left;
+  cursor: pointer;
+  border-radius: 6px;
+}
+
+.nav-group-head:hover {
+  background: var(--surface-subtle);
+  color: var(--text);
+}
+
+.nav-group-chevron {
+  font-size: 14px;
+  text-align: center;
+}
+
+.nav-group-count {
+  display: inline-grid;
+  place-items: center;
+  min-width: 22px;
+  height: 16px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--surface-subtle);
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.nav-group-items {
+  display: grid;
+  gap: 2px;
+}
+
 .nav-group h2 {
   margin: 0;
   padding: 0 10px 4px;
@@ -1955,7 +2002,84 @@ input[type="range"]:focus {
   }
 }
 
-.app-shell.editing-nav { grid-template-columns: 320px minmax(0, 1fr); }
+.app-shell.editing-nav { grid-template-columns: 232px minmax(0, 1fr); }
+
+/* ===== Nav editor modal layout ===== */
+.dt-modal.nav-editor-modal {
+  width: min(820px, 100%);
+  max-height: min(86vh, 800px);
+}
+
+.nav-editor-modal-body {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  overflow: auto;
+}
+
+.nav-editor-modal-body .nav-editor-group {
+  padding: 12px;
+  background: var(--surface-subtle);
+  border: 1px solid var(--border);
+}
+
+.nav-editor-modal-body .nav-editor-group-head {
+  display: grid;
+  grid-template-columns: 18px auto minmax(0, 1fr) 28px 28px;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 4px;
+  margin-bottom: 8px;
+  border-bottom: 2px solid var(--accent);
+  background: color-mix(in srgb, var(--accent) 6%, var(--surface));
+  border-radius: 6px;
+}
+
+.nav-editor-modal-body .nav-editor-group-head input {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+  background: var(--surface);
+}
+
+.group-badge {
+  display: inline-grid;
+  place-items: center;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.nav-editor-modal-body .nav-editor-tools {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.nav-editor-modal-body .nav-editor-tool {
+  display: grid;
+  grid-template-columns: 18px 18px 22px minmax(0, 1fr) 26px 26px;
+  grid-template-areas: "drag visible icon input up down";
+  column-gap: 6px;
+  row-gap: 0;
+  align-items: center;
+  padding: 6px 8px;
+  background: var(--surface);
+}
+
+.nav-editor-modal-body .nav-editor-tool input.tool-input {
+  grid-area: input;
+}
+
+@media (max-width: 720px) {
+  .nav-editor-modal-body .nav-editor-tools {
+    grid-template-columns: 1fr;
+  }
+}
 
 
 /* ============ Modal dialog ============ */
@@ -2232,14 +2356,20 @@ input[type="range"]:focus {
 /* ============ Color generator ============ */
 .color-gen-layout {
   display: grid;
-  grid-template-columns: 320px minmax(0, 1fr);
-  gap: 18px;
+  grid-template-columns: 260px minmax(0, 1fr);
+  gap: 14px;
+}
+
+@media (max-width: 1180px) {
+  .color-gen-layout {
+    grid-template-columns: 1fr;
+  }
 }
 
 .color-controls {
   display: grid;
-  gap: 14px;
-  padding: 16px;
+  gap: 12px;
+  padding: 14px;
   border: 1px solid var(--border);
   border-radius: 10px;
   background: var(--surface);
@@ -2266,25 +2396,28 @@ input[type="range"]:focus {
 
 .palette-swatches {
   display: grid;
-  grid-template-columns: repeat(11, 1fr);
-  gap: 6px;
+  grid-template-columns: repeat(11, minmax(0, 1fr));
+  gap: 4px;
   margin-bottom: 10px;
 }
 
 .swatch {
   position: relative;
-  aspect-ratio: 1 / 1.4;
+  aspect-ratio: 1 / 1.6;
+  min-width: 0;
   border-radius: 6px;
   border: 1px solid var(--border);
   cursor: pointer;
   display: grid;
   align-content: end;
-  padding: 4px 6px;
-  font-size: 10px;
+  padding: 4px 4px;
+  font-size: 9px;
   font-weight: 700;
   color: var(--text);
   font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
   transition: transform 0.15s ease;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .swatch:hover {

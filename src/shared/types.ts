@@ -261,6 +261,18 @@ export interface SharedDiskConnectResult {
   message: string;
 }
 
+export interface SharedDiskStatus {
+  connected: boolean;
+  shareRoot: string;
+  message: string;
+}
+
+export type AppCloseBehavior = "minimize-to-tray" | "exit";
+
+export interface AppSettings {
+  closeBehavior: AppCloseBehavior;
+}
+
 export interface Base64ImageResult {
   mimeType: string;
   base64: string;
@@ -311,6 +323,7 @@ export interface DevToolboxApi {
   saveSharedDiskConfig(config: SharedDiskConfig): Promise<SharedDiskConfig>;
   connectSharedDisk(config: SharedDiskConfig): Promise<SharedDiskConnectResult>;
   disconnectSharedDisk(config: SharedDiskConfig): Promise<SharedDiskConnectResult>;
+  getSharedDiskStatus(config: SharedDiskConfig): Promise<SharedDiskStatus>;
   openSharedDiskDirectory(targetPath: string): Promise<string>;
   imageToBase64(inputPath: string): Promise<Base64ImageResult>;
   base64ToImage(data: string, outputDir: string, fileName: string): Promise<ConversionResult>;
@@ -328,4 +341,6 @@ export interface DevToolboxApi {
   pinClipboardEntry(id: string, pinned: boolean): Promise<ClipboardEntry[]>;
   writeClipboardEntry(id: string): Promise<boolean>;
   onClipboardUpdate(handler: (entries: ClipboardEntry[]) => void): () => void;
+  loadAppSettings(): Promise<AppSettings>;
+  saveAppSettings(settings: AppSettings): Promise<AppSettings>;
 }

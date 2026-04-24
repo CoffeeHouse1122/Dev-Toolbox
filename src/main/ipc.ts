@@ -16,6 +16,9 @@ import { generateSeoFiles } from "./services/seo-files.service";
 import { generateImagePlaceholders } from "./services/placeholder.service";
 import { generateOgImage } from "./services/og-image.service";
 import { registerClipboardIpc } from "./services/clipboard-history.service";
+import { getSharedDiskStatus } from "./services/shared-disk-status.service";
+import { loadAppSettings, saveAppSettings } from "./services/settings.service";
+import type { AppSettings } from "../shared/types";
 import {
   ensureDir,
   safeBaseName,
@@ -396,9 +399,17 @@ export function registerIpc() {
     return disconnectSharedDisk(options);
   });
 
+  ipcMain.handle("shared-disk:status", async (_event, raw: SharedDiskConfig) => {
+    const options = sharedDiskSchema.parse(raw);
+    return getSharedDiskStatus(options);
+  });
+
   ipcMain.handle("shared-disk:open", async (_event, targetPath: string) => {
     return openSharedDiskDirectory(targetPath);
   });
+
+  ipcMain.handle("settings:load", async () => loadAppSettings());
+  ipcMain.handle("settings:save", async (_event, raw: AppSettings) => saveAppSettings(raw));
 
   ipcMain.handle("history:list", async (_event, limit?: number) => {
     return history.list(limit);

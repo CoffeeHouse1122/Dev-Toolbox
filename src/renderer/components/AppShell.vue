@@ -15,10 +15,12 @@ type NavTool = {
 type NavGroup = {
   id: string;
   label: string;
+  collapsed?: boolean;
   tools: NavTool[];
 };
 
 const navStorageKey = "dev-toolbox.nav.v1";
+const collapsedStorageKey = "dev-toolbox.nav-collapsed.v1";
 const theme = useThemeStore();
 const editingNav = ref(false);
 
@@ -114,11 +116,26 @@ const defaultGroups: NavGroup[] = [
 ];
 
 const groups = ref<NavGroup[]>(loadNavGroups());
+const collapsedGroups = ref<Record<string, boolean>>(loadCollapsedState());
 const visibleGroups = computed(() =>
   groups.value
     .map((group) => ({ ...group, tools: group.tools.filter((tool) => tool.visible) }))
     .filter((group) => group.tools.length > 0)
 );
+
+function toggleGroupCollapse(id: string) {
+  collapsedGroups.value = { ...collapsedGroups.value, [id]: !collapsedGroups.value[id] };
+  localStorage.setItem(collapsedStorageKey, JSON.stringify(collapsedGroups.value));
+}
+
+function loadCollapsedState(): Record<string, boolean> {
+  try {
+    const raw = localStorage.getItem(collapsedStorageKey);
+    return raw ? (JSON.parse(raw) as Record<string, boolean>) : {};
+  } catch {
+    return {};
+  }
+}
 
 const themeOptions = [
   { label: "跟随系统", value: "system", icon: "ri-computer-line" },
@@ -328,7 +345,7 @@ function setTheme(value: string) {
 </script>
 
 <template>
-  <div class="app-shell" :class="{ 'editing-nav': editingNav }">
+  <div class="app-shell">
     <aside class="sidebar">
       <div class="brand">
         <div class="brand-mark">D</div>
@@ -339,86 +356,27 @@ function setTheme(value: string) {
       </div>
 
       <div class="sidebar-actions">
-        <button type="button" class="secondary-button" @click="editingNav = !editingNav">
+        <button type="button" class="secondary-button" @click="editingNav = true">
           <i class="ri-list-settings-line" aria-hidden="true"></i>
-          {{ editingNav ? "完成导航" : "编辑导航" }}
-        </button>
-        <button v-if="editingNav" type="button" class="icon-button" title="恢复默认导航" @click="resetNav">
-          <i class="ri-reset-left-line" aria-hidden="true"></i>
+          编辑导航
         </button>
       </div>
 
-      <nav v-if="!editingNav" class="nav-list grouped-nav" aria-label="工具">
-        <section v-for="group in visibleGroups" :key="group.id" class="nav-group">
-          <h2>{{ group.label }}</h2>
-          <RouterLink v-for="tool in group.tools" :key="tool.to" :to="tool.to" class="nav-item">
-            <i class="nav-icon" :class="tool.icon" aria-hidden="true"></i>
-            <span>{{ tool.label }}</span>
-          </RouterLink>
+      <nav class="nav-list grouped-nav" aria-label="工具">
+        <section v-for="group in visibleGroups" :key="group.id" class="nav-group" :class="{ collapsed: collapsedGroups[group.id] }">
+          <button type="button" class="nav-group-head" @click="toggleGroupCollapse(group.id)">
+            <i class="nav-group-chevron" :class="collapsedGroups[group.id] ? 'ri-arrow-right-s-line' : 'ri-arrow-down-s-line'" aria-hidden="true"></i>
+            <span>{{ group.label }}</span>
+            <span class="nav-group-count">{{ group.tools.length }}</span>
+          </button>
+          <div v-show="!collapsedGroups[group.id]" class="nav-group-items">
+            <RouterLink v-for="tool in group.tools" :key="tool.to" :to="tool.to" class="nav-item">
+              <i class="nav-icon" :class="tool.icon" aria-hidden="true"></i>
+              <span>{{ tool.label }}</span>
+            </RouterLink>
+          </div>
         </section>
       </nav>
-
-      <div v-else class="nav-editor">
-        <section
-          v-for="(group, groupIndex) in groups"
-          :key="group.id"
-          class="nav-editor-group"
-          :class="{ 'drop-target': isGroupDropTarget(groupIndex) }"
-          @dragover="onGroupDragOver($event, groupIndex)"
-          @drop="onGroupDrop($event, groupIndex)"
-          @dragleave="dropHover = null"
-        >
-          <div
-            class="nav-editor-group-head"
-            draggable="true"
-            @dragstart="onGroupDragStart($event, groupIndex)"
-            @dragend="onDragEnd"
-          >
-            <span class="drag-handle" title="拖动排序"><i class="ri-draggable" aria-hidden="true"></i></span>
-            <input v-model="group.label" aria-label="导航分组名称" />
-            <button type="button" class="icon-button" title="上移分组" @click="moveGroup(groupIndex, -1)">
-              <i class="ri-arrow-up-s-line" aria-hidden="true"></i>
-            </button>
-            <button type="button" class="icon-button" title="下移分组" @click="moveGroup(groupIndex, 1)">
-              <i class="ri-arrow-down-s-line" aria-hidden="true"></i>
-            </button>
-          </div>
-          <div class="nav-editor-tools">
-            <article
-              v-for="(tool, toolIndex) in group.tools"
-              :key="tool.id"
-              class="nav-editor-tool"
-              :class="{
-                dragging: dragState && dragState.kind === 'tool' && dragState.fromGroup === groupIndex && dragState.fromIndex === toolIndex,
-                'drop-before': isToolDropBefore(groupIndex, toolIndex),
-                'drop-after': isToolDropAfter(groupIndex, toolIndex)
-              }"
-              draggable="true"
-              @dragstart="onToolDragStart($event, groupIndex, toolIndex)"
-              @dragover="onToolDragOver($event, groupIndex, toolIndex)"
-              @drop="onToolDrop($event, groupIndex, toolIndex)"
-              @dragend="onDragEnd"
-            >
-              <span class="drag-handle" title="拖动排序"><i class="ri-draggable" aria-hidden="true"></i></span>
-              <label class="nav-visible-toggle" :title="tool.visible ? '点击隐藏' : '点击显示'">
-                <input v-model="tool.visible" type="checkbox" />
-              </label>
-              <i class="tool-icon" :class="tool.icon" aria-hidden="true"></i>
-              <span class="tool-name" :title="tool.label">{{ tool.label }}</span>
-              <button type="button" class="icon-button" title="上移" @click="moveTool(groupIndex, toolIndex, -1)">
-                <i class="ri-arrow-up-s-line" aria-hidden="true"></i>
-              </button>
-              <button type="button" class="icon-button" title="下移" @click="moveTool(groupIndex, toolIndex, 1)">
-                <i class="ri-arrow-down-s-line" aria-hidden="true"></i>
-              </button>
-              <input v-model="tool.label" class="tool-input" aria-label="导航名称" placeholder="导航名称" />
-            </article>
-            <p v-if="!group.tools.length" class="empty-state" style="padding: 6px 4px; font-size: 12px;">
-              拖动工具到此分组
-            </p>
-          </div>
-        </section>
-      </div>
     </aside>
 
     <main class="workspace">
@@ -432,5 +390,94 @@ function setTheme(value: string) {
 
       <RouterView />
     </main>
+
+    <Teleport to="body">
+      <div v-if="editingNav" class="dt-modal-mask" @click.self="editingNav = false">
+        <div class="dt-modal nav-editor-modal" role="dialog" aria-modal="true">
+          <header class="dt-modal-head">
+            <div>
+              <h3>编辑导航</h3>
+              <p style="margin: 4px 0 0; color: var(--muted); font-size: 12px;">拖动分组或工具调整顺序，可跨分组移动；取消勾选可隐藏</p>
+            </div>
+            <div style="display: flex; gap: 8px; align-items: center;">
+              <button type="button" class="secondary-button" @click="resetNav">
+                <i class="ri-reset-left-line" aria-hidden="true"></i>
+                恢复默认
+              </button>
+              <button type="button" class="icon-button" @click="editingNav = false" title="完成">
+                <i class="ri-close-line" aria-hidden="true"></i>
+              </button>
+            </div>
+          </header>
+          <div class="dt-modal-body nav-editor-modal-body">
+            <section
+              v-for="(group, groupIndex) in groups"
+              :key="group.id"
+              class="nav-editor-group"
+              :class="{ 'drop-target': isGroupDropTarget(groupIndex) }"
+              @dragover="onGroupDragOver($event, groupIndex)"
+              @drop="onGroupDrop($event, groupIndex)"
+              @dragleave="dropHover = null"
+            >
+              <div
+                class="nav-editor-group-head"
+                draggable="true"
+                @dragstart="onGroupDragStart($event, groupIndex)"
+                @dragend="onDragEnd"
+              >
+                <span class="drag-handle" title="拖动排序"><i class="ri-draggable" aria-hidden="true"></i></span>
+                <span class="group-badge">分组</span>
+                <input v-model="group.label" aria-label="导航分组名称" />
+                <button type="button" class="icon-button" title="上移分组" @click="moveGroup(groupIndex, -1)">
+                  <i class="ri-arrow-up-s-line" aria-hidden="true"></i>
+                </button>
+                <button type="button" class="icon-button" title="下移分组" @click="moveGroup(groupIndex, 1)">
+                  <i class="ri-arrow-down-s-line" aria-hidden="true"></i>
+                </button>
+              </div>
+              <div class="nav-editor-tools">
+                <article
+                  v-for="(tool, toolIndex) in group.tools"
+                  :key="tool.id"
+                  class="nav-editor-tool"
+                  :class="{
+                    dragging: dragState && dragState.kind === 'tool' && dragState.fromGroup === groupIndex && dragState.fromIndex === toolIndex,
+                    'drop-before': isToolDropBefore(groupIndex, toolIndex),
+                    'drop-after': isToolDropAfter(groupIndex, toolIndex)
+                  }"
+                  draggable="true"
+                  @dragstart="onToolDragStart($event, groupIndex, toolIndex)"
+                  @dragover="onToolDragOver($event, groupIndex, toolIndex)"
+                  @drop="onToolDrop($event, groupIndex, toolIndex)"
+                  @dragend="onDragEnd"
+                >
+                  <span class="drag-handle" title="拖动排序"><i class="ri-draggable" aria-hidden="true"></i></span>
+                  <label class="nav-visible-toggle" :title="tool.visible ? '点击隐藏' : '点击显示'">
+                    <input v-model="tool.visible" type="checkbox" />
+                  </label>
+                  <i class="tool-icon" :class="tool.icon" aria-hidden="true"></i>
+                  <input v-model="tool.label" class="tool-input" aria-label="导航名称" placeholder="导航名称" />
+                  <button type="button" class="icon-button" title="上移" @click="moveTool(groupIndex, toolIndex, -1)">
+                    <i class="ri-arrow-up-s-line" aria-hidden="true"></i>
+                  </button>
+                  <button type="button" class="icon-button" title="下移" @click="moveTool(groupIndex, toolIndex, 1)">
+                    <i class="ri-arrow-down-s-line" aria-hidden="true"></i>
+                  </button>
+                </article>
+                <p v-if="!group.tools.length" class="empty-state" style="padding: 6px 4px; font-size: 12px;">
+                  拖动工具到此分组
+                </p>
+              </div>
+            </section>
+          </div>
+          <footer class="dt-modal-foot">
+            <button type="button" class="primary-button" @click="editingNav = false">
+              <i class="ri-check-line" aria-hidden="true"></i>
+              完成
+            </button>
+          </footer>
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>

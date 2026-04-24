@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer, webUtils } from "electron";
 import type {
   DevToolboxApi,
   DialogFileFilter,
+  AppSettings,
   AssetManifestOptions,
   AudioConvertOptions,
   ClipboardEntry,
@@ -64,6 +65,7 @@ const api: DevToolboxApi = {
   saveSharedDiskConfig: (config: SharedDiskConfig) => ipcRenderer.invoke("shared-disk:save", toPlain(config)),
   connectSharedDisk: (config: SharedDiskConfig) => ipcRenderer.invoke("shared-disk:connect", toPlain(config)),
   disconnectSharedDisk: (config: SharedDiskConfig) => ipcRenderer.invoke("shared-disk:disconnect", toPlain(config)),
+  getSharedDiskStatus: (config: SharedDiskConfig) => ipcRenderer.invoke("shared-disk:status", toPlain(config)),
   openSharedDiskDirectory: (targetPath: string) => ipcRenderer.invoke("shared-disk:open", targetPath),
   imageToBase64: (inputPath: string) => ipcRenderer.invoke("base64:image-to-base64", inputPath),
   base64ToImage: (data: string, outputDir: string, fileName: string) =>
@@ -86,7 +88,9 @@ const api: DevToolboxApi = {
     const listener = (_event: unknown, entries: ClipboardEntry[]) => handler(entries);
     ipcRenderer.on("clipboard:update", listener);
     return () => ipcRenderer.off("clipboard:update", listener);
-  }
+  },
+  loadAppSettings: () => ipcRenderer.invoke("settings:load"),
+  saveAppSettings: (settings: AppSettings) => ipcRenderer.invoke("settings:save", toPlain(settings))
 };
 
 contextBridge.exposeInMainWorld("devToolbox", api);
