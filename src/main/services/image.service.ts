@@ -162,15 +162,34 @@ async function writeByInputFormat(inputPath: string, outputPath: string, quality
   }
 
   if (format === "png") {
-    pipeline = pipeline.png({ compressionLevel: 9, quality });
+    // TinyPNG-style: palette quantisation via libimagequant + max compression.
+    // Sharp maps `quality` to libimagequant's target quality and switches to
+    // 8-bit palette PNG, which typically reduces 24/32-bit PNGs by 50–80%.
+    pipeline = pipeline.png({
+      compressionLevel: 9,
+      palette: true,
+      quality,
+      effort: 10,
+      // Allow more colors for high quality, fewer for low quality.
+      colors: Math.max(8, Math.min(256, Math.round((quality / 100) * 256))),
+      dither: 1
+    });
   } else if (format === "jpg" || format === "jpeg") {
-    pipeline = pipeline.jpeg({ quality, mozjpeg: true });
+    pipeline = pipeline.jpeg({
+      quality,
+      mozjpeg: true,
+      progressive: true,
+      chromaSubsampling: quality >= 90 ? "4:4:4" : "4:2:0",
+      trellisQuantisation: true,
+      overshootDeringing: true,
+      optimiseScans: true
+    });
   } else if (format === "webp") {
-    pipeline = pipeline.webp({ quality });
+    pipeline = pipeline.webp({ quality, effort: 6, smartSubsample: true });
   } else if (format === "avif") {
-    pipeline = pipeline.avif({ quality });
+    pipeline = pipeline.avif({ quality, effort: 6 });
   } else {
-    pipeline = pipeline.webp({ quality });
+    pipeline = pipeline.webp({ quality, effort: 6 });
   }
 
   await pipeline.toFile(outputPath);
@@ -199,7 +218,15 @@ export async function compressImages(options: ImageCompressOptions, history: His
       const output = path.join(options.outputDir, `${safeBaseName(inputPath)}-compressed.${ext}`);
       await writeByInputFormat(inputPath, output, options.quality, options.keepMetadata);
       files.push(output);
-      logs.push(`Compressed ${path.basename(inputPath)}.`);
+      try {
+        const [src, dst] = await Promise.all([fs.stat(inputPath), fs.stat(output)]);
+        const ratio = src.size > 0 ? Math.round(((src.size - dst.size) / src.size) * 100) : 0;
+        logs.push(
+          `${path.basename(inputPath)}: ${(src.size / 1024).toFixed(1)} KB → ${(dst.size / 1024).toFixed(1)} KB (-${ratio}%)`
+        );
+      } catch {
+        logs.push(`Compressed ${path.basename(inputPath)}.`);
+      }
     }
 
     await history.finishTask(id, "success");

@@ -4,6 +4,7 @@ import type {
   DialogFileFilter,
   AssetManifestOptions,
   AudioConvertOptions,
+  ClipboardEntry,
   FaviconOptions,
   FontSubsetOptions,
   FontWoff2Options,
@@ -73,7 +74,19 @@ const api: DevToolboxApi = {
   openExternal: (url: string) => ipcRenderer.invoke("shell:open-external", url),
   readTextFile: (filePath: string) => ipcRenderer.invoke("file:read-text", filePath),
   writeTextFile: (outputDir: string, fileName: string, content: string) =>
-    ipcRenderer.invoke("file:write-text", outputDir, fileName, content)
+    ipcRenderer.invoke("file:write-text", outputDir, fileName, content),
+  startClipboardWatcher: () => ipcRenderer.invoke("clipboard:start"),
+  stopClipboardWatcher: () => ipcRenderer.invoke("clipboard:stop"),
+  listClipboard: () => ipcRenderer.invoke("clipboard:list"),
+  clearClipboardHistory: () => ipcRenderer.invoke("clipboard:clear"),
+  removeClipboardEntry: (id: string) => ipcRenderer.invoke("clipboard:remove", id),
+  pinClipboardEntry: (id: string, pinned: boolean) => ipcRenderer.invoke("clipboard:pin", id, pinned),
+  writeClipboardEntry: (id: string) => ipcRenderer.invoke("clipboard:write", id),
+  onClipboardUpdate: (handler: (entries: ClipboardEntry[]) => void) => {
+    const listener = (_event: unknown, entries: ClipboardEntry[]) => handler(entries);
+    ipcRenderer.on("clipboard:update", listener);
+    return () => ipcRenderer.off("clipboard:update", listener);
+  }
 };
 
 contextBridge.exposeInMainWorld("devToolbox", api);

@@ -32,6 +32,11 @@ import MetaTagsTool from "../pages/MetaTagsTool.vue";
 import CssClampTool from "../pages/CssClampTool.vue";
 import OgImageTool from "../pages/OgImageTool.vue";
 import LinksTool from "../pages/LinksTool.vue";
+import JwtTool from "../pages/JwtTool.vue";
+import DataConvertTool from "../pages/DataConvertTool.vue";
+import ColorPaletteTool from "../pages/ColorPaletteTool.vue";
+import CodeScreenshotTool from "../pages/CodeScreenshotTool.vue";
+import ClipboardHistoryTool from "../pages/ClipboardHistoryTool.vue";
 import HistoryPage from "../pages/HistoryPage.vue";
 import SettingsPage from "../pages/SettingsPage.vue";
 
@@ -72,6 +77,11 @@ export const router = createRouter({
     { path: "/css-clamp", component: CssClampTool },
     { path: "/og-image", component: OgImageTool },
     { path: "/links", component: LinksTool },
+    { path: "/jwt", component: JwtTool },
+    { path: "/data-convert", component: DataConvertTool },
+    { path: "/color-palette", component: ColorPaletteTool },
+    { path: "/code-screenshot", component: CodeScreenshotTool },
+    { path: "/clipboard-history", component: ClipboardHistoryTool },
     { path: "/history", component: HistoryPage },
     { path: "/settings", component: SettingsPage }
   ]

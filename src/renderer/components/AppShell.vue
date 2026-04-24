@@ -64,10 +64,14 @@ const defaultGroups: NavGroup[] = [
     label: "文本与 CSS",
     tools: [
       { id: "markdown-export", to: "/markdown-export", label: "Markdown", icon: "ri-markdown-line", visible: true },
+      { id: "data-convert", to: "/data-convert", label: "JSON/YAML/TOML", icon: "ri-arrow-left-right-line", visible: true },
+      { id: "jwt", to: "/jwt", label: "JWT 解析", icon: "ri-key-2-line", visible: true },
       { id: "url-codec", to: "/url-codec", label: "URL 编解码", icon: "ri-links-line", visible: true },
       { id: "regex-tester", to: "/regex-tester", label: "正则测试器", icon: "ri-parentheses-line", visible: true },
       { id: "css-variables", to: "/css-variables", label: "CSS 变量", icon: "ri-css3-line", visible: true },
-      { id: "css-clamp", to: "/css-clamp", label: "Clamp 字号", icon: "ri-font-size", visible: true }
+      { id: "css-clamp", to: "/css-clamp", label: "Clamp 字号", icon: "ri-font-size", visible: true },
+      { id: "color-palette", to: "/color-palette", label: "配色生成器", icon: "ri-palette-line", visible: true },
+      { id: "code-screenshot", to: "/code-screenshot", label: "代码截图", icon: "ri-camera-3-line", visible: true }
     ]
   },
   {
@@ -95,7 +99,8 @@ const defaultGroups: NavGroup[] = [
     label: "开发辅助",
     tools: [
       { id: "timestamp", to: "/timestamp", label: "时间戳", icon: "ri-time-line", visible: true },
-      { id: "uuid", to: "/uuid", label: "UUID", icon: "ri-fingerprint-line", visible: true }
+      { id: "uuid", to: "/uuid", label: "UUID", icon: "ri-fingerprint-line", visible: true },
+      { id: "clipboard-history", to: "/clipboard-history", label: "剪贴板历史", icon: "ri-clipboard-line", visible: true }
     ]
   },
   {
@@ -323,7 +328,7 @@ function setTheme(value: string) {
 </script>
 
 <template>
-  <div class="app-shell">
+  <div class="app-shell" :class="{ 'editing-nav': editingNav }">
     <aside class="sidebar">
       <div class="brand">
         <div class="brand-mark">D</div>
@@ -398,14 +403,15 @@ function setTheme(value: string) {
               <label class="nav-visible-toggle" :title="tool.visible ? '点击隐藏' : '点击显示'">
                 <input v-model="tool.visible" type="checkbox" />
               </label>
-              <i :class="tool.icon" aria-hidden="true"></i>
-              <input v-model="tool.label" aria-label="导航名称" />
+              <i class="tool-icon" :class="tool.icon" aria-hidden="true"></i>
+              <span class="tool-name" :title="tool.label">{{ tool.label }}</span>
               <button type="button" class="icon-button" title="上移" @click="moveTool(groupIndex, toolIndex, -1)">
                 <i class="ri-arrow-up-s-line" aria-hidden="true"></i>
               </button>
               <button type="button" class="icon-button" title="下移" @click="moveTool(groupIndex, toolIndex, 1)">
                 <i class="ri-arrow-down-s-line" aria-hidden="true"></i>
               </button>
+              <input v-model="tool.label" class="tool-input" aria-label="导航名称" placeholder="导航名称" />
             </article>
             <p v-if="!group.tools.length" class="empty-state" style="padding: 6px 4px; font-size: 12px;">
               拖动工具到此分组

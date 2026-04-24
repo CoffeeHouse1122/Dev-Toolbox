@@ -15,6 +15,7 @@ import { generateSprite } from "./services/sprite.service";
 import { generateSeoFiles } from "./services/seo-files.service";
 import { generateImagePlaceholders } from "./services/placeholder.service";
 import { generateOgImage } from "./services/og-image.service";
+import { registerClipboardIpc } from "./services/clipboard-history.service";
 import {
   ensureDir,
   safeBaseName,
@@ -242,6 +243,7 @@ const sharedDiskSchema = z.object({
 
 export function registerIpc() {
   const history = createHistoryService();
+  registerClipboardIpc();
 
   ipcMain.handle(
     "dialog:select-files",

@@ -267,6 +267,21 @@ export interface Base64ImageResult {
   dataUrl: string;
 }
 
+export interface ClipboardEntry {
+  id: string;
+  kind: "text" | "image";
+  text: string;
+  preview?: string;
+  hash: string;
+  capturedAt: number;
+  pinned: boolean;
+}
+
+export interface ClipboardWatcherStatus {
+  watching: boolean;
+  count: number;
+}
+
 export interface DevToolboxApi {
   selectFiles(filters?: DialogFileFilter[], multiSelections?: boolean): Promise<string[]>;
   selectOutputDir(): Promise<string | null>;
@@ -305,4 +320,12 @@ export interface DevToolboxApi {
   openExternal(url: string): Promise<void>;
   readTextFile(filePath: string): Promise<string>;
   writeTextFile(outputDir: string, fileName: string, content: string): Promise<string>;
+  startClipboardWatcher(): Promise<ClipboardWatcherStatus>;
+  stopClipboardWatcher(): Promise<ClipboardWatcherStatus>;
+  listClipboard(): Promise<ClipboardEntry[]>;
+  clearClipboardHistory(): Promise<ClipboardEntry[]>;
+  removeClipboardEntry(id: string): Promise<ClipboardEntry[]>;
+  pinClipboardEntry(id: string, pinned: boolean): Promise<ClipboardEntry[]>;
+  writeClipboardEntry(id: string): Promise<boolean>;
+  onClipboardUpdate(handler: (entries: ClipboardEntry[]) => void): () => void;
 }
