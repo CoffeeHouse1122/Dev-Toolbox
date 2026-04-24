@@ -5,6 +5,7 @@ import FontWoff2Tool from "../pages/FontWoff2Tool.vue";
 import VideoBackgroundTool from "../pages/VideoBackgroundTool.vue";
 import Base64ImageTool from "../pages/Base64ImageTool.vue";
 import VideoAnimationTool from "../pages/VideoAnimationTool.vue";
+import SequenceAnimationTool from "../pages/SequenceAnimationTool.vue";
 import VideoMuteTool from "../pages/VideoMuteTool.vue";
 import MarkdownExportTool from "../pages/MarkdownExportTool.vue";
 import UrlCodecTool from "../pages/UrlCodecTool.vue";
@@ -30,6 +31,7 @@ import SeoFilesTool from "../pages/SeoFilesTool.vue";
 import MetaTagsTool from "../pages/MetaTagsTool.vue";
 import CssClampTool from "../pages/CssClampTool.vue";
 import OgImageTool from "../pages/OgImageTool.vue";
+import LinksTool from "../pages/LinksTool.vue";
 import HistoryPage from "../pages/HistoryPage.vue";
 import SettingsPage from "../pages/SettingsPage.vue";
 
@@ -43,6 +45,7 @@ export const router = createRouter({
     { path: "/video-background", component: VideoBackgroundTool },
     { path: "/base64-image", component: Base64ImageTool },
     { path: "/video-animation", component: VideoAnimationTool },
+    { path: "/sequence-animation", component: SequenceAnimationTool },
     { path: "/video-mute", component: VideoMuteTool },
     { path: "/markdown-export", component: MarkdownExportTool },
     { path: "/url-codec", component: UrlCodecTool },
@@ -68,6 +71,7 @@ export const router = createRouter({
     { path: "/meta-tags", component: MetaTagsTool },
     { path: "/css-clamp", component: CssClampTool },
     { path: "/og-image", component: OgImageTool },
+    { path: "/links", component: LinksTool },
     { path: "/history", component: HistoryPage },
     { path: "/settings", component: SettingsPage }
   ]

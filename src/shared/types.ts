@@ -3,6 +3,7 @@ export type ToolType =
   | "webp"
   | "woff2"
   | "video-background"
+  | "sequence-animation"
   | "base64-image"
   | "video-animation"
   | "video-mute"
@@ -127,6 +128,15 @@ export interface VideoAnimationOptions {
 export interface VideoMuteOptions {
   inputPaths: string[];
   outputDir: string;
+}
+
+export interface SequenceAnimationOptions {
+  inputPaths: string[];
+  outputDir: string;
+  outputFormat: "gif" | "apng" | "webp";
+  fps: number;
+  width?: number;
+  loop: boolean;
 }
 
 export interface AudioConvertOptions {
@@ -270,6 +280,7 @@ export interface DevToolboxApi {
   convertFontWoff2(options: FontWoff2Options): Promise<ConversionResult>;
   subsetFont(options: FontSubsetOptions): Promise<ConversionResult>;
   convertVideoBackground(options: VideoBackgroundOptions): Promise<ConversionResult>;
+  convertSequenceAnimation(options: SequenceAnimationOptions): Promise<ConversionResult>;
   convertVideoAnimation(options: VideoAnimationOptions): Promise<ConversionResult>;
   removeVideoAudio(options: VideoMuteOptions): Promise<ConversionResult>;
   convertAudio(options: AudioConvertOptions): Promise<ConversionResult>;
@@ -291,4 +302,7 @@ export interface DevToolboxApi {
   listHistory(limit?: number): Promise<ConversionRecord[]>;
   clearHistory(): Promise<void>;
   revealPath(filePath: string): Promise<void>;
+  openExternal(url: string): Promise<void>;
+  readTextFile(filePath: string): Promise<string>;
+  writeTextFile(outputDir: string, fileName: string, content: string): Promise<string>;
 }

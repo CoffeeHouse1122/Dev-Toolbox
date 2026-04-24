@@ -21,6 +21,7 @@ import type {
   VideoBackgroundOptions,
   VideoAnimationOptions,
   VideoMuteOptions,
+  SequenceAnimationOptions,
   WebpOptions
 } from "../shared/types";
 
@@ -44,6 +45,8 @@ const api: DevToolboxApi = {
   subsetFont: (options: FontSubsetOptions) => ipcRenderer.invoke("convert:font-subset", toPlain(options)),
   convertVideoBackground: (options: VideoBackgroundOptions) =>
     ipcRenderer.invoke("convert:video-background", toPlain(options)),
+  convertSequenceAnimation: (options: SequenceAnimationOptions) =>
+    ipcRenderer.invoke("convert:sequence-animation", toPlain(options)),
   convertVideoAnimation: (options: VideoAnimationOptions) => ipcRenderer.invoke("convert:video-animation", toPlain(options)),
   removeVideoAudio: (options: VideoMuteOptions) => ipcRenderer.invoke("convert:video-mute", toPlain(options)),
   convertAudio: (options: AudioConvertOptions) => ipcRenderer.invoke("convert:audio", toPlain(options)),
@@ -66,7 +69,11 @@ const api: DevToolboxApi = {
     ipcRenderer.invoke("base64:base64-to-image", data, outputDir, fileName),
   listHistory: (limit?: number) => ipcRenderer.invoke("history:list", limit),
   clearHistory: () => ipcRenderer.invoke("history:clear"),
-  revealPath: (filePath: string) => ipcRenderer.invoke("shell:reveal-path", filePath)
+  revealPath: (filePath: string) => ipcRenderer.invoke("shell:reveal-path", filePath),
+  openExternal: (url: string) => ipcRenderer.invoke("shell:open-external", url),
+  readTextFile: (filePath: string) => ipcRenderer.invoke("file:read-text", filePath),
+  writeTextFile: (outputDir: string, fileName: string, content: string) =>
+    ipcRenderer.invoke("file:write-text", outputDir, fileName, content)
 };
 
 contextBridge.exposeInMainWorld("devToolbox", api);

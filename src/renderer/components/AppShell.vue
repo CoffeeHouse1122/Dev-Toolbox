@@ -1,92 +1,316 @@
 <script setup lang="ts">
-import { onMounted } from "vue";
+import { computed, onMounted, ref, watch } from "vue";
 import { RouterLink, RouterView } from "vue-router";
 import { useThemeStore, type ThemeMode } from "../stores/theme";
 import SelectMenu from "./SelectMenu.vue";
 
-const theme = useThemeStore();
+type NavTool = {
+  id: string;
+  to: string;
+  label: string;
+  icon: string;
+  visible: boolean;
+};
 
-const groups = [
+type NavGroup = {
+  id: string;
+  label: string;
+  tools: NavTool[];
+};
+
+const navStorageKey = "dev-toolbox.nav.v1";
+const theme = useThemeStore();
+const editingNav = ref(false);
+
+const defaultGroups: NavGroup[] = [
   {
+    id: "images",
     label: "图片",
     tools: [
-      { to: "/favicon", label: "图标生成", icon: "ri-star-smile-line" },
-      { to: "/webp", label: "图片转换", icon: "ri-image-edit-line" },
-      { to: "/image-compress", label: "图片压缩", icon: "ri-image-2-line" },
-      { to: "/image-resize", label: "尺寸调整", icon: "ri-crop-line" },
-      { to: "/image-crop", label: "自由裁剪", icon: "ri-scissors-cut-line" },
-      { to: "/sprite", label: "雪碧图", icon: "ri-layout-grid-line" },
-      { to: "/image-placeholder", label: "图片占位符", icon: "ri-blur-off-line" },
-      { to: "/base64-image", label: "Base64 图片", icon: "ri-code-line" },
-      { to: "/qr-code", label: "二维码生成", icon: "ri-qr-code-line" }
+      { id: "favicon", to: "/favicon", label: "图标生成", icon: "ri-star-smile-line", visible: true },
+      { id: "webp", to: "/webp", label: "图片转换", icon: "ri-image-edit-line", visible: true },
+      { id: "image-compress", to: "/image-compress", label: "图片压缩", icon: "ri-image-2-line", visible: true },
+      { id: "image-resize", to: "/image-resize", label: "尺寸调整", icon: "ri-crop-line", visible: true },
+      { id: "image-crop", to: "/image-crop", label: "自由裁剪", icon: "ri-scissors-cut-line", visible: true },
+      { id: "sprite", to: "/sprite", label: "雪碧图", icon: "ri-layout-grid-line", visible: true },
+      { id: "image-placeholder", to: "/image-placeholder", label: "图片占位符", icon: "ri-blur-off-line", visible: true },
+      { id: "base64-image", to: "/base64-image", label: "Base64 图片", icon: "ri-code-line", visible: true },
+      { id: "qr-code", to: "/qr-code", label: "二维码生成", icon: "ri-qr-code-line", visible: true }
     ]
   },
   {
+    id: "media",
     label: "音视频",
     tools: [
-      { to: "/video-background", label: "视频转化", icon: "ri-movie-2-line" },
-      { to: "/video-animation", label: "视频动图", icon: "ri-file-gif-line" },
-      { to: "/video-mute", label: "视频去音频", icon: "ri-volume-mute-line" },
-      { to: "/audio-convert", label: "音频转换", icon: "ri-music-2-line" }
+      { id: "video-background", to: "/video-background", label: "视频转化", icon: "ri-movie-2-line", visible: true },
+      { id: "video-animation", to: "/video-animation", label: "视频动图", icon: "ri-file-gif-line", visible: true },
+      { id: "sequence-animation", to: "/sequence-animation", label: "序列帧动图", icon: "ri-film-line", visible: true },
+      { id: "video-mute", to: "/video-mute", label: "视频去音频", icon: "ri-volume-mute-line", visible: true },
+      { id: "audio-convert", to: "/audio-convert", label: "音频转换", icon: "ri-music-2-line", visible: true }
     ]
   },
   {
+    id: "font",
     label: "字体",
     tools: [
-      { to: "/woff2", label: "WOFF2 转换", icon: "ri-font-size-2" },
-      { to: "/font-preview", label: "字体预览", icon: "ri-font-sans-serif" },
-      { to: "/font-subset", label: "字体子集化", icon: "ri-scissors-cut-line" },
-      { to: "/font-face", label: "@font-face", icon: "ri-braces-line" }
+      { id: "woff2", to: "/woff2", label: "WOFF2 转换", icon: "ri-font-size-2", visible: true },
+      { id: "font-preview", to: "/font-preview", label: "字体预览", icon: "ri-font-sans-serif", visible: true },
+      { id: "font-subset", to: "/font-subset", label: "字体子集化", icon: "ri-scissors-cut-line", visible: true },
+      { id: "font-face", to: "/font-face", label: "@font-face", icon: "ri-braces-line", visible: true }
     ]
   },
   {
+    id: "text",
     label: "文本与 CSS",
     tools: [
-      { to: "/markdown-export", label: "Markdown", icon: "ri-markdown-line" },
-      { to: "/url-codec", label: "URL 编解码", icon: "ri-links-line" },
-      { to: "/regex-tester", label: "正则测试器", icon: "ri-parentheses-line" },
-      { to: "/css-variables", label: "CSS 变量", icon: "ri-css3-line" },
-      { to: "/css-clamp", label: "Clamp 字号", icon: "ri-font-size" }
+      { id: "markdown-export", to: "/markdown-export", label: "Markdown", icon: "ri-markdown-line", visible: true },
+      { id: "url-codec", to: "/url-codec", label: "URL 编解码", icon: "ri-links-line", visible: true },
+      { id: "regex-tester", to: "/regex-tester", label: "正则测试器", icon: "ri-parentheses-line", visible: true },
+      { id: "css-variables", to: "/css-variables", label: "CSS 变量", icon: "ri-css3-line", visible: true },
+      { id: "css-clamp", to: "/css-clamp", label: "Clamp 字号", icon: "ri-font-size", visible: true }
     ]
   },
   {
+    id: "seo",
     label: "SEO 与发布",
     tools: [
-      { to: "/seo-files", label: "robots / sitemap", icon: "ri-road-map-line" },
-      { to: "/meta-tags", label: "HTML Meta", icon: "ri-meta-line" },
-      { to: "/og-image", label: "OG 图片", icon: "ri-image-add-line" }
+      { id: "seo-files", to: "/seo-files", label: "robots / sitemap", icon: "ri-road-map-line", visible: true },
+      { id: "meta-tags", to: "/meta-tags", label: "HTML Meta", icon: "ri-meta-line", visible: true },
+      { id: "og-image", to: "/og-image", label: "OG 图片", icon: "ri-image-add-line", visible: true }
     ]
   },
   {
+    id: "system-files",
     label: "文件与网络",
     tools: [
-      { to: "/ip-query", label: "IP 查询", icon: "ri-router-line" },
-      { to: "/shared-disk", label: "共享盘登录", icon: "ri-hard-drive-3-line" },
-      { to: "/rename", label: "文件重命名", icon: "ri-edit-2-line" },
-      { to: "/asset-manifest", label: "资源清单", icon: "ri-file-list-3-line" }
+      { id: "links", to: "/links", label: "网站与文档", icon: "ri-bookmark-3-line", visible: true },
+      { id: "ip-query", to: "/ip-query", label: "IP 查询", icon: "ri-router-line", visible: true },
+      { id: "shared-disk", to: "/shared-disk", label: "共享盘登录", icon: "ri-hard-drive-3-line", visible: true },
+      { id: "rename", to: "/rename", label: "文件重命名", icon: "ri-edit-2-line", visible: true },
+      { id: "asset-manifest", to: "/asset-manifest", label: "资源清单", icon: "ri-file-list-3-line", visible: true }
     ]
   },
   {
+    id: "assist",
     label: "开发辅助",
     tools: [
-      { to: "/timestamp", label: "时间戳", icon: "ri-time-line" },
-      { to: "/uuid", label: "UUID", icon: "ri-fingerprint-line" }
+      { id: "timestamp", to: "/timestamp", label: "时间戳", icon: "ri-time-line", visible: true },
+      { id: "uuid", to: "/uuid", label: "UUID", icon: "ri-fingerprint-line", visible: true }
     ]
   },
   {
+    id: "system",
     label: "系统",
     tools: [
-      { to: "/history", label: "历史记录", icon: "ri-history-line" },
-      { to: "/settings", label: "设置", icon: "ri-settings-3-line" }
+      { id: "history", to: "/history", label: "历史记录", icon: "ri-history-line", visible: true },
+      { id: "settings", to: "/settings", label: "设置", icon: "ri-settings-3-line", visible: true }
     ]
   }
 ];
+
+const groups = ref<NavGroup[]>(loadNavGroups());
+const visibleGroups = computed(() =>
+  groups.value
+    .map((group) => ({ ...group, tools: group.tools.filter((tool) => tool.visible) }))
+    .filter((group) => group.tools.length > 0)
+);
 
 const themeOptions = [
   { label: "跟随系统", value: "system", icon: "ri-computer-line" },
   { label: "浅色", value: "light", icon: "ri-sun-line" },
   { label: "深色", value: "dark", icon: "ri-moon-line" }
 ];
+
+function cloneGroups(input: NavGroup[]) {
+  return JSON.parse(JSON.stringify(input)) as NavGroup[];
+}
+
+function mergeGroups(saved: NavGroup[]) {
+  const merged: NavGroup[] = [];
+  for (const defaultGroup of defaultGroups) {
+    const savedGroup = saved.find((group) => group.id === defaultGroup.id);
+    const tools: NavTool[] = [];
+    const savedTools = savedGroup?.tools ?? [];
+    for (const savedTool of savedTools) {
+      const source = defaultGroup.tools.find((tool) => tool.id === savedTool.id);
+      if (source) {
+        tools.push({ ...source, label: savedTool.label || source.label, visible: savedTool.visible !== false });
+      }
+    }
+    for (const source of defaultGroup.tools) {
+      if (!tools.some((tool) => tool.id === source.id)) {
+        tools.push({ ...source });
+      }
+    }
+    merged.push({ ...defaultGroup, label: savedGroup?.label || defaultGroup.label, tools });
+  }
+  return merged;
+}
+
+function loadNavGroups() {
+  try {
+    const raw = localStorage.getItem(navStorageKey);
+    if (!raw) return cloneGroups(defaultGroups);
+    return mergeGroups(JSON.parse(raw) as NavGroup[]);
+  } catch {
+    return cloneGroups(defaultGroups);
+  }
+}
+
+function resetNav() {
+  groups.value = cloneGroups(defaultGroups);
+}
+
+function moveGroup(index: number, direction: -1 | 1) {
+  const next = index + direction;
+  if (next < 0 || next >= groups.value.length) return;
+  const copy = [...groups.value];
+  const [item] = copy.splice(index, 1);
+  copy.splice(next, 0, item);
+  groups.value = copy;
+}
+
+function moveTool(groupIndex: number, toolIndex: number, direction: -1 | 1) {
+  const group = groups.value[groupIndex];
+  const next = toolIndex + direction;
+  if (!group || next < 0 || next >= group.tools.length) return;
+  const tools = [...group.tools];
+  const [item] = tools.splice(toolIndex, 1);
+  tools.splice(next, 0, item);
+  groups.value[groupIndex] = { ...group, tools };
+}
+
+// === Drag & drop reordering ===
+type DragState =
+  | { kind: "group"; from: number }
+  | { kind: "tool"; fromGroup: number; fromIndex: number };
+
+const dragState = ref<DragState | null>(null);
+const dropHover = ref<{ kind: "group"; index: number } | { kind: "tool"; group: number; index: number; pos: "before" | "after" } | null>(null);
+
+function onGroupDragStart(event: DragEvent, index: number) {
+  dragState.value = { kind: "group", from: index };
+  if (event.dataTransfer) {
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("text/plain", `group:${index}`);
+  }
+}
+
+function onGroupDragOver(event: DragEvent, index: number) {
+  if (!dragState.value) return;
+  event.preventDefault();
+  if (event.dataTransfer) event.dataTransfer.dropEffect = "move";
+  if (dragState.value.kind === "group") {
+    dropHover.value = { kind: "group", index };
+  } else {
+    // tool dragging onto a group means append to that group
+    dropHover.value = { kind: "tool", group: index, index: groups.value[index]?.tools.length ?? 0, pos: "before" };
+  }
+}
+
+function onGroupDrop(event: DragEvent, index: number) {
+  event.preventDefault();
+  const state = dragState.value;
+  if (!state) return;
+  if (state.kind === "group") {
+    if (state.from === index) return;
+    const copy = [...groups.value];
+    const [item] = copy.splice(state.from, 1);
+    copy.splice(index, 0, item);
+    groups.value = copy;
+  } else {
+    moveToolAcross(state.fromGroup, state.fromIndex, index, groups.value[index]?.tools.length ?? 0);
+  }
+  dragState.value = null;
+  dropHover.value = null;
+}
+
+function onToolDragStart(event: DragEvent, groupIndex: number, toolIndex: number) {
+  dragState.value = { kind: "tool", fromGroup: groupIndex, fromIndex: toolIndex };
+  if (event.dataTransfer) {
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("text/plain", `tool:${groupIndex}:${toolIndex}`);
+  }
+  event.stopPropagation();
+}
+
+function onToolDragOver(event: DragEvent, groupIndex: number, toolIndex: number) {
+  const state = dragState.value;
+  if (!state || state.kind !== "tool") return;
+  event.preventDefault();
+  event.stopPropagation();
+  if (event.dataTransfer) event.dataTransfer.dropEffect = "move";
+  const target = event.currentTarget as HTMLElement | null;
+  let pos: "before" | "after" = "before";
+  if (target) {
+    const rect = target.getBoundingClientRect();
+    pos = event.clientY - rect.top > rect.height / 2 ? "after" : "before";
+  }
+  dropHover.value = { kind: "tool", group: groupIndex, index: toolIndex, pos };
+}
+
+function onToolDrop(event: DragEvent, groupIndex: number, toolIndex: number) {
+  event.preventDefault();
+  event.stopPropagation();
+  const state = dragState.value;
+  const hover = dropHover.value;
+  if (!state || state.kind !== "tool") return;
+  let targetIndex = toolIndex;
+  if (hover?.kind === "tool" && hover.group === groupIndex && hover.index === toolIndex && hover.pos === "after") {
+    targetIndex = toolIndex + 1;
+  }
+  moveToolAcross(state.fromGroup, state.fromIndex, groupIndex, targetIndex);
+  dragState.value = null;
+  dropHover.value = null;
+}
+
+function moveToolAcross(fromGroup: number, fromIndex: number, toGroup: number, toIndex: number) {
+  if (fromGroup === toGroup && (toIndex === fromIndex || toIndex === fromIndex + 1)) return;
+  const copy = groups.value.map((group) => ({ ...group, tools: [...group.tools] }));
+  const source = copy[fromGroup];
+  const target = copy[toGroup];
+  if (!source || !target) return;
+  const [item] = source.tools.splice(fromIndex, 1);
+  let insertIndex = toIndex;
+  if (fromGroup === toGroup && toIndex > fromIndex) insertIndex -= 1;
+  insertIndex = Math.max(0, Math.min(insertIndex, target.tools.length));
+  target.tools.splice(insertIndex, 0, item);
+  groups.value = copy;
+}
+
+function onDragEnd() {
+  dragState.value = null;
+  dropHover.value = null;
+}
+
+function isToolDropBefore(groupIndex: number, toolIndex: number) {
+  const h = dropHover.value;
+  return !!(h && h.kind === "tool" && h.group === groupIndex && h.index === toolIndex && h.pos === "before");
+}
+
+function isToolDropAfter(groupIndex: number, toolIndex: number) {
+  const h = dropHover.value;
+  return !!(h && h.kind === "tool" && h.group === groupIndex && h.index === toolIndex && h.pos === "after");
+}
+
+function isGroupDropTarget(groupIndex: number) {
+  const h = dropHover.value;
+  if (!h) return false;
+  if (h.kind === "group") return h.index === groupIndex;
+  if (dragState.value?.kind === "tool" && h.kind === "tool" && h.group === groupIndex) {
+    const group = groups.value[groupIndex];
+    return !group?.tools.length;
+  }
+  return false;
+}
+
+watch(
+  groups,
+  () => {
+    localStorage.setItem(navStorageKey, JSON.stringify(groups.value));
+  },
+  { deep: true }
+);
 
 onMounted(() => {
   theme.sync();
@@ -109,8 +333,18 @@ function setTheme(value: string) {
         </div>
       </div>
 
-      <nav class="nav-list grouped-nav" aria-label="工具">
-        <section v-for="group in groups" :key="group.label" class="nav-group">
+      <div class="sidebar-actions">
+        <button type="button" class="secondary-button" @click="editingNav = !editingNav">
+          <i class="ri-list-settings-line" aria-hidden="true"></i>
+          {{ editingNav ? "完成导航" : "编辑导航" }}
+        </button>
+        <button v-if="editingNav" type="button" class="icon-button" title="恢复默认导航" @click="resetNav">
+          <i class="ri-reset-left-line" aria-hidden="true"></i>
+        </button>
+      </div>
+
+      <nav v-if="!editingNav" class="nav-list grouped-nav" aria-label="工具">
+        <section v-for="group in visibleGroups" :key="group.id" class="nav-group">
           <h2>{{ group.label }}</h2>
           <RouterLink v-for="tool in group.tools" :key="tool.to" :to="tool.to" class="nav-item">
             <i class="nav-icon" :class="tool.icon" aria-hidden="true"></i>
@@ -118,6 +352,67 @@ function setTheme(value: string) {
           </RouterLink>
         </section>
       </nav>
+
+      <div v-else class="nav-editor">
+        <section
+          v-for="(group, groupIndex) in groups"
+          :key="group.id"
+          class="nav-editor-group"
+          :class="{ 'drop-target': isGroupDropTarget(groupIndex) }"
+          @dragover="onGroupDragOver($event, groupIndex)"
+          @drop="onGroupDrop($event, groupIndex)"
+          @dragleave="dropHover = null"
+        >
+          <div
+            class="nav-editor-group-head"
+            draggable="true"
+            @dragstart="onGroupDragStart($event, groupIndex)"
+            @dragend="onDragEnd"
+          >
+            <span class="drag-handle" title="拖动排序"><i class="ri-draggable" aria-hidden="true"></i></span>
+            <input v-model="group.label" aria-label="导航分组名称" />
+            <button type="button" class="icon-button" title="上移分组" @click="moveGroup(groupIndex, -1)">
+              <i class="ri-arrow-up-s-line" aria-hidden="true"></i>
+            </button>
+            <button type="button" class="icon-button" title="下移分组" @click="moveGroup(groupIndex, 1)">
+              <i class="ri-arrow-down-s-line" aria-hidden="true"></i>
+            </button>
+          </div>
+          <div class="nav-editor-tools">
+            <article
+              v-for="(tool, toolIndex) in group.tools"
+              :key="tool.id"
+              class="nav-editor-tool"
+              :class="{
+                dragging: dragState && dragState.kind === 'tool' && dragState.fromGroup === groupIndex && dragState.fromIndex === toolIndex,
+                'drop-before': isToolDropBefore(groupIndex, toolIndex),
+                'drop-after': isToolDropAfter(groupIndex, toolIndex)
+              }"
+              draggable="true"
+              @dragstart="onToolDragStart($event, groupIndex, toolIndex)"
+              @dragover="onToolDragOver($event, groupIndex, toolIndex)"
+              @drop="onToolDrop($event, groupIndex, toolIndex)"
+              @dragend="onDragEnd"
+            >
+              <span class="drag-handle" title="拖动排序"><i class="ri-draggable" aria-hidden="true"></i></span>
+              <label class="nav-visible-toggle" :title="tool.visible ? '点击隐藏' : '点击显示'">
+                <input v-model="tool.visible" type="checkbox" />
+              </label>
+              <i :class="tool.icon" aria-hidden="true"></i>
+              <input v-model="tool.label" aria-label="导航名称" />
+              <button type="button" class="icon-button" title="上移" @click="moveTool(groupIndex, toolIndex, -1)">
+                <i class="ri-arrow-up-s-line" aria-hidden="true"></i>
+              </button>
+              <button type="button" class="icon-button" title="下移" @click="moveTool(groupIndex, toolIndex, 1)">
+                <i class="ri-arrow-down-s-line" aria-hidden="true"></i>
+              </button>
+            </article>
+            <p v-if="!group.tools.length" class="empty-state" style="padding: 6px 4px; font-size: 12px;">
+              拖动工具到此分组
+            </p>
+          </div>
+        </section>
+      </div>
     </aside>
 
     <main class="workspace">

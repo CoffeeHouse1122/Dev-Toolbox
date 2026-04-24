@@ -6,6 +6,7 @@ import { convertFontsToWoff2 } from "./services/font.service";
 import { subsetFont } from "./services/font-tools.service";
 import { convertVideoAnimation, createVideoBackgroundPack, removeVideoAudio } from "./services/video.service";
 import { convertAudio } from "./services/audio.service";
+import { convertSequenceAnimation } from "./services/sequence.service";
 import { base64ToImage, exportMarkdown, imageToBase64, renameFiles } from "./services/utility.service";
 import { generateQrCode } from "./services/qr.service";
 import { getIpInfo } from "./services/network.service";
@@ -14,6 +15,13 @@ import { generateSprite } from "./services/sprite.service";
 import { generateSeoFiles } from "./services/seo-files.service";
 import { generateImagePlaceholders } from "./services/placeholder.service";
 import { generateOgImage } from "./services/og-image.service";
+import {
+  ensureDir,
+  safeBaseName,
+  writeTextFile as writePlainTextFile
+} from "./services/file-utils";
+import fs from "node:fs/promises";
+import path from "node:path";
 import {
   connectSharedDisk,
   disconnectSharedDisk,
@@ -37,6 +45,7 @@ import type {
   QrCodeOptions,
   RenameOptions,
   SeoFilesOptions,
+  SequenceAnimationOptions,
   SharedDiskConfig,
   SpriteOptions,
   VideoBackgroundOptions,
@@ -114,6 +123,15 @@ const videoSchema = z.object({
   width: z.number().int().positive().optional(),
   crf: z.number().int().min(12).max(40),
   makePoster: z.boolean()
+});
+
+const sequenceAnimationSchema = z.object({
+  inputPaths: z.array(z.string().min(1)).min(1),
+  outputDir: z.string().min(1),
+  outputFormat: z.enum(["gif", "apng", "webp"]),
+  fps: z.number().int().min(1).max(60),
+  width: z.number().int().positive().optional(),
+  loop: z.boolean()
 });
 
 const videoAnimationSchema = z.object({
@@ -285,6 +303,11 @@ export function registerIpc() {
     return createVideoBackgroundPack(options, history);
   });
 
+  ipcMain.handle("convert:sequence-animation", async (_event, raw: SequenceAnimationOptions) => {
+    const options = sequenceAnimationSchema.parse(raw);
+    return convertSequenceAnimation(options, history);
+  });
+
   ipcMain.handle("convert:video-animation", async (_event, raw: VideoAnimationOptions) => {
     const options = videoAnimationSchema.parse(raw);
     return convertVideoAnimation(options, history);
@@ -385,5 +408,20 @@ export function registerIpc() {
 
   ipcMain.handle("shell:reveal-path", async (_event, filePath: string) => {
     shell.showItemInFolder(filePath);
+  });
+
+  ipcMain.handle("shell:open-external", async (_event, url: string) => {
+    await shell.openExternal(url);
+  });
+
+  ipcMain.handle("file:read-text", async (_event, filePath: string) => {
+    return fs.readFile(filePath, "utf8");
+  });
+
+  ipcMain.handle("file:write-text", async (_event, outputDir: string, fileName: string, content: string) => {
+    await ensureDir(outputDir);
+    const output = path.join(outputDir, safeBaseName(fileName) || "dev-toolbox-config.json");
+    await writePlainTextFile(output, content);
+    return output;
   });
 }
