@@ -15,6 +15,8 @@ const groups = [
       { to: "/image-compress", label: "图片压缩", icon: "ri-image-2-line" },
       { to: "/image-resize", label: "尺寸调整", icon: "ri-crop-line" },
       { to: "/image-crop", label: "自由裁剪", icon: "ri-scissors-cut-line" },
+      { to: "/sprite", label: "雪碧图", icon: "ri-layout-grid-line" },
+      { to: "/image-placeholder", label: "图片占位符", icon: "ri-blur-off-line" },
       { to: "/base64-image", label: "Base64 图片", icon: "ri-code-line" },
       { to: "/qr-code", label: "二维码生成", icon: "ri-qr-code-line" }
     ]
@@ -43,7 +45,16 @@ const groups = [
       { to: "/markdown-export", label: "Markdown", icon: "ri-markdown-line" },
       { to: "/url-codec", label: "URL 编解码", icon: "ri-links-line" },
       { to: "/regex-tester", label: "正则测试器", icon: "ri-parentheses-line" },
-      { to: "/css-variables", label: "CSS 变量", icon: "ri-css3-line" }
+      { to: "/css-variables", label: "CSS 变量", icon: "ri-css3-line" },
+      { to: "/css-clamp", label: "Clamp 字号", icon: "ri-font-size" }
+    ]
+  },
+  {
+    label: "SEO 与发布",
+    tools: [
+      { to: "/seo-files", label: "robots / sitemap", icon: "ri-road-map-line" },
+      { to: "/meta-tags", label: "HTML Meta", icon: "ri-meta-line" },
+      { to: "/og-image", label: "OG 图片", icon: "ri-image-add-line" }
     ]
   },
   {

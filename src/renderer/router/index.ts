@@ -14,6 +14,8 @@ import RenameTool from "../pages/RenameTool.vue";
 import ImageCompressTool from "../pages/ImageCompressTool.vue";
 import ImageResizeTool from "../pages/ImageResizeTool.vue";
 import ImageCropTool from "../pages/ImageCropTool.vue";
+import SpriteTool from "../pages/SpriteTool.vue";
+import ImagePlaceholderTool from "../pages/ImagePlaceholderTool.vue";
 import SharedDiskTool from "../pages/SharedDiskTool.vue";
 import IpQueryTool from "../pages/IpQueryTool.vue";
 import QrCodeTool from "../pages/QrCodeTool.vue";
@@ -24,6 +26,10 @@ import FontSubsetTool from "../pages/FontSubsetTool.vue";
 import FontFaceGeneratorTool from "../pages/FontFaceGeneratorTool.vue";
 import CssVariablesTool from "../pages/CssVariablesTool.vue";
 import AssetManifestTool from "../pages/AssetManifestTool.vue";
+import SeoFilesTool from "../pages/SeoFilesTool.vue";
+import MetaTagsTool from "../pages/MetaTagsTool.vue";
+import CssClampTool from "../pages/CssClampTool.vue";
+import OgImageTool from "../pages/OgImageTool.vue";
 import HistoryPage from "../pages/HistoryPage.vue";
 import SettingsPage from "../pages/SettingsPage.vue";
 
@@ -47,6 +53,8 @@ export const router = createRouter({
     { path: "/image-compress", component: ImageCompressTool },
     { path: "/image-resize", component: ImageResizeTool },
     { path: "/image-crop", component: ImageCropTool },
+    { path: "/sprite", component: SpriteTool },
+    { path: "/image-placeholder", component: ImagePlaceholderTool },
     { path: "/ip-query", component: IpQueryTool },
     { path: "/qr-code", component: QrCodeTool },
     { path: "/audio-convert", component: AudioConvertTool },
@@ -56,6 +64,10 @@ export const router = createRouter({
     { path: "/font-face", component: FontFaceGeneratorTool },
     { path: "/css-variables", component: CssVariablesTool },
     { path: "/asset-manifest", component: AssetManifestTool },
+    { path: "/seo-files", component: SeoFilesTool },
+    { path: "/meta-tags", component: MetaTagsTool },
+    { path: "/css-clamp", component: CssClampTool },
+    { path: "/og-image", component: OgImageTool },
     { path: "/history", component: HistoryPage },
     { path: "/settings", component: SettingsPage }
   ]

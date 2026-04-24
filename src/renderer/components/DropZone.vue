@@ -40,7 +40,7 @@ function onDrop(event: DragEvent) {
   event.preventDefault();
   isDragging.value = false;
   const files = Array.from(event.dataTransfer?.files ?? []);
-  const paths = files.map((file) => (file as File & { path?: string }).path).filter(Boolean) as string[];
+  const paths = window.devToolbox.getDroppedFilePaths(files);
   if (paths.length > 0) {
     emit("update:modelValue", props.multiple === false ? [paths[0]] : paths);
   }

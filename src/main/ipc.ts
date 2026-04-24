@@ -10,6 +10,10 @@ import { base64ToImage, exportMarkdown, imageToBase64, renameFiles } from "./ser
 import { generateQrCode } from "./services/qr.service";
 import { getIpInfo } from "./services/network.service";
 import { generateAssetManifest } from "./services/asset-manifest.service";
+import { generateSprite } from "./services/sprite.service";
+import { generateSeoFiles } from "./services/seo-files.service";
+import { generateImagePlaceholders } from "./services/placeholder.service";
+import { generateOgImage } from "./services/og-image.service";
 import {
   connectSharedDisk,
   disconnectSharedDisk,
@@ -26,11 +30,15 @@ import type {
   FontWoff2Options,
   ImageCompressOptions,
   ImageCropOptions,
+  ImagePlaceholderOptions,
   ImageResizeOptions,
   MarkdownExportOptions,
+  OgImageOptions,
   QrCodeOptions,
   RenameOptions,
+  SeoFilesOptions,
   SharedDiskConfig,
+  SpriteOptions,
   VideoBackgroundOptions,
   VideoAnimationOptions,
   VideoMuteOptions,
@@ -164,6 +172,47 @@ const assetManifestSchema = z.object({
   includeHash: z.boolean()
 });
 
+const spriteSchema = z.object({
+  inputPaths: z.array(z.string().min(1)).min(1),
+  outputDir: z.string().min(1),
+  spriteName: z.string().min(1),
+  classPrefix: z.string().min(1),
+  columns: z.number().int().min(1).max(24),
+  padding: z.number().int().min(0).max(256)
+});
+
+const seoFilesSchema = z.object({
+  outputDir: z.string().min(1),
+  siteUrl: z.string().min(1),
+  disallow: z.string(),
+  pages: z.string(),
+  changefreq: z.string().min(1),
+  priority: z.string().min(1),
+  includeRobots: z.boolean(),
+  includeSitemap: z.boolean()
+});
+
+const imagePlaceholderSchema = z.object({
+  inputPaths: z.array(z.string().min(1)).min(1),
+  outputDir: z.string().min(1),
+  tinyWidth: z.number().int().min(8).max(128),
+  componentX: z.number().int().min(1).max(9),
+  componentY: z.number().int().min(1).max(9)
+});
+
+const ogImageSchema = z.object({
+  outputDir: z.string().min(1),
+  fileName: z.string().min(1),
+  title: z.string().min(1),
+  subtitle: z.string(),
+  siteName: z.string(),
+  width: z.number().int().min(320).max(2400),
+  height: z.number().int().min(240).max(1600),
+  backgroundColor: z.string().min(4),
+  accentColor: z.string().min(4),
+  textColor: z.string().min(4)
+});
+
 const sharedDiskSchema = z.object({
   url: z.string().min(1),
   username: z.string(),
@@ -273,6 +322,26 @@ export function registerIpc() {
   ipcMain.handle("assets:manifest", async (_event, raw: AssetManifestOptions) => {
     const options = assetManifestSchema.parse(raw);
     return generateAssetManifest(options, history);
+  });
+
+  ipcMain.handle("assets:sprite", async (_event, raw: SpriteOptions) => {
+    const options = spriteSchema.parse(raw);
+    return generateSprite(options, history);
+  });
+
+  ipcMain.handle("assets:image-placeholder", async (_event, raw: ImagePlaceholderOptions) => {
+    const options = imagePlaceholderSchema.parse(raw);
+    return generateImagePlaceholders(options, history);
+  });
+
+  ipcMain.handle("seo:files", async (_event, raw: SeoFilesOptions) => {
+    const options = seoFilesSchema.parse(raw);
+    return generateSeoFiles(options, history);
+  });
+
+  ipcMain.handle("seo:og-image", async (_event, raw: OgImageOptions) => {
+    const options = ogImageSchema.parse(raw);
+    return generateOgImage(options, history);
   });
 
   ipcMain.handle("base64:image-to-base64", async (_event, inputPath: string) => {

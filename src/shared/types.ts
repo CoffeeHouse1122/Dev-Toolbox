@@ -11,6 +11,10 @@ export type ToolType =
   | "image-compress"
   | "image-resize"
   | "image-crop"
+  | "sprite"
+  | "image-placeholder"
+  | "seo-files"
+  | "og-image"
   | "qr-code"
   | "audio-convert"
   | "font-subset"
@@ -190,6 +194,47 @@ export interface AssetManifestOptions {
   includeHash: boolean;
 }
 
+export interface SpriteOptions {
+  inputPaths: string[];
+  outputDir: string;
+  spriteName: string;
+  classPrefix: string;
+  columns: number;
+  padding: number;
+}
+
+export interface SeoFilesOptions {
+  outputDir: string;
+  siteUrl: string;
+  disallow: string;
+  pages: string;
+  changefreq: string;
+  priority: string;
+  includeRobots: boolean;
+  includeSitemap: boolean;
+}
+
+export interface ImagePlaceholderOptions {
+  inputPaths: string[];
+  outputDir: string;
+  tinyWidth: number;
+  componentX: number;
+  componentY: number;
+}
+
+export interface OgImageOptions {
+  outputDir: string;
+  fileName: string;
+  title: string;
+  subtitle: string;
+  siteName: string;
+  width: number;
+  height: number;
+  backgroundColor: string;
+  accentColor: string;
+  textColor: string;
+}
+
 export interface SharedDiskConfig {
   url: string;
   username: string;
@@ -220,6 +265,8 @@ export interface DevToolboxApi {
   compressImages(options: ImageCompressOptions): Promise<ConversionResult>;
   resizeImages(options: ImageResizeOptions): Promise<ConversionResult>;
   cropImage(options: ImageCropOptions): Promise<ConversionResult>;
+  generateSprite(options: SpriteOptions): Promise<ConversionResult>;
+  generateImagePlaceholders(options: ImagePlaceholderOptions): Promise<ConversionResult>;
   convertFontWoff2(options: FontWoff2Options): Promise<ConversionResult>;
   subsetFont(options: FontSubsetOptions): Promise<ConversionResult>;
   convertVideoBackground(options: VideoBackgroundOptions): Promise<ConversionResult>;
@@ -231,6 +278,9 @@ export interface DevToolboxApi {
   generateQrCode(options: QrCodeOptions): Promise<ConversionResult>;
   getIpInfo(): Promise<IpInfo>;
   generateAssetManifest(options: AssetManifestOptions): Promise<ConversionResult>;
+  generateSeoFiles(options: SeoFilesOptions): Promise<ConversionResult>;
+  generateOgImage(options: OgImageOptions): Promise<ConversionResult>;
+  getDroppedFilePaths(files: unknown[]): string[];
   loadSharedDiskConfig(): Promise<SharedDiskConfig>;
   saveSharedDiskConfig(config: SharedDiskConfig): Promise<SharedDiskConfig>;
   connectSharedDisk(config: SharedDiskConfig): Promise<SharedDiskConnectResult>;

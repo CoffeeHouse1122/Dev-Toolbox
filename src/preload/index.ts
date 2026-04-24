@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from "electron";
+import { contextBridge, ipcRenderer, webUtils } from "electron";
 import type {
   DevToolboxApi,
   DialogFileFilter,
@@ -9,11 +9,15 @@ import type {
   FontWoff2Options,
   ImageCompressOptions,
   ImageCropOptions,
+  ImagePlaceholderOptions,
   ImageResizeOptions,
   MarkdownExportOptions,
+  OgImageOptions,
   QrCodeOptions,
   RenameOptions,
+  SeoFilesOptions,
   SharedDiskConfig,
+  SpriteOptions,
   VideoBackgroundOptions,
   VideoAnimationOptions,
   VideoMuteOptions,
@@ -33,6 +37,9 @@ const api: DevToolboxApi = {
   compressImages: (options: ImageCompressOptions) => ipcRenderer.invoke("convert:image-compress", toPlain(options)),
   resizeImages: (options: ImageResizeOptions) => ipcRenderer.invoke("convert:image-resize", toPlain(options)),
   cropImage: (options: ImageCropOptions) => ipcRenderer.invoke("convert:image-crop", toPlain(options)),
+  generateSprite: (options: SpriteOptions) => ipcRenderer.invoke("assets:sprite", toPlain(options)),
+  generateImagePlaceholders: (options: ImagePlaceholderOptions) =>
+    ipcRenderer.invoke("assets:image-placeholder", toPlain(options)),
   convertFontWoff2: (options: FontWoff2Options) => ipcRenderer.invoke("convert:font-woff2", toPlain(options)),
   subsetFont: (options: FontSubsetOptions) => ipcRenderer.invoke("convert:font-subset", toPlain(options)),
   convertVideoBackground: (options: VideoBackgroundOptions) =>
@@ -45,6 +52,10 @@ const api: DevToolboxApi = {
   generateQrCode: (options: QrCodeOptions) => ipcRenderer.invoke("qr:generate", toPlain(options)),
   getIpInfo: () => ipcRenderer.invoke("network:ip-info"),
   generateAssetManifest: (options: AssetManifestOptions) => ipcRenderer.invoke("assets:manifest", toPlain(options)),
+  generateSeoFiles: (options: SeoFilesOptions) => ipcRenderer.invoke("seo:files", toPlain(options)),
+  generateOgImage: (options: OgImageOptions) => ipcRenderer.invoke("seo:og-image", toPlain(options)),
+  getDroppedFilePaths: (files: unknown[]) =>
+    files.map((file) => webUtils.getPathForFile(file as File)).filter(Boolean),
   loadSharedDiskConfig: () => ipcRenderer.invoke("shared-disk:load"),
   saveSharedDiskConfig: (config: SharedDiskConfig) => ipcRenderer.invoke("shared-disk:save", toPlain(config)),
   connectSharedDisk: (config: SharedDiskConfig) => ipcRenderer.invoke("shared-disk:connect", toPlain(config)),
