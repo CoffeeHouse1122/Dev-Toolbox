@@ -13,6 +13,7 @@ import UuidTool from "../pages/UuidTool.vue";
 import RenameTool from "../pages/RenameTool.vue";
 import ImageCompressTool from "../pages/ImageCompressTool.vue";
 import ImageResizeTool from "../pages/ImageResizeTool.vue";
+import ImageCropTool from "../pages/ImageCropTool.vue";
 import SharedDiskTool from "../pages/SharedDiskTool.vue";
 import IpQueryTool from "../pages/IpQueryTool.vue";
 import QrCodeTool from "../pages/QrCodeTool.vue";
@@ -45,6 +46,7 @@ export const router = createRouter({
     { path: "/shared-disk", component: SharedDiskTool },
     { path: "/image-compress", component: ImageCompressTool },
     { path: "/image-resize", component: ImageResizeTool },
+    { path: "/image-crop", component: ImageCropTool },
     { path: "/ip-query", component: IpQueryTool },
     { path: "/qr-code", component: QrCodeTool },
     { path: "/audio-convert", component: AudioConvertTool },

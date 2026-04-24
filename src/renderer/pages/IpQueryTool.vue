@@ -40,6 +40,7 @@ onMounted(() => {
         <div class="metric-card">
           <span>外网 IP</span>
           <strong>{{ info?.externalIp || "未获取" }}</strong>
+          <small v-if="info?.externalSource">来源：{{ info.externalSource }}</small>
           <small v-if="info?.externalError">获取失败：{{ info.externalError }}</small>
         </div>
 

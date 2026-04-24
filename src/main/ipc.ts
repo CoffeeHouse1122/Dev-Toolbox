@@ -1,7 +1,7 @@
 import { dialog, ipcMain, shell } from "electron";
 import { z } from "zod";
 import { createHistoryService } from "./services/history.service";
-import { compressImages, createFaviconPackage, convertImages, resizeImages } from "./services/image.service";
+import { compressImages, createFaviconPackage, convertImages, cropImage, resizeImages } from "./services/image.service";
 import { convertFontsToWoff2 } from "./services/font.service";
 import { subsetFont } from "./services/font-tools.service";
 import { convertVideoAnimation, createVideoBackgroundPack, removeVideoAudio } from "./services/video.service";
@@ -25,6 +25,7 @@ import type {
   FontSubsetOptions,
   FontWoff2Options,
   ImageCompressOptions,
+  ImageCropOptions,
   ImageResizeOptions,
   MarkdownExportOptions,
   QrCodeOptions,
@@ -69,6 +70,17 @@ const imageResizeSchema = z.object({
   width: z.number().int().positive().optional(),
   height: z.number().int().positive().optional(),
   scale: z.number().positive().optional()
+});
+
+const imageCropSchema = z.object({
+  inputPath: z.string().min(1),
+  outputDir: z.string().min(1),
+  x: z.number().min(0),
+  y: z.number().min(0),
+  width: z.number().positive(),
+  height: z.number().positive(),
+  outputFormat: z.enum(["webp", "png", "jpeg", "avif"]),
+  quality: z.number().int().min(1).max(100)
 });
 
 const fontSchema = z.object({
@@ -202,6 +214,11 @@ export function registerIpc() {
   ipcMain.handle("convert:image-resize", async (_event, raw: ImageResizeOptions) => {
     const options = imageResizeSchema.parse(raw);
     return resizeImages(options, history);
+  });
+
+  ipcMain.handle("convert:image-crop", async (_event, raw: ImageCropOptions) => {
+    const options = imageCropSchema.parse(raw);
+    return cropImage(options, history);
   });
 
   ipcMain.handle("convert:font-woff2", async (_event, raw: FontWoff2Options) => {

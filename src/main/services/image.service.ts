@@ -2,7 +2,14 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import sharp from "sharp";
 import pngToIco from "png-to-ico";
-import type { ConversionResult, FaviconOptions, ImageCompressOptions, ImageResizeOptions, WebpOptions } from "../../shared/types";
+import type {
+  ConversionResult,
+  FaviconOptions,
+  ImageCompressOptions,
+  ImageCropOptions,
+  ImageResizeOptions,
+  WebpOptions
+} from "../../shared/types";
 import type { HistoryService } from "./history.service";
 import { ensureDir, safeBaseName, uniqueId, writeTextFile } from "./file-utils";
 
@@ -239,6 +246,58 @@ export async function resizeImages(options: ImageResizeOptions, history: History
       logs.push(`Resized ${path.basename(inputPath)}.`);
     }
 
+    await history.finishTask(id, "success");
+    return { id, status: "success", files, outputPath: options.outputDir, logs };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    await history.finishTask(id, "error", message);
+    return { id, status: "error", files, outputPath: options.outputDir, logs, errorMessage: message };
+  }
+}
+
+export async function cropImage(options: ImageCropOptions, history: HistoryService): Promise<ConversionResult> {
+  const id = uniqueId("image-crop");
+  const logs: string[] = [];
+  const files: string[] = [];
+
+  await history.startTask({
+    id,
+    toolType: "image-crop",
+    sourcePath: options.inputPath,
+    outputPath: options.outputDir,
+    options
+  });
+
+  try {
+    await ensureDir(options.outputDir);
+    const metadata = await sharp(options.inputPath, { limitInputPixels: false }).metadata();
+    const imageWidth = metadata.width ?? 0;
+    const imageHeight = metadata.height ?? 0;
+    if (!imageWidth || !imageHeight) {
+      throw new Error("无法读取图片尺寸。");
+    }
+
+    const left = Math.max(0, Math.min(imageWidth - 1, Math.round(options.x)));
+    const top = Math.max(0, Math.min(imageHeight - 1, Math.round(options.y)));
+    const width = Math.max(1, Math.min(imageWidth - left, Math.round(options.width)));
+    const height = Math.max(1, Math.min(imageHeight - top, Math.round(options.height)));
+    const ext = outputExtension(options.outputFormat);
+    const output = path.join(options.outputDir, `${safeBaseName(options.inputPath)}-cropped.${ext}`);
+
+    let pipeline = sharp(options.inputPath, { limitInputPixels: false }).extract({ left, top, width, height });
+    if (options.outputFormat === "webp") {
+      pipeline = pipeline.webp({ quality: options.quality });
+    } else if (options.outputFormat === "png") {
+      pipeline = pipeline.png({ compressionLevel: 9 });
+    } else if (options.outputFormat === "jpeg") {
+      pipeline = pipeline.jpeg({ quality: options.quality, mozjpeg: true });
+    } else {
+      pipeline = pipeline.avif({ quality: options.quality });
+    }
+
+    await pipeline.toFile(output);
+    files.push(output);
+    logs.push(`Cropped ${path.basename(options.inputPath)} to ${width}x${height}.`);
     await history.finishTask(id, "success");
     return { id, status: "success", files, outputPath: options.outputDir, logs };
   } catch (error) {

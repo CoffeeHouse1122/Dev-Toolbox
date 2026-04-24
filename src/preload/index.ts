@@ -8,6 +8,7 @@ import type {
   FontSubsetOptions,
   FontWoff2Options,
   ImageCompressOptions,
+  ImageCropOptions,
   ImageResizeOptions,
   MarkdownExportOptions,
   QrCodeOptions,
@@ -31,6 +32,7 @@ const api: DevToolboxApi = {
   convertWebp: (options: WebpOptions) => ipcRenderer.invoke("convert:webp", toPlain(options)),
   compressImages: (options: ImageCompressOptions) => ipcRenderer.invoke("convert:image-compress", toPlain(options)),
   resizeImages: (options: ImageResizeOptions) => ipcRenderer.invoke("convert:image-resize", toPlain(options)),
+  cropImage: (options: ImageCropOptions) => ipcRenderer.invoke("convert:image-crop", toPlain(options)),
   convertFontWoff2: (options: FontWoff2Options) => ipcRenderer.invoke("convert:font-woff2", toPlain(options)),
   subsetFont: (options: FontSubsetOptions) => ipcRenderer.invoke("convert:font-subset", toPlain(options)),
   convertVideoBackground: (options: VideoBackgroundOptions) =>

@@ -10,6 +10,7 @@ export type ToolType =
   | "batch-rename"
   | "image-compress"
   | "image-resize"
+  | "image-crop"
   | "qr-code"
   | "audio-convert"
   | "font-subset"
@@ -78,6 +79,17 @@ export interface ImageResizeOptions {
   width?: number;
   height?: number;
   scale?: number;
+}
+
+export interface ImageCropOptions {
+  inputPath: string;
+  outputDir: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  outputFormat: ImageOutputFormat;
+  quality: number;
 }
 
 export interface FontWoff2Options {
@@ -158,6 +170,7 @@ export interface IpAddressItem {
 export interface IpInfo {
   internal: IpAddressItem[];
   externalIp: string;
+  externalSource?: string;
   externalError?: string;
 }
 
@@ -206,6 +219,7 @@ export interface DevToolboxApi {
   convertWebp(options: WebpOptions): Promise<ConversionResult>;
   compressImages(options: ImageCompressOptions): Promise<ConversionResult>;
   resizeImages(options: ImageResizeOptions): Promise<ConversionResult>;
+  cropImage(options: ImageCropOptions): Promise<ConversionResult>;
   convertFontWoff2(options: FontWoff2Options): Promise<ConversionResult>;
   subsetFont(options: FontSubsetOptions): Promise<ConversionResult>;
   convertVideoBackground(options: VideoBackgroundOptions): Promise<ConversionResult>;

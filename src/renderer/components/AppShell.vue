@@ -14,6 +14,7 @@ const groups = [
       { to: "/webp", label: "图片转换", icon: "ri-image-edit-line" },
       { to: "/image-compress", label: "图片压缩", icon: "ri-image-2-line" },
       { to: "/image-resize", label: "尺寸调整", icon: "ri-crop-line" },
+      { to: "/image-crop", label: "自由裁剪", icon: "ri-scissors-cut-line" },
       { to: "/base64-image", label: "Base64 图片", icon: "ri-code-line" },
       { to: "/qr-code", label: "二维码生成", icon: "ri-qr-code-line" }
     ]
