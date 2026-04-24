@@ -15,8 +15,16 @@ const result = ref<ConversionResult | null>(null);
 async function run() {
   if (!input.value.length || !outputDir.value) return;
   busy.value = true;
-  result.value = await window.devToolbox.compressImages({ inputPaths: [...input.value], outputDir: outputDir.value, quality: quality.value, keepMetadata: keepMetadata.value });
-  busy.value = false;
+  try {
+    result.value = await window.devToolbox.compressImages({
+      inputPaths: [...input.value],
+      outputDir: outputDir.value,
+      quality: quality.value,
+      keepMetadata: keepMetadata.value
+    });
+  } finally {
+    busy.value = false;
+  }
 }
 </script>
 
@@ -27,19 +35,34 @@ async function run() {
         <h2>图片压缩</h2>
         <p>PNG / JPG / WebP / AVIF 单个或批量压缩</p>
       </div>
-      <button type="button" class="primary-button" :disabled="!input.length || !outputDir || busy" @click="run"><i class="ri-image-edit-line" aria-hidden="true"></i>压缩</button>
+      <button type="button" class="primary-button" :disabled="!input.length || !outputDir || busy" @click="run">
+        <i class="ri-image-edit-line" aria-hidden="true"></i>
+        压缩 {{ input.length > 1 ? input.length : "" }}
+      </button>
     </div>
     <div class="tool-layout">
       <section class="tool-main">
-        <DropZone v-model="input" title="源图片" preview="image" :filters="[{ name: '图片', extensions: ['png', 'jpg', 'jpeg', 'webp', 'avif'] }]" />
+        <DropZone
+          v-model="input"
+          title="源图片"
+          preview="image"
+          :multiple="true"
+          :filters="[{ name: '图片', extensions: ['png', 'jpg', 'jpeg', 'webp', 'avif'] }]"
+        />
         <OutputPicker v-model="outputDir" />
         <div class="option-grid">
-          <label class="field"><span>质量</span><input v-model.number="quality" type="range" min="1" max="100" /><strong>{{ quality }}</strong></label>
-          <label class="check-row"><input v-model="keepMetadata" type="checkbox" /><span>保留元数据</span></label>
+          <label class="field">
+            <span>质量</span>
+            <input v-model.number="quality" type="range" min="1" max="100" />
+            <strong>{{ quality }}</strong>
+          </label>
+          <label class="check-row">
+            <input v-model="keepMetadata" type="checkbox" />
+            <span>保留元数据</span>
+          </label>
         </div>
       </section>
       <ResultPanel :result="result" :busy="busy" />
     </div>
   </section>
 </template>
-

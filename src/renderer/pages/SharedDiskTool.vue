@@ -16,6 +16,17 @@ const lastResult = ref<SharedDiskConnectResult | null>(null);
 
 const canConnect = computed(() => config.value.url && config.value.basePath && config.value.username && config.value.password);
 
+function plainConfig(): SharedDiskConfig {
+  return {
+    url: config.value.url,
+    username: config.value.username,
+    password: config.value.password,
+    basePath: config.value.basePath,
+    defaultDirectory: config.value.defaultDirectory,
+    persistent: config.value.persistent
+  };
+}
+
 async function loadConfig() {
   config.value = await window.devToolbox.loadSharedDiskConfig();
 }
@@ -23,7 +34,7 @@ async function loadConfig() {
 async function saveConfig() {
   busy.value = true;
   try {
-    config.value = await window.devToolbox.saveSharedDiskConfig(config.value);
+    config.value = await window.devToolbox.saveSharedDiskConfig(plainConfig());
     status.value = "配置已保存";
   } catch (error) {
     status.value = error instanceof Error ? error.message : String(error);
@@ -36,7 +47,7 @@ async function connect() {
   if (!canConnect.value) return;
   busy.value = true;
   try {
-    lastResult.value = await window.devToolbox.connectSharedDisk(config.value);
+    lastResult.value = await window.devToolbox.connectSharedDisk(plainConfig());
     status.value = lastResult.value.message;
   } catch (error) {
     status.value = error instanceof Error ? error.message : String(error);
@@ -48,7 +59,7 @@ async function connect() {
 async function disconnect() {
   busy.value = true;
   try {
-    lastResult.value = await window.devToolbox.disconnectSharedDisk(config.value);
+    lastResult.value = await window.devToolbox.disconnectSharedDisk(plainConfig());
     status.value = lastResult.value.message;
   } catch (error) {
     status.value = error instanceof Error ? error.message : String(error);
@@ -110,11 +121,11 @@ onMounted(loadConfig);
           </label>
           <label class="field span-2">
             <span>基础路径</span>
-            <input v-model="config.basePath" placeholder="/共享名/子目录，例如 /share/folder" />
+            <input v-model="config.basePath" placeholder="/共享名/子目录，例如 /需求素材同步共享" />
           </label>
           <label class="field span-2">
             <span>打开文件默认目录</span>
-            <input v-model="config.defaultDirectory" placeholder="例如 \\10.0.15.5\share\folder" />
+            <input v-model="config.defaultDirectory" placeholder="例如 \\10.0.15.5\需求素材同步共享" />
           </label>
           <label class="check-row span-2">
             <input v-model="config.persistent" type="checkbox" />

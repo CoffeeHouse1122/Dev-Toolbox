@@ -29,17 +29,20 @@ const canRun = computed(() => input.value.length > 0 && outputDir.value && !busy
 async function run() {
   if (!canRun.value) return;
   busy.value = true;
-  result.value = await window.devToolbox.convertWebp({
-    inputPaths: [...input.value],
-    outputDir: outputDir.value,
-    outputFormat: outputFormat.value,
-    quality: quality.value,
-    lossless: lossless.value,
-    keepMetadata: keepMetadata.value,
-    maxWidth: maxWidth.value || undefined,
-    maxHeight: maxHeight.value || undefined
-  });
-  busy.value = false;
+  try {
+    result.value = await window.devToolbox.convertWebp({
+      inputPaths: [...input.value],
+      outputDir: outputDir.value,
+      outputFormat: outputFormat.value,
+      quality: quality.value,
+      lossless: lossless.value,
+      keepMetadata: keepMetadata.value,
+      maxWidth: maxWidth.value || undefined,
+      maxHeight: maxHeight.value || undefined
+    });
+  } finally {
+    busy.value = false;
+  }
 }
 </script>
 
@@ -48,11 +51,11 @@ async function run() {
     <div class="tool-header">
       <div>
         <h2>图片格式转换</h2>
-        <p>支持 WebP、PNG、JPEG、AVIF</p>
+        <p>支持 WebP、PNG、JPEG、AVIF，支持单个或批量</p>
       </div>
       <button type="button" class="primary-button" :disabled="!canRun" @click="run">
         <i class="ri-play-fill" aria-hidden="true"></i>
-        开始转换
+        转换 {{ input.length > 1 ? input.length : "" }}
       </button>
     </div>
 
@@ -62,6 +65,7 @@ async function run() {
           v-model="input"
           title="源图片"
           preview="image"
+          :multiple="true"
           :filters="[{ name: '图片', extensions: ['png', 'jpg', 'jpeg', 'webp', 'avif', 'tiff'] }]"
         />
         <OutputPicker v-model="outputDir" />

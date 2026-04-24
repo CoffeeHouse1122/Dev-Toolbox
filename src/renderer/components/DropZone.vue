@@ -17,6 +17,11 @@ const emit = defineEmits<{
 const isDragging = ref(false);
 
 const fileNames = computed(() => props.modelValue.map((item) => item.split(/[\\/]/).pop()).join(", "));
+const selectionLabel = computed(() => {
+  if (props.modelValue.length === 0) return "未选择文件";
+  if (props.modelValue.length === 1) return fileNames.value;
+  return `已选择 ${props.modelValue.length} 个文件`;
+});
 const previewUrl = computed(() => {
   const first = props.modelValue[0];
   if (!first || !props.preview) return "";
@@ -67,6 +72,6 @@ function onKeydown(event: KeyboardEvent) {
     </div>
     <span v-else class="drop-icon"><i class="ri-upload-cloud-2-line" aria-hidden="true"></i></span>
     <span class="drop-title">{{ title }}</span>
-    <span class="drop-files">{{ fileNames || "未选择文件" }}</span>
+    <span class="drop-files" :title="fileNames">{{ selectionLabel }}</span>
   </div>
 </template>
