@@ -32,9 +32,12 @@ npm run dist
 ## Project Layout
 
 ```txt
+build/         Electron builder resources, desktop icons, installer assets
+docs/          Project documentation and reusable conventions
 src/
-  main/        Electron main process, IPC, converters, SQLite
-  preload/     Safe bridge exposed to the renderer
+  electron/
+    main/      Electron main process, IPC registration, native services
+    preload/   Safe bridge exposed to the renderer
   renderer/    Vue app
   shared/      Shared TypeScript contracts
 ```

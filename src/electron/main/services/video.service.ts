@@ -2,7 +2,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { spawn } from "node:child_process";
 import ffmpegPath from "ffmpeg-static";
-import type { ConversionResult, VideoAnimationOptions, VideoBackgroundOptions, VideoMuteOptions } from "../../shared/types";
+import type { ConversionResult, VideoAnimationOptions, VideoBackgroundOptions, VideoMuteOptions } from "../../../shared/types";
 import type { HistoryService } from "./history.service";
 import { ensureDir, uniqueId, writeTextFile } from "./file-utils";
 

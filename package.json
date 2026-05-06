@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "description": "Local-first desktop toolkit for frontend asset conversion.",
   "productName": "Dev Toolbox",
-  "main": "dist/main/index.js",
+  "main": "dist/electron/main/index.js",
   "private": true,
   "scripts": {
     "dev": "npm-run-all -p dev:renderer dev:electron",
@@ -54,12 +54,22 @@
     "appId": "com.devtoolbox.app",
     "productName": "Dev Toolbox",
     "directories": {
-      "output": "release"
+      "output": "release",
+      "buildResources": "build"
     },
     "files": [
       "dist/**/*",
       "package.json",
       "node_modules/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "build/icons",
+        "to": "icons",
+        "filter": [
+          "**/*"
+        ]
+      }
     ],
     "asarUnpack": [
       "node_modules/ffmpeg-static/**/*",
@@ -69,13 +79,15 @@
       "node_modules/sql.js/dist/*.wasm"
     ],
     "win": {
-      "target": "nsis"
+      "target": "nsis",
+      "icon": "icons/favicon.ico"
     },
     "mac": {
       "target": "dmg"
     },
     "linux": {
-      "target": "AppImage"
+      "target": "AppImage",
+      "icon": "icons/favicon-256x256.png"
     }
   }
 }

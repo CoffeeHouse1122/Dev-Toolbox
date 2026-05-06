@@ -2,7 +2,7 @@ import { app } from "electron";
 import fs from "node:fs";
 import initSqlJs, { type Database, type SqlJsStatic } from "sql.js";
 import path from "node:path";
-import type { ConversionRecord, TaskStatus, ToolType } from "../../shared/types";
+import type { ConversionRecord, TaskStatus, ToolType } from "../../../shared/types";
 import { ensureDir } from "./file-utils";
 
 export interface HistoryService {

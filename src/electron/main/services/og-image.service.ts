@@ -1,6 +1,6 @@
 import path from "node:path";
 import sharp from "sharp";
-import type { ConversionResult, OgImageOptions } from "../../shared/types";
+import type { ConversionResult, OgImageOptions } from "../../../shared/types";
 import type { HistoryService } from "./history.service";
 import { ensureDir, safeBaseName, uniqueId } from "./file-utils";
 

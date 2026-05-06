@@ -1,7 +1,7 @@
 import path from "node:path";
 import { encode } from "blurhash";
 import sharp from "sharp";
-import type { ConversionResult, ImagePlaceholderOptions } from "../../shared/types";
+import type { ConversionResult, ImagePlaceholderOptions } from "../../../shared/types";
 import type { HistoryService } from "./history.service";
 import { ensureDir, safeBaseName, uniqueId, writeTextFile } from "./file-utils";
 

@@ -2,7 +2,7 @@ import { app, safeStorage, shell } from "electron";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { spawn } from "node:child_process";
-import type { SharedDiskConfig, SharedDiskConnectResult } from "../../shared/types";
+import type { SharedDiskConfig, SharedDiskConnectResult } from "../../../shared/types";
 import { ensureDir } from "./file-utils";
 
 interface StoredSharedDiskConfig extends Omit<SharedDiskConfig, "password"> {

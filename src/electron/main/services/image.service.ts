@@ -9,7 +9,7 @@ import type {
   ImageCropOptions,
   ImageResizeOptions,
   WebpOptions
-} from "../../shared/types";
+} from "../../../shared/types";
 import type { HistoryService } from "./history.service";
 import { ensureDir, safeBaseName, uniqueId, writeTextFile } from "./file-utils";
 

@@ -18,7 +18,7 @@ import { generateOgImage } from "./services/og-image.service";
 import { registerClipboardIpc } from "./services/clipboard-history.service";
 import { getSharedDiskStatus } from "./services/shared-disk-status.service";
 import { loadAppSettings, saveAppSettings } from "./services/settings.service";
-import type { AppSettings } from "../shared/types";
+import type { AppSettings } from "../../shared/types";
 import {
   ensureDir,
   safeBaseName,
@@ -56,7 +56,7 @@ import type {
   VideoAnimationOptions,
   VideoMuteOptions,
   WebpOptions
-} from "../shared/types";
+} from "../../shared/types";
 
 const faviconSchema = z.object({
   inputPath: z.string().min(1),

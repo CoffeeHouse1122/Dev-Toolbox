@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import type { SharedDiskConfig, SharedDiskStatus } from "../../shared/types";
+import type { SharedDiskConfig, SharedDiskStatus } from "../../../shared/types";
 
 function parseHostFromUrl(url: string) {
   if (!url.trim()) return "";

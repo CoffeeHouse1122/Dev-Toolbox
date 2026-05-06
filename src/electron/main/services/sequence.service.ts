@@ -3,7 +3,7 @@ import path from "node:path";
 import { spawn } from "node:child_process";
 import ffmpegPath from "ffmpeg-static";
 import sharp from "sharp";
-import type { ConversionResult, SequenceAnimationOptions } from "../../shared/types";
+import type { ConversionResult, SequenceAnimationOptions } from "../../../shared/types";
 import type { HistoryService } from "./history.service";
 import { ensureDir, safeBaseName, uniqueId } from "./file-utils";
 

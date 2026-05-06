@@ -1,6 +1,6 @@
 import path from "node:path";
 import QRCode from "qrcode";
-import type { ConversionResult, QrCodeOptions } from "../../shared/types";
+import type { ConversionResult, QrCodeOptions } from "../../../shared/types";
 import type { HistoryService } from "./history.service";
 import { ensureDir, safeBaseName, uniqueId, writeTextFile } from "./file-utils";
 

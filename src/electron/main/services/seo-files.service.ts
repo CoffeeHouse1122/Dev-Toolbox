@@ -1,5 +1,5 @@
 import path from "node:path";
-import type { ConversionResult, SeoFilesOptions } from "../../shared/types";
+import type { ConversionResult, SeoFilesOptions } from "../../../shared/types";
 import type { HistoryService } from "./history.service";
 import { ensureDir, uniqueId, writeTextFile } from "./file-utils";
 

@@ -1,6 +1,6 @@
 import { clipboard, nativeImage, ipcMain, BrowserWindow } from "electron";
 import crypto from "node:crypto";
-import type { ClipboardEntry } from "../../shared/types";
+import type { ClipboardEntry } from "../../../shared/types";
 
 const MAX_ENTRIES = 100;
 const POLL_INTERVAL_MS = 700;

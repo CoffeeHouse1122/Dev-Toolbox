@@ -1,6 +1,6 @@
 import os from "node:os";
 import { net } from "electron";
-import type { IpInfo } from "../../shared/types";
+import type { IpInfo } from "../../../shared/types";
 
 type IpSource = {
   name: string;

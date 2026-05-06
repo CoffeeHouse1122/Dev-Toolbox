@@ -1,6 +1,6 @@
 import path from "node:path";
 import sharp from "sharp";
-import type { ConversionResult, SpriteOptions } from "../../shared/types";
+import type { ConversionResult, SpriteOptions } from "../../../shared/types";
 import type { HistoryService } from "./history.service";
 import { ensureDir, safeBaseName, uniqueId, writeTextFile } from "./file-utils";
 

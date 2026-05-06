@@ -1,7 +1,7 @@
 import { app } from "electron";
 import fs from "node:fs/promises";
 import path from "node:path";
-import type { AppSettings } from "../../shared/types";
+import type { AppSettings } from "../../../shared/types";
 
 const defaultSettings: AppSettings = {
   closeBehavior: "minimize-to-tray"

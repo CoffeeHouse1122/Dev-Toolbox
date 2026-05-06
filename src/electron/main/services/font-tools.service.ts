@@ -1,7 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { Font } from "fonteditor-core";
-import type { ConversionResult, FontSubsetOptions } from "../../shared/types";
+import type { ConversionResult, FontSubsetOptions } from "../../../shared/types";
 import type { HistoryService } from "./history.service";
 import { ensureDir, safeBaseName, uniqueId, writeTextFile } from "./file-utils";
 

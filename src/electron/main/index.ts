@@ -3,6 +3,7 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { registerIpc } from "./ipc";
 import { loadAppSettings, getCachedSettings } from "./services/settings.service";
+import { getPreloadEntryPath, getRendererIndexPath, getRuntimeIconPath } from "./utils/app-paths";
 
 const isDev = Boolean(process.env.VITE_DEV_SERVER_URL);
 
@@ -48,7 +49,8 @@ function showMainWindow() {
 
 function ensureTray() {
   if (tray) return tray;
-  const icon = nativeImage.createEmpty();
+  const iconPath = getRuntimeIconPath();
+  const icon = iconPath ? nativeImage.createFromPath(iconPath) : nativeImage.createEmpty();
   tray = new Tray(icon);
   tray.setToolTip("Dev Toolbox");
   const menu = Menu.buildFromTemplate([
@@ -69,6 +71,7 @@ function ensureTray() {
 }
 
 function createWindow() {
+  const iconPath = getRuntimeIconPath();
   const win = new BrowserWindow({
     width: 1280,
     height: 820,
@@ -76,8 +79,9 @@ function createWindow() {
     minHeight: 660,
     title: "Dev Toolbox",
     backgroundColor: "#0d1117",
+    icon: iconPath,
     webPreferences: {
-      preload: path.join(__dirname, "../preload/index.js"),
+      preload: getPreloadEntryPath(),
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: false
@@ -90,7 +94,7 @@ function createWindow() {
     void win.loadURL(process.env.VITE_DEV_SERVER_URL);
     win.webContents.openDevTools({ mode: "detach" });
   } else {
-    void win.loadFile(path.join(__dirname, "../renderer/index.html"));
+    void win.loadFile(getRendererIndexPath());
   }
 
   win.on("close", (event) => {
