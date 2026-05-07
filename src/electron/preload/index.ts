@@ -13,6 +13,7 @@ import type {
   ImageCropOptions,
   ImagePlaceholderOptions,
   ImageResizeOptions,
+  WatermarkOptions,
   MarkdownExportOptions,
   OgImageOptions,
   QrCodeOptions,
@@ -40,6 +41,7 @@ const api: DevToolboxApi = {
   compressImages: (options: ImageCompressOptions) => ipcRenderer.invoke("convert:image-compress", toPlain(options)),
   resizeImages: (options: ImageResizeOptions) => ipcRenderer.invoke("convert:image-resize", toPlain(options)),
   cropImage: (options: ImageCropOptions) => ipcRenderer.invoke("convert:image-crop", toPlain(options)),
+  applyWatermark: (options: WatermarkOptions) => ipcRenderer.invoke("convert:watermark", toPlain(options)),
   generateSprite: (options: SpriteOptions) => ipcRenderer.invoke("assets:sprite", toPlain(options)),
   generateImagePlaceholders: (options: ImagePlaceholderOptions) =>
     ipcRenderer.invoke("assets:image-placeholder", toPlain(options)),

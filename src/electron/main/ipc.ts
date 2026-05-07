@@ -1,7 +1,7 @@
 import { dialog, ipcMain, shell } from "electron";
 import { z } from "zod";
 import { createHistoryService } from "./services/history.service";
-import { compressImages, createFaviconPackage, convertImages, cropImage, resizeImages } from "./services/image.service";
+import { applyWatermark, compressImages, createFaviconPackage, convertImages, cropImage, resizeImages } from "./services/image.service";
 import { convertFontsToWoff2 } from "./services/font.service";
 import { subsetFont } from "./services/font-tools.service";
 import { convertVideoAnimation, createVideoBackgroundPack, removeVideoAudio } from "./services/video.service";
@@ -44,6 +44,7 @@ import type {
   ImageCropOptions,
   ImagePlaceholderOptions,
   ImageResizeOptions,
+  WatermarkOptions,
   MarkdownExportOptions,
   OgImageOptions,
   QrCodeOptions,
@@ -103,6 +104,27 @@ const imageCropSchema = z.object({
   outputFormat: z.enum(["webp", "png", "jpeg", "avif"]),
   quality: z.number().int().min(1).max(100)
 });
+
+const watermarkSchema = z
+  .object({
+    inputPaths: z.array(z.string().min(1)).min(1),
+    outputDir: z.string().min(1),
+    text: z.string(),
+    patternPath: z.string().min(1).optional(),
+    position: z.enum(["tile", "bottom-right", "center", "top-left", "top-right", "bottom-left"]),
+    outputFormat: z.enum(["same", "webp", "png", "jpeg", "avif"]),
+    opacity: z.number().int().min(1).max(100),
+    rotation: z.number().int().min(-90).max(90),
+    scale: z.number().int().min(12).max(160),
+    gap: z.number().int().min(80).max(720),
+    margin: z.number().int().min(0).max(512),
+    quality: z.number().int().min(1).max(100),
+    keepMetadata: z.boolean()
+  })
+  .refine((value) => value.text.trim().length > 0 || Boolean(value.patternPath), {
+    message: "请填写水印文案，或选择一个图案文件。",
+    path: ["text"]
+  });
 
 const fontSchema = z.object({
   inputPaths: z.array(z.string().min(1)).min(1),
@@ -291,6 +313,11 @@ export function registerIpc() {
   ipcMain.handle("convert:image-crop", async (_event, raw: ImageCropOptions) => {
     const options = imageCropSchema.parse(raw);
     return cropImage(options, history);
+  });
+
+  ipcMain.handle("convert:watermark", async (_event, raw: WatermarkOptions) => {
+    const options = watermarkSchema.parse(raw);
+    return applyWatermark(options, history);
   });
 
   ipcMain.handle("convert:font-woff2", async (_event, raw: FontWoff2Options) => {

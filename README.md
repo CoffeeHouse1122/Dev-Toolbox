@@ -4,6 +4,7 @@ Dev Toolbox is a local-first desktop toolkit for frontend assets. The first mile
 
 - Favicon package generator: image to `favicon.ico`, PNG icons, and optional manifest.
 - WebP converter: batch image conversion, compression, resizing, and metadata control.
+- Watermark tool: batch image/PDF watermarking with custom text, image patterns, tiled overlays, and corner badges.
 - WOFF2 converter: TTF/OTF/WOFF to WOFF2 with optional `@font-face` CSS.
 - Background video compatibility pack: MP4, WebM, HLS `m3u8 + ts`, poster, and HTML snippet.
 
@@ -18,7 +19,7 @@ The app uses a GitHub-inspired light/dark interface and keeps conversion history
 - Pinia
 - Vue Router
 - SQLite via `sql.js`
-- `sharp`, `png-to-ico`, `wawoff2`, `ffmpeg-static`
+- `sharp`, `pdf-lib`, `png-to-ico`, `wawoff2`, `ffmpeg-static`
 
 ## Scripts
 

@@ -15,6 +15,7 @@ import RenameTool from "../pages/RenameTool.vue";
 import ImageCompressTool from "../pages/ImageCompressTool.vue";
 import ImageResizeTool from "../pages/ImageResizeTool.vue";
 import ImageCropTool from "../pages/ImageCropTool.vue";
+import WatermarkTool from "../pages/WatermarkTool.vue";
 import SpriteTool from "../pages/SpriteTool.vue";
 import ImagePlaceholderTool from "../pages/ImagePlaceholderTool.vue";
 import SharedDiskTool from "../pages/SharedDiskTool.vue";
@@ -61,6 +62,7 @@ export const router = createRouter({
     { path: "/image-compress", component: ImageCompressTool },
     { path: "/image-resize", component: ImageResizeTool },
     { path: "/image-crop", component: ImageCropTool },
+    { path: "/watermark", component: WatermarkTool },
     { path: "/sprite", component: SpriteTool },
     { path: "/image-placeholder", component: ImagePlaceholderTool },
     { path: "/ip-query", component: IpQueryTool },

@@ -1375,6 +1375,21 @@ input,
   grid-template-columns: minmax(0, 1fr) 340px;
 }
 
+.watermark-pattern-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 34px;
+  gap: 10px;
+  align-items: start;
+}
+
+.watermark-pattern-row .drop-zone {
+  min-height: 132px;
+}
+
+.watermark-pattern-row .drop-zone.has-preview {
+  min-height: 172px;
+}
+
 .image-crop-main {
   align-content: start;
 }

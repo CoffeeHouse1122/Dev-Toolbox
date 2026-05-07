@@ -12,6 +12,7 @@ export type ToolType =
   | "image-compress"
   | "image-resize"
   | "image-crop"
+  | "watermark"
   | "sprite"
   | "image-placeholder"
   | "seo-files"
@@ -95,6 +96,25 @@ export interface ImageCropOptions {
   height: number;
   outputFormat: ImageOutputFormat;
   quality: number;
+}
+
+export type WatermarkPosition = "tile" | "bottom-right" | "center" | "top-left" | "top-right" | "bottom-left";
+export type WatermarkOutputFormat = "same" | ImageOutputFormat;
+
+export interface WatermarkOptions {
+  inputPaths: string[];
+  outputDir: string;
+  text: string;
+  patternPath?: string;
+  position: WatermarkPosition;
+  outputFormat: WatermarkOutputFormat;
+  opacity: number;
+  rotation: number;
+  scale: number;
+  gap: number;
+  margin: number;
+  quality: number;
+  keepMetadata: boolean;
 }
 
 export interface FontWoff2Options {
@@ -302,6 +322,7 @@ export interface DevToolboxApi {
   compressImages(options: ImageCompressOptions): Promise<ConversionResult>;
   resizeImages(options: ImageResizeOptions): Promise<ConversionResult>;
   cropImage(options: ImageCropOptions): Promise<ConversionResult>;
+  applyWatermark(options: WatermarkOptions): Promise<ConversionResult>;
   generateSprite(options: SpriteOptions): Promise<ConversionResult>;
   generateImagePlaceholders(options: ImagePlaceholderOptions): Promise<ConversionResult>;
   convertFontWoff2(options: FontWoff2Options): Promise<ConversionResult>;
