@@ -16,6 +16,11 @@
     ],
     "types": [
       "vite/client"
+    ],
+    "plugins": [
+      {
+        "name": "@vue/typescript-plugin"
+      }
     ]
   },
   "include": [

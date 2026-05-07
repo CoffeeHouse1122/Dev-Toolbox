@@ -1,5 +1,5 @@
-<script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from "vue";
+<script lang="ts">
+import { computed, defineComponent, onBeforeUnmount, onMounted, ref, type PropType } from "vue";
 
 export interface SelectOption {
   label: string;
@@ -7,46 +7,65 @@ export interface SelectOption {
   icon?: string;
 }
 
-const props = defineProps<{
-  modelValue: string;
-  options: SelectOption[];
-  label?: string;
-}>();
+export default defineComponent({
+  name: "SelectMenu",
+  props: {
+    modelValue: {
+      type: String,
+      required: true
+    },
+    options: {
+      type: Array as PropType<SelectOption[]>,
+      required: true
+    },
+    label: {
+      type: String,
+      default: undefined
+    }
+  },
+  emits: {
+    "update:modelValue": (value: string) => typeof value === "string"
+  },
+  setup(props, { emit }) {
+    const open = ref(false);
+    const root = ref<HTMLElement | null>(null);
 
-const emit = defineEmits<{
-  "update:modelValue": [value: string];
-}>();
+    const selected = computed(() => props.options.find((option) => option.value === props.modelValue) ?? props.options[0]);
 
-const open = ref(false);
-const root = ref<HTMLElement | null>(null);
+    function choose(value: string) {
+      emit("update:modelValue", value);
+      open.value = false;
+    }
 
-const selected = computed(() => props.options.find((option) => option.value === props.modelValue) ?? props.options[0]);
+    function onPointerDown(event: PointerEvent) {
+      if (root.value && !root.value.contains(event.target as Node)) {
+        open.value = false;
+      }
+    }
 
-function choose(value: string) {
-  emit("update:modelValue", value);
-  open.value = false;
-}
+    function onKeydown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        open.value = false;
+      }
+    }
 
-function onPointerDown(event: PointerEvent) {
-  if (root.value && !root.value.contains(event.target as Node)) {
-    open.value = false;
+    onMounted(() => {
+      document.addEventListener("pointerdown", onPointerDown);
+      document.addEventListener("keydown", onKeydown);
+    });
+
+    onBeforeUnmount(() => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKeydown);
+    });
+
+    return {
+      choose,
+      open,
+      root,
+      selected
+    };
   }
-}
-
-function onKeydown(event: KeyboardEvent) {
-  if (event.key === "Escape") {
-    open.value = false;
-  }
-}
-
-onMounted(() => {
-  document.addEventListener("pointerdown", onPointerDown);
-  document.addEventListener("keydown", onKeydown);
-});
-
-onBeforeUnmount(() => {
-  document.removeEventListener("pointerdown", onPointerDown);
-  document.removeEventListener("keydown", onKeydown);
 });
 </script>
 
