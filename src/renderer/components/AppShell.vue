@@ -352,7 +352,7 @@ function setTheme(value: string) {
         <div class="brand-mark">D</div>
         <div>
           <strong>Dev Toolbox</strong>
-          <span>前端资源工具箱</span>
+          <span>开发工具箱</span>
         </div>
       </div>
 
@@ -384,7 +384,7 @@ function setTheme(value: string) {
       <header class="topbar">
         <div>
           <span class="eyebrow">本地优先</span>
-          <h1>前端资源工具箱</h1>
+          <h1>开发工具箱</h1>
         </div>
         <SelectMenu class="theme-menu" :model-value="theme.mode" :options="themeOptions" label="主题" @update:model-value="setTheme" />
       </header>
