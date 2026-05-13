@@ -5,6 +5,8 @@ import type {
   AppSettings,
   AssetManifestOptions,
   AudioConvertOptions,
+  CertificateScanOptions,
+  CaptureProxyStartOptions,
   ClipboardEntry,
   FaviconOptions,
   FontSubsetOptions,
@@ -25,7 +27,9 @@ import type {
   VideoAnimationOptions,
   VideoMuteOptions,
   SequenceAnimationOptions,
-  WebpOptions
+  ThemeTitleBarPayload,
+  WebpOptions,
+  UpdateStatus
 } from "../../shared/types";
 
 function toPlain<T>(value: T): T {
@@ -58,6 +62,13 @@ const api: DevToolboxApi = {
   renameFiles: (options: RenameOptions) => ipcRenderer.invoke("files:rename", toPlain(options)),
   generateQrCode: (options: QrCodeOptions) => ipcRenderer.invoke("qr:generate", toPlain(options)),
   getIpInfo: () => ipcRenderer.invoke("network:ip-info"),
+  lookupDomainIp: (domain: string) => ipcRenderer.invoke("network:domain-ip", domain),
+  scanCertificates: (options: CertificateScanOptions) => ipcRenderer.invoke("network:certificate-scan", toPlain(options)),
+  startCaptureProxy: (options: CaptureProxyStartOptions) => ipcRenderer.invoke("capture-proxy:start", toPlain(options)),
+  stopCaptureProxy: () => ipcRenderer.invoke("capture-proxy:stop"),
+  getCaptureProxyStatus: () => ipcRenderer.invoke("capture-proxy:status"),
+  listCaptureProxyRecords: () => ipcRenderer.invoke("capture-proxy:list"),
+  clearCaptureProxyRecords: () => ipcRenderer.invoke("capture-proxy:clear"),
   generateAssetManifest: (options: AssetManifestOptions) => ipcRenderer.invoke("assets:manifest", toPlain(options)),
   generateSeoFiles: (options: SeoFilesOptions) => ipcRenderer.invoke("seo:files", toPlain(options)),
   generateOgImage: (options: OgImageOptions) => ipcRenderer.invoke("seo:og-image", toPlain(options)),
@@ -92,7 +103,25 @@ const api: DevToolboxApi = {
     return () => ipcRenderer.off("clipboard:update", listener);
   },
   loadAppSettings: () => ipcRenderer.invoke("settings:load"),
-  saveAppSettings: (settings: AppSettings) => ipcRenderer.invoke("settings:save", toPlain(settings))
+  saveAppSettings: (settings: AppSettings) => ipcRenderer.invoke("settings:save", toPlain(settings)),
+  checkForUpdates: () => ipcRenderer.invoke("update:check"),
+  downloadUpdate: () => ipcRenderer.invoke("update:download"),
+  installUpdate: () => ipcRenderer.invoke("update:install"),
+  getCurrentVersion: () => ipcRenderer.invoke("update:current-version"),
+  onUpdateStatus: (handler: (status: UpdateStatus) => void) => {
+    const listener = (_event: unknown, status: UpdateStatus) => handler(status);
+    ipcRenderer.on("update:status", listener);
+    return () => ipcRenderer.off("update:status", listener);
+  },
+  setThemeBackground: (payload: ThemeTitleBarPayload) => ipcRenderer.send("theme:background", toPlain(payload)),
+  getAlwaysOnTop: () => ipcRenderer.invoke("window:get-always-on-top"),
+  setAlwaysOnTop: (enabled: boolean) => ipcRenderer.invoke("window:set-always-on-top", enabled),
+  loadStickyNotes: () => ipcRenderer.invoke("notes:load"),
+  setStickyNotesDirectory: (directory: string) => ipcRenderer.invoke("notes:set-directory", directory),
+  createStickyNote: (content?: string) => ipcRenderer.invoke("notes:create", content),
+  saveStickyNote: (id: string, content: string) => ipcRenderer.invoke("notes:save", { id, content }),
+  deleteStickyNote: (id: string) => ipcRenderer.invoke("notes:delete", id),
+  exportStickyNotes: (outputDir: string, ids?: string[]) => ipcRenderer.invoke("notes:export", { outputDir, ids })
 };
 
 contextBridge.exposeInMainWorld("devToolbox", api);

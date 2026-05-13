@@ -239,7 +239,7 @@ watch(
     </div>
 
     <Teleport to="body">
-      <div v-if="showModal" class="dt-modal-mask" @click.self="closeModal" @keydown.esc="closeModal">
+      <div v-if="showModal" class="dt-modal-mask" @keydown.esc="closeModal">
         <div class="dt-modal" role="dialog" aria-modal="true">
           <header class="dt-modal-head">
             <h3>{{ editing ? "编辑链接" : "新增链接" }}</h3>

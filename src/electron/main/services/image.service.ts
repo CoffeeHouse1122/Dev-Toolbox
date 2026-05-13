@@ -37,7 +37,7 @@ export async function createFaviconPackage(
     await ensureDir(tempDir);
 
     const sizes = [...new Set(options.sizes)].sort((a, b) => a - b);
-    const pngFiles: string[] = [];
+    const pngFiles: Array<{ size: number; filePath: string }> = [];
 
     for (const size of sizes) {
       const output = path.join(tempDir, `favicon-${size}.png`);
@@ -45,7 +45,7 @@ export async function createFaviconPackage(
         .resize(size, size, { fit: "cover", position: "center" })
         .png({ compressionLevel: 9 })
         .toFile(output);
-      pngFiles.push(output);
+      pngFiles.push({ size, filePath: output });
 
       if (options.includePng) {
         const publicPng = path.join(options.outputDir, `favicon-${size}x${size}.png`);
@@ -54,11 +54,20 @@ export async function createFaviconPackage(
       }
     }
 
-    const icoBuffer = await pngToIco(pngFiles);
+    const icoEntries = pngFiles.filter((item) => item.size <= 256);
+    if (!icoEntries.length) {
+      const fallbackOutput = path.join(tempDir, "favicon-256.png");
+      await sharp(options.inputPath)
+        .resize(256, 256, { fit: "cover", position: "center" })
+        .png({ compressionLevel: 9 })
+        .toFile(fallbackOutput);
+      icoEntries.push({ size: 256, filePath: fallbackOutput });
+    }
+    const icoBuffer = await pngToIco(icoEntries.map((item) => item.filePath));
     const icoPath = path.join(options.outputDir, "favicon.ico");
     await fs.writeFile(icoPath, icoBuffer);
     files.unshift(icoPath);
-    logs.push(`Created favicon.ico with ${sizes.length} embedded sizes.`);
+    logs.push(`Created favicon.ico with ${icoEntries.length} embedded size(s), capped at 256px for ICO compatibility.`);
 
     if (options.includeManifest) {
       const manifestPath = path.join(options.outputDir, "site.webmanifest");

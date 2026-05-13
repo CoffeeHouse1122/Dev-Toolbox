@@ -1,6 +1,7 @@
 {
   "name": "dev-toolbox",
   "version": "0.1.0",
+  "author": "qiuzhaopeng",
   "description": "Local-first desktop toolkit for frontend asset conversion.",
   "productName": "Dev Toolbox",
   "main": "dist/electron/main/index.js",
@@ -14,15 +15,20 @@
     "build:renderer": "vite build",
     "typecheck": "npm-run-all build:main typecheck:renderer",
     "typecheck:renderer": "vue-tsc --noEmit",
-    "dist": "npm run build && electron-builder"
+    "dist": "npm run build && electron-builder",
+    "dist:win": "npm run build && electron-builder --win",
+    "dist:win:dir": "npm run build && electron-builder --win --dir",
+    "postinstall": "electron-builder install-app-deps"
   },
   "dependencies": {
     "@types/qrcode": "^1.5.6",
     "@vueuse/core": "^13.1.0",
     "blurhash": "^2.0.5",
+    "electron-updater": "^6.8.3",
     "ffmpeg-static": "^5.2.0",
     "fonteditor-core": "^2.4.0",
     "html-to-image": "^1.11.13",
+    "http-mitm-proxy": "^1.1.0",
     "js-yaml": "^4.1.1",
     "pdf-lib": "^1.17.1",
     "pinia": "^3.0.2",
@@ -55,6 +61,7 @@
   "build": {
     "appId": "com.devtoolbox.app",
     "productName": "Dev Toolbox",
+    "asar": true,
     "directories": {
       "output": "release",
       "buildResources": "build"
@@ -81,8 +88,17 @@
       "node_modules/sql.js/dist/*.wasm"
     ],
     "win": {
-      "target": "nsis",
-      "icon": "icons/favicon.ico"
+      "icon": "build/icons/favicon.ico",
+      "target": [
+        "nsis"
+      ],
+      "artifactName": "${productName}-${version}-${arch}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
     },
     "mac": {
       "target": "dmg"
@@ -90,6 +106,10 @@
     "linux": {
       "target": "AppImage",
       "icon": "icons/favicon-256x256.png"
+    },
+    "publish": {
+      "provider": "generic",
+      "url": "https://your-server.com/releases/"
     }
   }
 }

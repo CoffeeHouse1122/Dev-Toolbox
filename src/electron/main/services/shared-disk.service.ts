@@ -115,6 +115,15 @@ function runCommand(command: string, args: string[], ignoreFailure = false) {
   });
 }
 
+function normalizeWindowsNetworkError(error: unknown, host?: string) {
+  const message = error instanceof Error ? error.message : String(error);
+  if (message.includes("1219")) {
+    return `Windows 已经使用其他账号连接过 ${host ? `\\\\${host}` : "该共享主机"}。请先断开该主机已有共享连接，或点击“断开连接”后再登录。`;
+  }
+  if (/cmdkey|net use/i.test(message)) return "共享盘连接失败，请检查共享地址、账号、密码和网络连通性。";
+  return message;
+}
+
 function normalizeConfig(config: SharedDiskConfig): SharedDiskConfig {
   return {
     ...defaultConfig,
@@ -167,10 +176,14 @@ export async function connectSharedDisk(config: SharedDiskConfig): Promise<Share
   const baseUncPath = buildUncPath(normalized);
   const defaultDirectory = normalized.defaultDirectory || baseUncPath;
 
-  await runCommand("cmdkey", [`/add:${host}`, `/user:${normalized.username}`, `/pass:${normalized.password}`]);
-  await runCommand("net", ["use", shareRoot, "/delete", "/y"], true);
-  await runCommand("net", ["use", shareRoot, normalized.password, `/user:${normalized.username}`, normalized.persistent ? "/persistent:yes" : "/persistent:no"]);
-  await saveSharedDiskConfig(normalized);
+  try {
+    await runCommand("cmdkey", [`/add:${host}`, `/user:${normalized.username}`, `/pass:${normalized.password}`]);
+    await runCommand("net", ["use", shareRoot, "/delete", "/y"], true);
+    await runCommand("net", ["use", shareRoot, normalized.password, `/user:${normalized.username}`, normalized.persistent ? "/persistent:yes" : "/persistent:no"]);
+    await saveSharedDiskConfig(normalized);
+  } catch (error) {
+    throw new Error(normalizeWindowsNetworkError(error, host));
+  }
 
   return {
     shareRoot,

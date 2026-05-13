@@ -5,6 +5,7 @@ out/
 *.log
 *.local
 tmp-*/
+.capture-proxy-ca/
 .DS_Store
 Thumbs.db
 .env

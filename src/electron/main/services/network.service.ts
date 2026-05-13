@@ -1,6 +1,7 @@
 import os from "node:os";
+import dns from "node:dns/promises";
 import { net } from "electron";
-import type { IpInfo } from "../../../shared/types";
+import type { DomainIpLookupResult, IpInfo } from "../../../shared/types";
 
 type IpSource = {
   name: string;
@@ -87,4 +88,40 @@ export async function getIpInfo(): Promise<IpInfo> {
     .filter((item) => !item.internal);
 
   return { internal, ...(await getExternalIp()) };
+}
+
+function normalizeDomainQuery(raw: string) {
+  const value = raw.trim();
+  if (!value) throw new Error("域名不能为空");
+
+  const source = /^[a-z][a-z0-9+.-]*:\/\//i.test(value) ? value : `https://${value}`;
+  const url = new URL(source);
+  const host = url.hostname.trim();
+  if (!host) throw new Error("无法解析域名");
+  return host;
+}
+
+export async function lookupDomainIp(query: string): Promise<DomainIpLookupResult> {
+  const rawQuery = query.trim();
+  try {
+    const host = normalizeDomainQuery(rawQuery);
+    const records = await dns.lookup(host, { all: true, verbatim: false });
+    return {
+      query: rawQuery,
+      host,
+      addresses: records.map((item) => ({
+        family: item.family === 6 ? "IPv6" : "IPv4",
+        address: item.address
+      })),
+      status: "success"
+    };
+  } catch (error) {
+    return {
+      query: rawQuery,
+      host: rawQuery,
+      addresses: [],
+      status: "error",
+      errorMessage: error instanceof Error ? error.message : String(error)
+    };
+  }
 }

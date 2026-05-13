@@ -7,6 +7,7 @@ Dev Toolbox is a local-first desktop toolkit for frontend assets. The first mile
 - Watermark tool: batch image/PDF watermarking with custom text, image patterns, tiled overlays, and corner badges.
 - WOFF2 converter: TTF/OTF/WOFF to WOFF2 with optional `@font-face` CSS.
 - Background video compatibility pack: MP4, WebM, HLS `m3u8 + ts`, poster, and HTML snippet.
+- Capture proxy tool: local HTTP proxy capture with HTTPS CONNECT tunnel metadata for web, desktop, and mobile testing.
 
 The app uses a GitHub-inspired light/dark interface and keeps conversion history locally in SQLite.
 

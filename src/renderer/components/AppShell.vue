@@ -1,8 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from "vue";
 import { RouterLink, RouterView } from "vue-router";
-import { useThemeStore, type ThemeMode } from "../stores/theme";
-import SelectMenu from "./SelectMenu.vue";
+import { useThemeStore } from "../stores/theme";
 
 type NavTool = {
   id: string;
@@ -37,6 +36,7 @@ const defaultGroups: NavGroup[] = [
       { id: "watermark", to: "/watermark", label: "添加水印", icon: "ri-contrast-drop-2-line", visible: true },
       { id: "sprite", to: "/sprite", label: "雪碧图", icon: "ri-layout-grid-line", visible: true },
       { id: "image-placeholder", to: "/image-placeholder", label: "图片占位符", icon: "ri-blur-off-line", visible: true },
+      { id: "mark-man", to: "/mark-man", label: "Mark Man", icon: "ri-ruler-line", visible: true },
       { id: "base64-image", to: "/base64-image", label: "Base64 图片", icon: "ri-code-line", visible: true },
       { id: "qr-code", to: "/qr-code", label: "二维码生成", icon: "ri-qr-code-line", visible: true }
     ]
@@ -68,13 +68,16 @@ const defaultGroups: NavGroup[] = [
     tools: [
       { id: "markdown-export", to: "/markdown-export", label: "Markdown", icon: "ri-markdown-line", visible: true },
       { id: "data-convert", to: "/data-convert", label: "JSON/YAML/TOML", icon: "ri-arrow-left-right-line", visible: true },
+      { id: "diff", to: "/diff", label: "文本 Diff", icon: "ri-swap-line", visible: true },
       { id: "jwt", to: "/jwt", label: "JWT 解析", icon: "ri-key-2-line", visible: true },
       { id: "url-codec", to: "/url-codec", label: "URL 编解码", icon: "ri-links-line", visible: true },
       { id: "regex-tester", to: "/regex-tester", label: "正则测试器", icon: "ri-parentheses-line", visible: true },
       { id: "css-variables", to: "/css-variables", label: "CSS 变量", icon: "ri-css3-line", visible: true },
       { id: "css-clamp", to: "/css-clamp", label: "Clamp 字号", icon: "ri-font-size", visible: true },
       { id: "color-palette", to: "/color-palette", label: "配色生成器", icon: "ri-palette-line", visible: true },
-      { id: "code-screenshot", to: "/code-screenshot", label: "代码截图", icon: "ri-camera-3-line", visible: true }
+      { id: "code-screenshot", to: "/code-screenshot", label: "代码截图", icon: "ri-camera-3-line", visible: true },
+      { id: "base64-text", to: "/base64-text", label: "Base64 文本", icon: "ri-text-block", visible: true },
+      { id: "color-converter", to: "/color-converter", label: "颜色转换器", icon: "ri-contrast-drop-line", visible: true }
     ]
   },
   {
@@ -94,7 +97,10 @@ const defaultGroups: NavGroup[] = [
       { id: "ip-query", to: "/ip-query", label: "IP 查询", icon: "ri-router-line", visible: true },
       { id: "shared-disk", to: "/shared-disk", label: "共享盘登录", icon: "ri-hard-drive-3-line", visible: true },
       { id: "rename", to: "/rename", label: "文件重命名", icon: "ri-edit-2-line", visible: true },
-      { id: "asset-manifest", to: "/asset-manifest", label: "资源清单", icon: "ri-file-list-3-line", visible: true }
+      { id: "asset-manifest", to: "/asset-manifest", label: "资源清单", icon: "ri-file-list-3-line", visible: true },
+      { id: "http-tester", to: "/http-tester", label: "HTTP 测试器", icon: "ri-send-plane-line", visible: true },
+      { id: "certificate-scan", to: "/certificate-scan", label: "证书扫描", icon: "ri-shield-check-line", visible: true },
+      { id: "capture-proxy", to: "/capture-proxy", label: "抓包工具", icon: "ri-radar-line", visible: true }
     ]
   },
   {
@@ -103,7 +109,9 @@ const defaultGroups: NavGroup[] = [
     tools: [
       { id: "timestamp", to: "/timestamp", label: "时间戳", icon: "ri-time-line", visible: true },
       { id: "uuid", to: "/uuid", label: "UUID", icon: "ri-fingerprint-line", visible: true },
-      { id: "clipboard-history", to: "/clipboard-history", label: "剪贴板历史", icon: "ri-clipboard-line", visible: true }
+      { id: "hash", to: "/hash", label: "Hash 生成", icon: "ri-shield-keyhole-line", visible: true },
+      { id: "clipboard-history", to: "/clipboard-history", label: "剪贴板历史", icon: "ri-clipboard-line", visible: true },
+      { id: "sticky-notes", to: "/sticky-notes", label: "桌面便签", icon: "ri-sticky-note-line", visible: true }
     ]
   },
   {
@@ -137,12 +145,6 @@ function loadCollapsedState(): Record<string, boolean> {
     return {};
   }
 }
-
-const themeOptions = [
-  { label: "跟随系统", value: "system", icon: "ri-computer-line" },
-  { label: "浅色", value: "light", icon: "ri-sun-line" },
-  { label: "深色", value: "dark", icon: "ri-moon-line" }
-];
 
 function cloneGroups(input: NavGroup[]) {
   return JSON.parse(JSON.stringify(input)) as NavGroup[];
@@ -340,16 +342,14 @@ onMounted(() => {
   window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", theme.sync);
 });
 
-function setTheme(value: string) {
-  theme.setMode(value as ThemeMode);
-}
 </script>
 
 <template>
   <div class="app-shell">
+    <div class="window-drag-strip" aria-hidden="true"></div>
     <aside class="sidebar">
       <div class="brand">
-        <div class="brand-mark">D</div>
+        <div class="brand-mark"><img src="/icons/favicon-128x128.png" alt="Dev Toolbox" width="30" height="30" /></div>
         <div>
           <strong>Dev Toolbox</strong>
           <span>开发工具箱</span>
@@ -363,37 +363,35 @@ function setTheme(value: string) {
         </button>
       </div>
 
-      <nav class="nav-list grouped-nav" aria-label="工具">
-        <section v-for="group in visibleGroups" :key="group.id" class="nav-group" :class="{ collapsed: collapsedGroups[group.id] }">
-          <button type="button" class="nav-group-head" @click="toggleGroupCollapse(group.id)">
-            <i class="nav-group-chevron" :class="collapsedGroups[group.id] ? 'ri-arrow-right-s-line' : 'ri-arrow-down-s-line'" aria-hidden="true"></i>
-            <span>{{ group.label }}</span>
-            <span class="nav-group-count">{{ group.tools.length }}</span>
-          </button>
-          <div v-show="!collapsedGroups[group.id]" class="nav-group-items">
-            <RouterLink v-for="tool in group.tools" :key="tool.to" :to="tool.to" class="nav-item">
-              <i class="nav-icon" :class="tool.icon" aria-hidden="true"></i>
-              <span>{{ tool.label }}</span>
-            </RouterLink>
-          </div>
-        </section>
-      </nav>
+      <div class="sidebar-body">
+        <nav class="nav-list grouped-nav" aria-label="工具">
+          <section v-for="group in visibleGroups" :key="group.id" class="nav-group" :class="{ collapsed: collapsedGroups[group.id] }">
+            <button type="button" class="nav-group-head" @click="toggleGroupCollapse(group.id)">
+              <i class="nav-group-chevron" :class="collapsedGroups[group.id] ? 'ri-arrow-right-s-line' : 'ri-arrow-down-s-line'" aria-hidden="true"></i>
+              <span>{{ group.label }}</span>
+              <span class="nav-group-count">{{ group.tools.length }}</span>
+            </button>
+            <div v-show="!collapsedGroups[group.id]" class="nav-group-items">
+              <RouterLink v-for="tool in group.tools" :key="tool.to" :to="tool.to" class="nav-item">
+                <i class="nav-icon" :class="tool.icon" aria-hidden="true"></i>
+                <span>{{ tool.label }}</span>
+              </RouterLink>
+            </div>
+          </section>
+        </nav>
+      </div>
     </aside>
 
     <main class="workspace">
-      <header class="topbar">
-        <div>
-          <span class="eyebrow">本地优先</span>
-          <h1>开发工具箱</h1>
-        </div>
-        <SelectMenu class="theme-menu" :model-value="theme.mode" :options="themeOptions" label="主题" @update:model-value="setTheme" />
-      </header>
+      <header class="topbar" aria-hidden="true"></header>
 
-      <RouterView />
+      <div class="workspace-body">
+        <RouterView />
+      </div>
     </main>
 
     <Teleport to="body">
-      <div v-if="editingNav" class="dt-modal-mask" @click.self="editingNav = false">
+      <div v-if="editingNav" class="dt-modal-mask">
         <div class="dt-modal nav-editor-modal" role="dialog" aria-modal="true">
           <header class="dt-modal-head">
             <div>

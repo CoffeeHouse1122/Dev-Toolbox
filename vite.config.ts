@@ -4,6 +4,7 @@ import path from "node:path";
 
 export default defineConfig({
   root: ".",
+  publicDir: "build",
   plugins: [vue()],
   resolve: {
     alias: {

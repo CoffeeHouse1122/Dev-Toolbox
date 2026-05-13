@@ -15,12 +15,16 @@ export type ToolType =
   | "watermark"
   | "sprite"
   | "image-placeholder"
+  | "mark-man"
   | "seo-files"
   | "og-image"
   | "qr-code"
   | "audio-convert"
   | "font-subset"
-  | "asset-manifest";
+  | "asset-manifest"
+  | "certificate-scan"
+  | "capture-proxy"
+  | "sticky-notes";
 
 export type TaskStatus = "success" | "error";
 
@@ -208,6 +212,36 @@ export interface IpInfo {
   externalError?: string;
 }
 
+export interface DomainIpAddress {
+  family: "IPv4" | "IPv6";
+  address: string;
+}
+
+export interface DomainIpLookupResult {
+  query: string;
+  host: string;
+  addresses: DomainIpAddress[];
+  status: "success" | "error";
+  errorMessage?: string;
+}
+
+export interface CertificateScanOptions {
+  domains: string[];
+  timeoutMs?: number;
+}
+
+export interface CertificateScanResult {
+  domain: string;
+  host: string;
+  port: number;
+  issuer: string;
+  validFrom: string;
+  validTo: string;
+  remainingDays: number | null;
+  status: "success" | "error";
+  errorMessage?: string;
+}
+
 export interface FontSubsetOptions {
   inputPath: string;
   outputDir: string;
@@ -314,6 +348,64 @@ export interface ClipboardWatcherStatus {
   count: number;
 }
 
+export interface ThemeTitleBarPayload {
+  accentColor: string;
+  surfaceColor: string;
+  textColor: string;
+}
+
+export interface StickyNote {
+  id: string;
+  fileName: string;
+  filePath: string;
+  title: string;
+  content: string;
+  updatedAt: number;
+}
+
+export interface StickyNotesState {
+  directory: string;
+  notes: StickyNote[];
+}
+
+export interface CaptureProxyStartOptions {
+  host: string;
+  port: number;
+  captureBodies: boolean;
+  maxBodySize: number;
+  enableHttps: boolean;
+}
+
+export interface CaptureProxyStatus {
+  running: boolean;
+  host: string;
+  port: number;
+  startedAt: number | null;
+  recordCount: number;
+  caCertPath?: string;
+  errorMessage?: string;
+}
+
+export interface CaptureProxyRecord {
+  id: string;
+  startedAt: number;
+  method: string;
+  url: string;
+  host: string;
+  path: string;
+  protocol: "http" | "https";
+  status: "pending" | "success" | "error" | "tunnel";
+  statusCode: number | null;
+  durationMs: number | null;
+  requestHeaders: Record<string, string>;
+  responseHeaders: Record<string, string>;
+  requestBody: string;
+  responseBody: string;
+  requestSize: number;
+  responseSize: number;
+  errorMessage?: string;
+}
+
 export interface DevToolboxApi {
   selectFiles(filters?: DialogFileFilter[], multiSelections?: boolean): Promise<string[]>;
   selectOutputDir(): Promise<string | null>;
@@ -336,6 +428,13 @@ export interface DevToolboxApi {
   renameFiles(options: RenameOptions): Promise<ConversionResult>;
   generateQrCode(options: QrCodeOptions): Promise<ConversionResult>;
   getIpInfo(): Promise<IpInfo>;
+  lookupDomainIp(domain: string): Promise<DomainIpLookupResult>;
+  scanCertificates(options: CertificateScanOptions): Promise<CertificateScanResult[]>;
+  startCaptureProxy(options: CaptureProxyStartOptions): Promise<CaptureProxyStatus>;
+  stopCaptureProxy(): Promise<CaptureProxyStatus>;
+  getCaptureProxyStatus(): Promise<CaptureProxyStatus>;
+  listCaptureProxyRecords(): Promise<CaptureProxyRecord[]>;
+  clearCaptureProxyRecords(): Promise<CaptureProxyRecord[]>;
   generateAssetManifest(options: AssetManifestOptions): Promise<ConversionResult>;
   generateSeoFiles(options: SeoFilesOptions): Promise<ConversionResult>;
   generateOgImage(options: OgImageOptions): Promise<ConversionResult>;
@@ -364,4 +463,32 @@ export interface DevToolboxApi {
   onClipboardUpdate(handler: (entries: ClipboardEntry[]) => void): () => void;
   loadAppSettings(): Promise<AppSettings>;
   saveAppSettings(settings: AppSettings): Promise<AppSettings>;
+  /** 手动检查更新 */
+  checkForUpdates(): Promise<void>;
+  /** 手动下载已发现的更新 */
+  downloadUpdate(): Promise<void>;
+  /** 安装已下载的更新（退出并安装） */
+  installUpdate(): Promise<void>;
+  /** 获取当前应用版本号 */
+  getCurrentVersion(): Promise<string>;
+  /** 监听更新状态变化，返回取消监听的函数 */
+  onUpdateStatus(handler: (status: UpdateStatus) => void): () => void;
+  /** 通知主进程更新标题栏背景色 */
+  setThemeBackground(payload: ThemeTitleBarPayload): void;
+  getAlwaysOnTop(): Promise<boolean>;
+  setAlwaysOnTop(enabled: boolean): Promise<boolean>;
+  loadStickyNotes(): Promise<StickyNotesState>;
+  setStickyNotesDirectory(directory: string): Promise<StickyNotesState>;
+  createStickyNote(content?: string): Promise<StickyNote>;
+  saveStickyNote(id: string, content: string): Promise<StickyNote>;
+  deleteStickyNote(id: string): Promise<void>;
+  exportStickyNotes(outputDir: string, ids?: string[]): Promise<string[]>;
+}
+
+/** 更新状态 */
+export interface UpdateStatus {
+  status: "checking" | "available" | "not-available" | "downloading" | "downloaded" | "error";
+  version?: string;
+  percent?: number;
+  message?: string;
 }

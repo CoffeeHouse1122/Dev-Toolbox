@@ -1,0 +1,246 @@
+<script setup lang="ts">
+import { ref, computed } from "vue";
+
+const input = ref("");
+const mode = ref<"hash" | "encrypt" | "decrypt">("hash");
+const algorithm = ref<"MD5" | "SHA-1" | "SHA-256" | "SHA-512">("SHA-256");
+const uppercase = ref(false);
+const encryptKey = ref("");
+const output = ref("");
+const busy = ref(false);
+
+// ---- 哈希 ---- //
+
+async function computeHash() {
+  if (!input.value) { output.value = ""; return; }
+  busy.value = true;
+  try {
+    const data = new TextEncoder().encode(input.value);
+    let hex = "";
+    if (algorithm.value === "MD5") {
+      hex = await md5(data);
+    } else {
+      const hashBuffer = await crypto.subtle.digest(algorithm.value, data);
+      hex = Array.from(new Uint8Array(hashBuffer)).map((b) => b.toString(16).padStart(2, "0")).join("");
+    }
+    output.value = uppercase.value ? hex.toUpperCase() : hex;
+  } catch (e: any) {
+    output.value = `错误: ${e.message}`;
+  } finally {
+    busy.value = false;
+  }
+}
+
+/** 纯 JS MD5 */
+async function md5(data: Uint8Array): Promise<string> {
+  function rotl(x: number, n: number) { return (x << n) | (x >>> (32 - n)); }
+  function cmn(q: number, a: number, b: number, x: number, s: number, t: number) {
+    return ((a + q + x + t) >>> 0, rotl((a + q + x + t) >>> 0, s) + b) >>> 0;
+  }
+  function ff(a: number, b: number, c: number, d: number, x: number, s: number, t: number) {
+    return cmn((b & c) | (~b & d), a, b, x, s, t);
+  }
+  function gg(a: number, b: number, c: number, d: number, x: number, s: number, t: number) {
+    return cmn((b & d) | (c & ~d), a, b, x, s, t);
+  }
+  function hh(a: number, b: number, c: number, d: number, x: number, s: number, t: number) {
+    return cmn(b ^ c ^ d, a, b, x, s, t);
+  }
+  function ii(a: number, b: number, c: number, d: number, x: number, s: number, t: number) {
+    return cmn(c ^ (b | ~d), a, b, x, s, t);
+  }
+  const len = data.length;
+  const words: number[] = [];
+  for (let i = 0; i < len; i++) words[i >> 2] |= data[i] << ((i % 4) * 8);
+  const bitLen = len * 8;
+  words[bitLen >>> 5] |= 0x80 << (bitLen % 32);
+  words[(((bitLen + 64) >>> 9) << 4) + 14] = bitLen;
+  let a = 0x67452301, b = 0xefcdab89, c = 0x98badcfe, d = 0x10325476;
+  for (let i = 0; i < words.length; i += 16) {
+    const oldA = a, oldB = b, oldC = c, oldD = d;
+    const w = words.slice(i, i + 16);
+    while (w.length < 16) w.push(0);
+    a = ff(a,b,c,d,w[0],7,0xd76aa478);d=ff(d,a,b,c,w[1],12,0xe8c7b756);c=ff(c,d,a,b,w[2],17,0x242070db);b=ff(b,c,d,a,w[3],22,0xc1bdceee);
+    a = ff(a,b,c,d,w[4],7,0xf57c0faf);d=ff(d,a,b,c,w[5],12,0x4787c62a);c=ff(c,d,a,b,w[6],17,0xa8304613);b=ff(b,c,d,a,w[7],22,0xfd469501);
+    a = ff(a,b,c,d,w[8],7,0x698098d8);d=ff(d,a,b,c,w[9],12,0x8b44f7af);c=ff(c,d,a,b,w[10],17,0xffff5bb1);b=ff(b,c,d,a,w[11],22,0x895cd7be);
+    a = ff(a,b,c,d,w[12],7,0x6b901122);d=ff(d,a,b,c,w[13],12,0xfd987193);c=ff(c,d,a,b,w[14],17,0xa679438e);b=ff(b,c,d,a,w[15],22,0x49b40821);
+    a = gg(a,b,c,d,w[1],5,0xf61e2562);d=gg(d,a,b,c,w[6],9,0xc040b340);c=gg(c,d,a,b,w[11],14,0x265e5a51);b=gg(b,c,d,a,w[0],20,0xe9b6c7aa);
+    a = gg(a,b,c,d,w[5],5,0xd62f105d);d=gg(d,a,b,c,w[10],9,0x02441453);c=gg(c,d,a,b,w[15],14,0xd8a1e681);b=gg(b,c,d,a,w[4],20,0xe7d3fbc8);
+    a = gg(a,b,c,d,w[9],5,0x21e1cde6);d=gg(d,a,b,c,w[14],9,0xc33707d6);c=gg(c,d,a,b,w[3],14,0xf4d50d87);b=gg(b,c,d,a,w[8],20,0x455a14ed);
+    a = gg(a,b,c,d,w[13],5,0xa9e3e905);d=gg(d,a,b,c,w[2],9,0xfcefa3f8);c=gg(c,d,a,b,w[7],14,0x676f02d9);b=gg(b,c,d,a,w[12],20,0x8d2a4c8a);
+    a = hh(a,b,c,d,w[5],4,0xfffa3942);d=hh(d,a,b,c,w[8],11,0x8771f681);c=hh(c,d,a,b,w[11],16,0x6d9d6122);b=hh(b,c,d,a,w[14],23,0xfde5380c);
+    a = hh(a,b,c,d,w[1],4,0xa4beea44);d=hh(d,a,b,c,w[4],11,0x4bdecfa9);c=hh(c,d,a,b,w[7],16,0xf6bb4b60);b=hh(b,c,d,a,w[10],23,0xbebfbc70);
+    a = hh(a,b,c,d,w[13],4,0x289b7ec6);d=hh(d,a,b,c,w[0],11,0xeaa127fa);c=hh(c,d,a,b,w[3],16,0xd4ef3085);b=hh(b,c,d,a,w[6],23,0x04881d05);
+    a = hh(a,b,c,d,w[9],4,0xd9d4d039);d=hh(d,a,b,c,w[12],11,0xe6db99e5);c=hh(c,d,a,b,w[15],16,0x1fa27cf8);b=hh(b,c,d,a,w[2],23,0xc4ac5665);
+    a = ii(a,b,c,d,w[0],6,0xf4292244);d=ii(d,a,b,c,w[7],10,0x432aff97);c=ii(c,d,a,b,w[14],15,0xab9423a7);b=ii(b,c,d,a,w[5],21,0xfc93a039);
+    a = ii(a,b,c,d,w[12],6,0x655b59c3);d=ii(d,a,b,c,w[3],10,0x8f0ccc92);c=ii(c,d,a,b,w[10],15,0xffeff47d);b=ii(b,c,d,a,w[1],21,0x85845dd1);
+    a = ii(a,b,c,d,w[8],6,0x6fa87e4f);d=ii(d,a,b,c,w[15],10,0xfe2ce6e0);c=ii(c,d,a,b,w[6],15,0xa3014314);b=ii(b,c,d,a,w[13],21,0x4e0811a1);
+    a = ii(a,b,c,d,w[4],6,0xf7537e82);d=ii(d,a,b,c,w[11],10,0xbd3af235);c=ii(c,d,a,b,w[2],15,0x2ad7d2bb);b=ii(b,c,d,a,w[9],21,0xeb86d391);
+    a = (a+oldA)>>>0;b=(b+oldB)>>>0;c=(c+oldC)>>>0;d=(d+oldD)>>>0;
+  }
+  const toHex = (n: number) => n.toString(16).padStart(2, "0");
+  return toHex(a&0xff)+toHex((a>>>8)&0xff)+toHex((a>>>16)&0xff)+toHex((a>>>24)&0xff)+
+    toHex(b&0xff)+toHex((b>>>8)&0xff)+toHex((b>>>16)&0xff)+toHex((b>>>24)&0xff)+
+    toHex(c&0xff)+toHex((c>>>8)&0xff)+toHex((c>>>16)&0xff)+toHex((c>>>24)&0xff)+
+    toHex(d&0xff)+toHex((d>>>8)&0xff)+toHex((d>>>16)&0xff)+toHex((d>>>24)&0xff);
+}
+
+// ---- AES-GCM 加解密 ---- //
+
+async function getKeyMaterial(password: string): Promise<CryptoKey> {
+  const enc = new TextEncoder();
+  const keyData = enc.encode(password);
+  const hash = await crypto.subtle.digest("SHA-256", keyData);
+  return crypto.subtle.importKey("raw", hash, { name: "AES-GCM" }, false, ["encrypt", "decrypt"]);
+}
+
+async function doEncrypt() {
+  if (!input.value || !encryptKey.value) { output.value = ""; return; }
+  busy.value = true;
+  try {
+    const key = await getKeyMaterial(encryptKey.value);
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const encoded = new TextEncoder().encode(input.value);
+    const cipher = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, encoded);
+    // 拼接 iv + ciphertext，Base64 编码
+    const combined = new Uint8Array(iv.length + cipher.byteLength);
+    combined.set(iv, 0);
+    combined.set(new Uint8Array(cipher), iv.length);
+    output.value = btoa(String.fromCharCode(...combined));
+  } catch (e: any) {
+    output.value = `加密失败: ${e.message}`;
+  } finally {
+    busy.value = false;
+  }
+}
+
+async function doDecrypt() {
+  if (!input.value || !encryptKey.value) { output.value = ""; return; }
+  busy.value = true;
+  try {
+    const key = await getKeyMaterial(encryptKey.value);
+    const combined = Uint8Array.from(atob(input.value), (c) => c.charCodeAt(0));
+    if (combined.length < 13) throw new Error("密文格式无效");
+    const iv = combined.slice(0, 12);
+    const cipher = combined.slice(12);
+    const plain = await crypto.subtle.decrypt({ name: "AES-GCM", iv }, key, cipher);
+    output.value = new TextDecoder().decode(plain);
+  } catch (e: any) {
+    output.value = `解密失败: ${e.message}`;
+  } finally {
+    busy.value = false;
+  }
+}
+
+async function doAction() {
+  if (mode.value === "hash") await computeHash();
+  else if (mode.value === "encrypt") await doEncrypt();
+  else await doDecrypt();
+}
+
+const actionLabel = computed(() => {
+  if (mode.value === "hash") return "计算哈希";
+  return mode.value === "encrypt" ? "加密" : "解密";
+});
+
+const resultLabel = computed(() => {
+  if (mode.value === "hash") return `${algorithm.value} 结果`;
+  return mode.value === "encrypt" ? "加密结果 (Base64)" : "解密结果 (明文)";
+});
+</script>
+
+<template>
+  <section class="tool-page">
+    <div class="tool-header">
+      <div>
+        <h2>Hash / 加解密</h2>
+        <p>MD5 / SHA 哈希及 AES-GCM 对称加解密</p>
+      </div>
+      <div class="header-actions">
+        <div class="segmented">
+          <button type="button" :class="{ selected: mode === 'hash' }" @click="mode = 'hash'; output = ''">哈希</button>
+          <button type="button" :class="{ selected: mode === 'encrypt' }" @click="mode = 'encrypt'; output = ''">加密</button>
+          <button type="button" :class="{ selected: mode === 'decrypt' }" @click="mode = 'decrypt'; output = ''">解密</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="tool-main">
+      <!-- 哈希模式：算法选择 + 大写 -->
+      <div v-if="mode === 'hash'" class="hash-options-bar">
+        <div class="segmented">
+          <button v-for="algo in ['MD5','SHA-1','SHA-256','SHA-512']" :key="algo" type="button" :class="{ selected: algorithm === algo }" @click="algorithm = algo as any; output = ''">
+            {{ algo }}
+          </button>
+        </div>
+        <span class="hash-separator"></span>
+        <label class="hash-check-label">
+          <input type="checkbox" v-model="uppercase" @change="output = ''" />
+          <span>大写</span>
+        </label>
+        <button type="button" class="primary-button" :disabled="busy || !input" @click="doAction">
+          <i class="ri-fingerprint-line" aria-hidden="true"></i>
+          {{ actionLabel }}
+        </button>
+      </div>
+
+      <!-- 加解密模式：密钥输入 -->
+      <div v-else class="hash-options-bar">
+        <input v-model="encryptKey" type="password" class="tool-input" placeholder="输入加密/解密密钥" style="max-width:280px;" />
+        <button type="button" class="primary-button" :disabled="busy || !input || !encryptKey" @click="doAction">
+          <i v-if="mode === 'encrypt'" class="ri-lock-line" aria-hidden="true"></i>
+          <i v-else class="ri-lock-unlock-line" aria-hidden="true"></i>
+          {{ actionLabel }}
+        </button>
+      </div>
+
+      <div class="io-pair" style="margin-top:12px;">
+        <div class="io-block">
+          <div class="io-label">{{ mode === 'decrypt' ? '输入密文 (Base64)' : '输入文本' }}</div>
+          <textarea v-model="input" class="tool-textarea" :placeholder="mode === 'decrypt' ? '粘贴 Base64 密文...' : mode === 'hash' ? '输入要计算哈希的文本...' : '输入要加密的文本...'"></textarea>
+        </div>
+        <div class="io-block">
+          <div class="io-label">{{ resultLabel }}</div>
+          <textarea class="tool-textarea" readonly :value="output" placeholder="结果将显示在这里"></textarea>
+        </div>
+      </div>
+    </div>
+  </section>
+</template>
+
+<style scoped>
+.hash-options-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.hash-separator {
+  width: 1px;
+  height: 26px;
+  background: var(--border);
+  margin: 0 4px;
+}
+
+.hash-check-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--muted);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.hash-check-label input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  min-height: unset;
+  cursor: pointer;
+  accent-color: var(--accent);
+}
+
+.primary-button i {
+  margin-right: 6px;
+}
+</style>

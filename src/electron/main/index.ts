@@ -4,6 +4,9 @@ import { pathToFileURL } from "node:url";
 import { registerIpc } from "./ipc";
 import { loadAppSettings, getCachedSettings } from "./services/settings.service";
 import { getPreloadEntryPath, getRendererIndexPath, getRuntimeIconPath } from "./utils/app-paths";
+import { initAutoUpdater, checkForUpdates, downloadUpdate, installUpdate } from "./services/autoUpdater.service";
+import type { ThemeTitleBarPayload } from "../../shared/types";
+import fs from "node:fs";
 
 const isDev = Boolean(process.env.VITE_DEV_SERVER_URL);
 
@@ -16,6 +19,12 @@ if (!gotLock) {
 let mainWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
 let quitting = false;
+
+const DEFAULT_TITLEBAR_THEME: ThemeTitleBarPayload = {
+  accentColor: "#0969da",
+  surfaceColor: "#f6f8fa",
+  textColor: "#1f2328"
+};
 
 protocol.registerSchemesAsPrivileged([
   {
@@ -75,10 +84,17 @@ function createWindow() {
   const win = new BrowserWindow({
     width: 1280,
     height: 820,
-    minWidth: 980,
-    minHeight: 660,
+    minWidth: 1280,
+    minHeight: 820,
     title: "Dev Toolbox",
-    backgroundColor: "#0d1117",
+    backgroundColor: DEFAULT_TITLEBAR_THEME.surfaceColor,
+    titleBarStyle: "hidden",
+    titleBarOverlay: {
+      color: DEFAULT_TITLEBAR_THEME.surfaceColor,
+      symbolColor: DEFAULT_TITLEBAR_THEME.accentColor,
+      height: 36
+    },
+    autoHideMenuBar: true,
     icon: iconPath,
     webPreferences: {
       preload: getPreloadEntryPath(),
@@ -89,6 +105,19 @@ function createWindow() {
   });
 
   mainWindow = win;
+
+  win.setMenuBarVisibility(false);
+  win.removeMenu();
+
+  try {
+    win.setTitleBarOverlay({
+      color: DEFAULT_TITLEBAR_THEME.surfaceColor,
+      symbolColor: DEFAULT_TITLEBAR_THEME.accentColor,
+      height: 36
+    });
+  } catch {
+    /* non-Windows */
+  }
 
   if (isDev && process.env.VITE_DEV_SERVER_URL) {
     void win.loadURL(process.env.VITE_DEV_SERVER_URL);
@@ -116,6 +145,8 @@ app.on("second-instance", () => {
   showMainWindow();
 });
 
+Menu.setApplicationMenu(null);
+
 ipcMain.handle("app:quit", () => {
   quitting = true;
   app.quit();
@@ -125,11 +156,65 @@ ipcMain.handle("app:show", () => {
   showMainWindow();
 });
 
+ipcMain.handle("window:get-always-on-top", () => {
+  return Boolean(mainWindow?.isAlwaysOnTop());
+});
+
+ipcMain.handle("window:set-always-on-top", (_event, enabled: boolean) => {
+  mainWindow?.setAlwaysOnTop(Boolean(enabled));
+  return Boolean(mainWindow?.isAlwaysOnTop());
+});
+
+// 渲染进程手动触发更新检查
+ipcMain.handle("update:check", async () => {
+  await checkForUpdates();
+});
+
+// 渲染进程手动触发更新下载
+ipcMain.handle("update:download", async () => {
+  await downloadUpdate();
+});
+
+// 渲染进程手动触发更新安装
+ipcMain.handle("update:install", () => {
+  installUpdate();
+});
+
+// 获取当前版本号
+ipcMain.handle("update:current-version", () => {
+  try {
+    if (app.isPackaged) return app.getVersion();
+    const pkg = JSON.parse(fs.readFileSync(path.resolve(__dirname, "..", "..", "..", "..", "package.json"), "utf8"));
+    return String(pkg.version || "").trim();
+  } catch {
+    return app.getVersion();
+  }
+});
+
+// 渲染进程通知主题变化 → 更新标题栏颜色
+ipcMain.on("theme:background", (_event, payload: ThemeTitleBarPayload) => {
+  const accentColor = payload?.accentColor || DEFAULT_TITLEBAR_THEME.accentColor;
+  const surfaceColor = payload?.surfaceColor || DEFAULT_TITLEBAR_THEME.surfaceColor;
+  const textColor = payload?.textColor || DEFAULT_TITLEBAR_THEME.textColor;
+
+  mainWindow?.setBackgroundColor(surfaceColor);
+  try {
+    mainWindow?.setTitleBarOverlay({ color: surfaceColor, symbolColor: accentColor || textColor, height: 36 });
+  } catch {
+    /* older Electron or non-Windows */
+  }
+});
+
 app.whenReady().then(async () => {
   await loadAppSettings();
   registerPreviewProtocol();
   registerIpc();
   createWindow();
+
+  // 初始化自动更新（仅在打包后的生产环境生效）
+  if (mainWindow) {
+    initAutoUpdater(mainWindow);
+  }
 
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) {

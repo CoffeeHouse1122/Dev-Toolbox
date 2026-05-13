@@ -9,7 +9,15 @@ import { convertAudio } from "./services/audio.service";
 import { convertSequenceAnimation } from "./services/sequence.service";
 import { base64ToImage, exportMarkdown, imageToBase64, renameFiles } from "./services/utility.service";
 import { generateQrCode } from "./services/qr.service";
-import { getIpInfo } from "./services/network.service";
+import { getIpInfo, lookupDomainIp } from "./services/network.service";
+import { scanCertificates } from "./services/certificate.service";
+import {
+  clearCaptureProxyRecords,
+  getCaptureProxyStatus,
+  listCaptureProxyRecords,
+  startCaptureProxy,
+  stopCaptureProxy
+} from "./services/capture-proxy.service";
 import { generateAssetManifest } from "./services/asset-manifest.service";
 import { generateSprite } from "./services/sprite.service";
 import { generateSeoFiles } from "./services/seo-files.service";
@@ -18,6 +26,14 @@ import { generateOgImage } from "./services/og-image.service";
 import { registerClipboardIpc } from "./services/clipboard-history.service";
 import { getSharedDiskStatus } from "./services/shared-disk-status.service";
 import { loadAppSettings, saveAppSettings } from "./services/settings.service";
+import {
+  createStickyNote,
+  deleteStickyNote,
+  exportStickyNotes,
+  loadStickyNotes,
+  saveStickyNote,
+  setStickyNotesDirectory
+} from "./services/sticky-notes.service";
 import type { AppSettings } from "../../shared/types";
 import {
   ensureDir,
@@ -37,6 +53,8 @@ import type {
   DialogFileFilter,
   AssetManifestOptions,
   AudioConvertOptions,
+  CertificateScanOptions,
+  CaptureProxyStartOptions,
   FaviconOptions,
   FontSubsetOptions,
   FontWoff2Options,
@@ -257,6 +275,19 @@ const ogImageSchema = z.object({
   textColor: z.string().min(4)
 });
 
+const certificateScanSchema = z.object({
+  domains: z.array(z.string().min(1)).min(1).max(200),
+  timeoutMs: z.number().int().min(1000).max(30000).optional()
+});
+
+const captureProxyStartSchema = z.object({
+  host: z.string().ip({ version: "v4" }),
+  port: z.number().int().min(1024).max(65535),
+  captureBodies: z.boolean(),
+  maxBodySize: z.number().int().min(1024).max(2 * 1024 * 1024),
+  enableHttps: z.boolean()
+});
+
 const sharedDiskSchema = z.object({
   url: z.string().min(1),
   username: z.string(),
@@ -264,6 +295,16 @@ const sharedDiskSchema = z.object({
   basePath: z.string().min(1),
   defaultDirectory: z.string(),
   persistent: z.boolean()
+});
+
+const stickyNoteSaveSchema = z.object({
+  id: z.string().min(1),
+  content: z.string()
+});
+
+const stickyNoteExportSchema = z.object({
+  outputDir: z.string().min(1),
+  ids: z.array(z.string().min(1)).optional()
 });
 
 export function registerIpc() {
@@ -374,6 +415,25 @@ export function registerIpc() {
     return getIpInfo();
   });
 
+  ipcMain.handle("network:domain-ip", async (_event, domain: string) => {
+    return lookupDomainIp(z.string().min(1).parse(domain));
+  });
+
+  ipcMain.handle("network:certificate-scan", async (_event, raw: CertificateScanOptions) => {
+    const options = certificateScanSchema.parse(raw);
+    return scanCertificates(options);
+  });
+
+  ipcMain.handle("capture-proxy:start", async (_event, raw: CaptureProxyStartOptions) => {
+    const options = captureProxyStartSchema.parse(raw);
+    return startCaptureProxy(options);
+  });
+
+  ipcMain.handle("capture-proxy:stop", async () => stopCaptureProxy());
+  ipcMain.handle("capture-proxy:status", async () => getCaptureProxyStatus());
+  ipcMain.handle("capture-proxy:list", async () => listCaptureProxyRecords());
+  ipcMain.handle("capture-proxy:clear", async () => clearCaptureProxyRecords());
+
   ipcMain.handle("assets:manifest", async (_event, raw: AssetManifestOptions) => {
     const options = assetManifestSchema.parse(raw);
     return generateAssetManifest(options, history);
@@ -437,6 +497,28 @@ export function registerIpc() {
 
   ipcMain.handle("settings:load", async () => loadAppSettings());
   ipcMain.handle("settings:save", async (_event, raw: AppSettings) => saveAppSettings(raw));
+
+  ipcMain.handle("notes:load", async () => loadStickyNotes());
+
+  ipcMain.handle("notes:set-directory", async (_event, directory: string) => {
+    return setStickyNotesDirectory(z.string().min(1).parse(directory));
+  });
+
+  ipcMain.handle("notes:create", async (_event, content?: string) => createStickyNote(content));
+
+  ipcMain.handle("notes:save", async (_event, raw: { id: string; content: string }) => {
+    const payload = stickyNoteSaveSchema.parse(raw);
+    return saveStickyNote(payload.id, payload.content);
+  });
+
+  ipcMain.handle("notes:delete", async (_event, id: string) => {
+    await deleteStickyNote(z.string().min(1).parse(id));
+  });
+
+  ipcMain.handle("notes:export", async (_event, raw: { outputDir: string; ids?: string[] } | string) => {
+    const payload = typeof raw === "string" ? { outputDir: raw } : stickyNoteExportSchema.parse(raw);
+    return exportStickyNotes(payload.outputDir, payload.ids);
+  });
 
   ipcMain.handle("history:list", async (_event, limit?: number) => {
     return history.list(limit);

@@ -18,6 +18,13 @@ let pollTimer: ReturnType<typeof setInterval> | null = null;
 
 const canConnect = computed(() => config.value.url && config.value.basePath && config.value.username && config.value.password);
 
+function friendlyError(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error);
+  return message
+    .replace(/^Error invoking remote method '[^']+': Error:\s*/i, "")
+    .replace(/^Error invoking remote method \"[^\"]+\": Error:\s*/i, "");
+}
+
 function plainConfig(): SharedDiskConfig {
   return {
     url: config.value.url,
@@ -42,7 +49,7 @@ async function refreshStatus() {
   try {
     diskStatus.value = await window.devToolbox.getSharedDiskStatus(plainConfig());
   } catch (error) {
-    diskStatus.value = { connected: false, shareRoot: "", message: error instanceof Error ? error.message : String(error) };
+    diskStatus.value = { connected: false, shareRoot: "", message: friendlyError(error) };
   }
 }
 
@@ -52,7 +59,7 @@ async function saveConfig() {
     config.value = await window.devToolbox.saveSharedDiskConfig(plainConfig());
     status.value = "配置已保存";
   } catch (error) {
-    status.value = error instanceof Error ? error.message : String(error);
+    status.value = friendlyError(error);
   } finally {
     busy.value = false;
   }
@@ -66,7 +73,7 @@ async function connect() {
     status.value = lastResult.value.message;
     await refreshStatus();
   } catch (error) {
-    status.value = error instanceof Error ? error.message : String(error);
+    status.value = friendlyError(error);
   } finally {
     busy.value = false;
   }
@@ -79,7 +86,7 @@ async function disconnect() {
     status.value = lastResult.value.message;
     await refreshStatus();
   } catch (error) {
-    status.value = error instanceof Error ? error.message : String(error);
+    status.value = friendlyError(error);
   } finally {
     busy.value = false;
   }
@@ -93,7 +100,7 @@ async function openDefaultDirectory() {
     await window.devToolbox.openSharedDiskDirectory(target);
     status.value = "已打开默认目录";
   } catch (error) {
-    status.value = error instanceof Error ? error.message : String(error);
+    status.value = friendlyError(error);
   } finally {
     busy.value = false;
   }

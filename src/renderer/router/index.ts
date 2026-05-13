@@ -18,6 +18,7 @@ import ImageCropTool from "../pages/ImageCropTool.vue";
 import WatermarkTool from "../pages/WatermarkTool.vue";
 import SpriteTool from "../pages/SpriteTool.vue";
 import ImagePlaceholderTool from "../pages/ImagePlaceholderTool.vue";
+import MarkManTool from "../pages/MarkManTool.vue";
 import SharedDiskTool from "../pages/SharedDiskTool.vue";
 import IpQueryTool from "../pages/IpQueryTool.vue";
 import QrCodeTool from "../pages/QrCodeTool.vue";
@@ -35,9 +36,17 @@ import OgImageTool from "../pages/OgImageTool.vue";
 import LinksTool from "../pages/LinksTool.vue";
 import JwtTool from "../pages/JwtTool.vue";
 import DataConvertTool from "../pages/DataConvertTool.vue";
+import DiffTool from "../pages/DiffTool.vue";
 import ColorPaletteTool from "../pages/ColorPaletteTool.vue";
 import CodeScreenshotTool from "../pages/CodeScreenshotTool.vue";
 import ClipboardHistoryTool from "../pages/ClipboardHistoryTool.vue";
+import Base64TextTool from "../pages/Base64TextTool.vue";
+import HashTool from "../pages/HashTool.vue";
+import ColorConverterTool from "../pages/ColorConverterTool.vue";
+import HttpTesterTool from "../pages/HttpTesterTool.vue";
+import CertificateScanTool from "../pages/CertificateScanTool.vue";
+import CaptureProxyTool from "../pages/CaptureProxyTool.vue";
+import StickyNotesTool from "../pages/StickyNotesTool.vue";
 import HistoryPage from "../pages/HistoryPage.vue";
 import SettingsPage from "../pages/SettingsPage.vue";
 
@@ -65,6 +74,7 @@ export const router = createRouter({
     { path: "/watermark", component: WatermarkTool },
     { path: "/sprite", component: SpriteTool },
     { path: "/image-placeholder", component: ImagePlaceholderTool },
+    { path: "/mark-man", component: MarkManTool },
     { path: "/ip-query", component: IpQueryTool },
     { path: "/qr-code", component: QrCodeTool },
     { path: "/audio-convert", component: AudioConvertTool },
@@ -81,9 +91,17 @@ export const router = createRouter({
     { path: "/links", component: LinksTool },
     { path: "/jwt", component: JwtTool },
     { path: "/data-convert", component: DataConvertTool },
+    { path: "/diff", component: DiffTool },
     { path: "/color-palette", component: ColorPaletteTool },
     { path: "/code-screenshot", component: CodeScreenshotTool },
     { path: "/clipboard-history", component: ClipboardHistoryTool },
+    { path: "/base64-text", component: Base64TextTool },
+    { path: "/hash", component: HashTool },
+    { path: "/color-converter", component: ColorConverterTool },
+    { path: "/http-tester", component: HttpTesterTool },
+    { path: "/certificate-scan", component: CertificateScanTool },
+    { path: "/capture-proxy", component: CaptureProxyTool },
+    { path: "/sticky-notes", component: StickyNotesTool },
     { path: "/history", component: HistoryPage },
     { path: "/settings", component: SettingsPage }
   ]

@@ -109,7 +109,17 @@ async function renderHtml(html: string, outputPath: string, format: "png" | "pdf
       const pdf = await win.webContents.printToPDF({ printBackground: true, pageSize: "A4" });
       await fs.writeFile(outputPath, pdf);
     } else {
-      const image = await win.webContents.capturePage();
+      const bounds = await win.webContents.executeJavaScript(`(() => {
+        const root = document.documentElement;
+        const body = document.body;
+        return {
+          width: Math.ceil(Math.max(root.scrollWidth, body.scrollWidth, root.offsetWidth, body.offsetWidth, 960)),
+          height: Math.ceil(Math.max(root.scrollHeight, body.scrollHeight, root.offsetHeight, body.offsetHeight, 1200))
+        };
+      })()`);
+      win.setContentSize(bounds.width, bounds.height);
+      await new Promise((resolve) => setTimeout(resolve, 80));
+      const image = await win.webContents.capturePage({ x: 0, y: 0, width: bounds.width, height: bounds.height });
       await fs.writeFile(outputPath, image.toPNG());
     }
   } finally {

@@ -1,9 +1,23 @@
 import { defineStore } from "pinia";
+import type { ThemeTitleBarPayload } from "../../shared/types";
 
 export type ThemeMode = "system" | "light" | "dark";
 
 function systemTheme() {
   return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+}
+
+function readTitleBarTheme(): ThemeTitleBarPayload {
+  const styles = window.getComputedStyle(document.documentElement);
+  const accentColor = styles.getPropertyValue("--accent").trim() || "#0969da";
+  const surfaceColor = styles.getPropertyValue("--surface").trim() || "#ffffff";
+  const textColor = styles.getPropertyValue("--text").trim() || "#1f2328";
+
+  return {
+    accentColor,
+    surfaceColor,
+    textColor
+  };
 }
 
 export const useThemeStore = defineStore("theme", {
@@ -19,10 +33,12 @@ export const useThemeStore = defineStore("theme", {
     setMode(mode: ThemeMode) {
       this.mode = mode;
       localStorage.setItem("theme-mode", mode);
-      document.documentElement.dataset.theme = this.resolvedTheme;
+      this.sync();
     },
     sync() {
-      document.documentElement.dataset.theme = this.resolvedTheme;
+      const resolved = this.resolvedTheme;
+      document.documentElement.dataset.theme = resolved;
+      try { window.devToolbox.setThemeBackground(readTitleBarTheme()); } catch { /* preload not ready */ }
     }
   }
 });

@@ -1,19 +1,38 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
-import type { IpInfo } from "../../shared/types";
+import type { DomainIpLookupResult, IpInfo } from "../../shared/types";
 
 const busy = ref(false);
+const domainBusy = ref(false);
+const domainInput = ref("");
 const info = ref<IpInfo | null>(null);
+const domainResult = ref<DomainIpLookupResult | null>(null);
 
 const ipv4List = computed(() => info.value?.internal.filter((item) => item.family === "IPv4") ?? []);
 const ipv6List = computed(() => info.value?.internal.filter((item) => item.family === "IPv6") ?? []);
+const domainIpv4List = computed(() => domainResult.value?.addresses.filter((item) => item.family === "IPv4") ?? []);
+const domainIpv6List = computed(() => domainResult.value?.addresses.filter((item) => item.family === "IPv6") ?? []);
 
 async function refresh() {
   busy.value = true;
+  domainBusy.value = false;
+  domainInput.value = "";
+  domainResult.value = null;
   try {
     info.value = await window.devToolbox.getIpInfo();
   } finally {
     busy.value = false;
+  }
+}
+
+async function lookupDomain() {
+  const domain = domainInput.value.trim();
+  if (!domain) return;
+  domainBusy.value = true;
+  try {
+    domainResult.value = await window.devToolbox.lookupDomainIp(domain);
+  } finally {
+    domainBusy.value = false;
   }
 }
 
@@ -37,6 +56,41 @@ onMounted(() => {
 
     <div class="tool-layout">
       <section class="tool-main">
+        <div class="domain-lookup-panel">
+          <div class="section-title">
+            <h2>域名解析</h2>
+            <span class="status-pill" :class="{ running: domainBusy }">{{ domainBusy ? "RUNNING" : "DNS" }}</span>
+          </div>
+          <div class="domain-lookup-row">
+            <input v-model="domainInput" placeholder="输入域名，例如 example.com" @keydown.enter.prevent="lookupDomain" />
+            <button type="button" class="primary-button" :disabled="domainBusy || !domainInput.trim()" @click="lookupDomain">
+              <i class="ri-search-line" aria-hidden="true"></i>
+              查询
+            </button>
+          </div>
+          <div v-if="domainResult" class="domain-result">
+            <div class="domain-result-head">
+              <strong>{{ domainResult.host || domainResult.query }}</strong>
+              <span :class="domainResult.status === 'success' ? 'domain-ok' : 'domain-error'">
+                {{ domainResult.status === "success" ? `${domainResult.addresses.length} 个地址` : "解析失败" }}
+              </span>
+            </div>
+            <p v-if="domainResult.status === 'error'" class="empty-state">{{ domainResult.errorMessage }}</p>
+            <div v-else class="domain-address-grid">
+              <article class="domain-address-card">
+                <span>IPv4</span>
+                <strong v-if="domainIpv4List.length">{{ domainIpv4List.map((item) => item.address).join(" / ") }}</strong>
+                <strong v-else>-</strong>
+              </article>
+              <article class="domain-address-card">
+                <span>IPv6</span>
+                <strong v-if="domainIpv6List.length">{{ domainIpv6List.map((item) => item.address).join(" / ") }}</strong>
+                <strong v-else>-</strong>
+              </article>
+            </div>
+          </div>
+        </div>
+
         <div class="metric-card">
           <span>外网 IP</span>
           <strong>{{ info?.externalIp || "未获取" }}</strong>
@@ -81,3 +135,89 @@ onMounted(() => {
     </div>
   </section>
 </template>
+
+<style scoped>
+.domain-lookup-panel {
+  display: grid;
+  gap: 12px;
+}
+
+.domain-lookup-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+}
+
+.domain-result {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-subtle);
+}
+
+.domain-result-head,
+.domain-address-card {
+  min-width: 0;
+}
+
+.domain-result-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.domain-result-head strong,
+.domain-address-card strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.domain-ok {
+  color: var(--success);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.domain-error {
+  color: var(--danger);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.domain-address-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.domain-address-card {
+  display: grid;
+  gap: 6px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+}
+
+.domain-address-card span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.domain-address-card strong {
+  font-family: var(--font-mono);
+  font-size: 13px;
+}
+
+@media (max-width: 760px) {
+  .domain-lookup-row,
+  .domain-address-grid {
+    grid-template-columns: 1fr;
+  }
+}
+</style>
