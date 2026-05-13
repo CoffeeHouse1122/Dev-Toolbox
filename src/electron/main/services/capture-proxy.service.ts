@@ -160,6 +160,15 @@ function requestHost(url: string, fallback = "") {
   }
 }
 
+function applyTargetHostHeader(ctx: IContext, url: string) {
+  const host = requestHost(url);
+  if (!host) return;
+  ctx.clientToProxyRequest.headers.host = host;
+  if (ctx.proxyToServerRequestOptions?.headers) {
+    ctx.proxyToServerRequestOptions.headers.host = host;
+  }
+}
+
 function shouldIgnoreError(error: Error | null | undefined) {
   const message = error?.message || "";
   const code = (error as NodeJS.ErrnoException | undefined)?.code;
@@ -194,6 +203,7 @@ function registerHandlers(proxy: Proxy) {
   proxy.onRequest((ctx, callback) => {
     ctx.clientToProxyRequest.headers["accept-encoding"] = "identity";
     const url = requestUrl(ctx);
+    applyTargetHostHeader(ctx, url);
     const record: CaptureProxyRecord = {
       id: recordId(),
       startedAt: Date.now(),
@@ -284,7 +294,7 @@ export async function startCaptureProxy(options: CaptureProxyStartOptions): Prom
         host: options.host,
         sslCaDir: captureCaDir(),
         forceSNI: options.enableHttps,
-        forceChunkedRequest: true
+        forceChunkedRequest: false
       },
       (error?: Error | null) => {
         if (error) reject(error);

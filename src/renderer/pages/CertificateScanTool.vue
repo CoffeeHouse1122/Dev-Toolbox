@@ -159,6 +159,11 @@ function remainingLabel(item: CertificateRow) {
   return `${item.remainingDays} 天`;
 }
 
+function issuerLabel(item: CertificateRow) {
+  if (item.status === "pending") return "待扫描";
+  return item.issuer && item.issuer !== "-" ? item.issuer : "未获取到签发者";
+}
+
 function formatDate(value: string) {
   if (!value) return "-";
   const date = new Date(value);
@@ -292,7 +297,10 @@ watch(
                 <td>
                   <strong>{{ item.domain }}</strong>
                 </td>
-                <td>{{ item.status === "error" ? item.errorMessage : item.issuer || "待扫描" }}</td>
+                <td class="certificate-issuer-cell" :title="issuerLabel(item)">
+                  <strong>{{ issuerLabel(item) }}</strong>
+                  <small v-if="item.status === 'error' && item.errorMessage">{{ item.errorMessage }}</small>
+                </td>
                 <td>{{ formatDate(item.validFrom) }}</td>
                 <td>{{ formatDate(item.validTo) }}</td>
                 <td>
@@ -478,6 +486,12 @@ watch(
   display: block;
   margin-top: 2px;
   color: var(--muted);
+}
+
+.certificate-issuer-cell strong {
+  display: block;
+  color: var(--text);
+  font-weight: 700;
 }
 
 .certificate-table tr.expiring {

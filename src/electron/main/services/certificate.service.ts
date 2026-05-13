@@ -3,6 +3,10 @@ import type { CertificateScanOptions, CertificateScanResult } from "../../../sha
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
+type PeerCertificateWithIssuer = tls.PeerCertificate & {
+  issuerCertificate?: tls.PeerCertificate;
+};
+
 function normalizeTarget(raw: string) {
   const value = raw.trim();
   if (!value) throw new Error("域名不能为空");
@@ -22,7 +26,7 @@ function normalizeTarget(raw: string) {
   };
 }
 
-function stringifyIssuer(issuer: tls.PeerCertificate["issuer"] | undefined) {
+function stringifyIssuer(issuer: tls.PeerCertificate["issuer"] | tls.PeerCertificate["subject"] | undefined) {
   if (!issuer || typeof issuer !== "object") return "-";
 
   const keys = ["CN", "O", "OU", "C"];
@@ -34,6 +38,12 @@ function stringifyIssuer(issuer: tls.PeerCertificate["issuer"] | undefined) {
     .filter(Boolean);
 
   return parts.length ? parts.join(", ") : "-";
+}
+
+function resolveIssuer(certificate: PeerCertificateWithIssuer) {
+  const issuer = stringifyIssuer(certificate.issuer);
+  if (issuer !== "-") return issuer;
+  return stringifyIssuer(certificate.issuerCertificate?.subject);
 }
 
 function calculateRemainingDays(validTo: string) {
@@ -98,7 +108,7 @@ function scanOne(rawDomain: string, timeoutMs: number): Promise<CertificateScanR
         domain: target.domain,
         host: target.host,
         port: target.port,
-        issuer: stringifyIssuer(certificate.issuer),
+        issuer: resolveIssuer(certificate),
         validFrom: certificate.valid_from || "",
         validTo: certificate.valid_to || "",
         remainingDays: certificate.valid_to ? calculateRemainingDays(certificate.valid_to) : null,

@@ -26,6 +26,10 @@ const proxyHost = computed(() => (hostMode.value === "local" ? "127.0.0.1" : lis
 const selectedRecord = computed(() => records.value.find((record) => record.id === selectedId.value) ?? records.value[0] ?? null);
 const proxyAddress = computed(() => `${status.value.host === "0.0.0.0" ? "本机局域网 IP" : status.value.host}:${status.value.port}`);
 const activeSince = computed(() => (status.value.startedAt ? formatTime(status.value.startedAt) : "未启动"));
+const httpsUsageText = computed(() => {
+  if (!enableHttps.value) return "HTTPS 解密未启用";
+  return "信任 CA 后，将系统或浏览器代理设置为上方地址即可抓取 HTTPS 明文。";
+});
 
 const summary = computed(() => {
   const total = records.value.length;
@@ -168,8 +172,8 @@ onBeforeUnmount(() => {
             <h2>代理配置</h2>
             <span class="status-pill" :class="{ running: status.running }">{{ status.running ? "RUNNING" : "STOPPED" }}</span>
           </div>
-          <div class="proxy-address-card">
-            <span>HTTP / HTTPS Proxy</span>
+          <div class="proxy-address-card" :title="proxyAddress">
+            <span>代理地址</span>
             <strong>{{ proxyAddress }}</strong>
             <button type="button" class="secondary-button" @click="copyProxyAddress">
               <i :class="copied ? 'ri-check-line' : 'ri-file-copy-line'" aria-hidden="true"></i>
@@ -212,7 +216,7 @@ onBeforeUnmount(() => {
         </div>
 
         <div class="capture-ca-row">
-          <span>HTTPS 需要在测试设备信任本地 CA 证书：</span>
+          <span>{{ httpsUsageText }}</span>
           <code>{{ status.caCertPath }}</code>
           <button type="button" class="secondary-button" :disabled="!status.caCertPath" @click="openCaCertificate">
             <i class="ri-folder-open-line" aria-hidden="true"></i>
@@ -262,7 +266,6 @@ onBeforeUnmount(() => {
               <span class="capture-status">{{ statusLabel(record) }}</span>
               <span class="capture-url" :title="record.url">{{ record.url }}</span>
               <span class="capture-time">{{ record.durationMs ?? "-" }}ms</span>
-              <span class="capture-size">{{ formatSize(record.requestSize) }} / {{ formatSize(record.responseSize) }}</span>
             </button>
             <p v-if="!filteredRecords.length" class="empty-state">暂无请求。</p>
           </div>
@@ -341,23 +344,24 @@ onBeforeUnmount(() => {
 }
 
 .capture-config-panel {
-  max-height: 230px;
-  overflow: auto;
+  gap: 8px;
+  padding: 12px;
+  overflow: visible;
 }
 
 .capture-config-head {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(260px, 420px);
-  gap: 14px;
-  align-items: start;
+  grid-template-columns: minmax(0, 1fr) minmax(230px, 330px);
+  gap: 10px;
+  align-items: center;
 }
 
 .capture-config-grid {
   display: grid;
-  grid-template-columns: 190px minmax(180px, 1fr) 120px 130px auto auto;
-  gap: 10px;
+  grid-template-columns: 150px minmax(150px, 1fr) 84px 96px minmax(132px, auto) 92px;
+  gap: 8px;
   align-items: end;
-  min-width: 960px;
+  min-width: 0;
 }
 
 .capture-mode-grid {
@@ -371,6 +375,15 @@ onBeforeUnmount(() => {
   min-height: 36px;
 }
 
+.capture-config-grid .field {
+  gap: 4px;
+}
+
+.capture-config-grid input {
+  min-height: 30px;
+  padding: 4px 8px;
+}
+
 .secondary-button.selected {
   border-color: var(--accent);
   color: var(--accent-strong);
@@ -378,17 +391,20 @@ onBeforeUnmount(() => {
 }
 
 .capture-body-check {
-  min-height: 36px;
+  min-height: 30px;
   align-self: end;
+  gap: 6px;
+  font-size: 12px;
 }
 
 .capture-ca-row {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  gap: 10px;
+  grid-template-columns: minmax(190px, auto) minmax(0, 1fr) auto;
+  gap: 8px;
   align-items: center;
-  min-width: 720px;
-  padding: 8px 10px;
+  min-width: 0;
+  min-height: 32px;
+  padding: 5px 8px;
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--surface-subtle);
@@ -398,6 +414,9 @@ onBeforeUnmount(() => {
   color: var(--muted);
   font-size: 12px;
   font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .capture-ca-row code {
@@ -411,9 +430,9 @@ onBeforeUnmount(() => {
 .proxy-address-card {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  gap: 6px 10px;
+  gap: 4px 8px;
   align-items: center;
-  padding: 12px;
+  padding: 8px;
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--surface-subtle);
@@ -442,14 +461,14 @@ onBeforeUnmount(() => {
 .capture-stats {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 8px;
+  gap: 6px;
 }
 
 .capture-stats div,
 .capture-meta-grid div {
   display: grid;
-  gap: 4px;
-  padding: 10px;
+  gap: 2px;
+  padding: 7px 8px;
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--surface-subtle);
@@ -457,10 +476,10 @@ onBeforeUnmount(() => {
 
 .capture-workspace {
   display: grid;
-  grid-template-columns: minmax(420px, 1fr) 420px;
-  gap: 16px;
+  grid-template-columns: minmax(0, 1fr) 400px;
+  gap: 12px;
   align-items: start;
-  min-width: 860px;
+  min-width: 0;
   min-height: 0;
   overflow: auto;
 }
@@ -477,8 +496,8 @@ onBeforeUnmount(() => {
 
 .capture-toolbar {
   display: grid;
-  grid-template-columns: minmax(180px, 1fr) auto auto;
-  gap: 10px;
+  grid-template-columns: minmax(160px, 1fr) auto auto;
+  gap: 8px;
   align-items: center;
 }
 
@@ -504,9 +523,9 @@ onBeforeUnmount(() => {
 
 .capture-row {
   display: grid;
-  grid-template-columns: 78px 64px minmax(0, 1fr) 70px 118px;
-  gap: 10px;
-  align-items: center;
+  grid-template-columns: 70px 58px minmax(0, 1fr) 58px;
+  gap: 8px;
+  align-items: start;
   min-width: 0;
   padding: 9px 12px;
   border: 0;
@@ -540,16 +559,16 @@ onBeforeUnmount(() => {
 }
 
 .capture-url,
-.capture-time,
-.capture-size {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.capture-time {
   font-size: 12px;
 }
 
-.capture-time,
-.capture-size {
+.capture-url {
+  overflow-wrap: anywhere;
+  line-height: 1.45;
+}
+
+.capture-time {
   color: var(--muted);
   text-align: right;
   font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
@@ -641,13 +660,19 @@ onBeforeUnmount(() => {
 
 @media (max-width: 1280px) {
   .capture-config-head {
-    grid-template-columns: minmax(0, 1fr) minmax(260px, 360px);
+    grid-template-columns: minmax(0, 1fr) minmax(220px, 300px);
+  }
+
+  .capture-config-grid {
+    grid-template-columns: 138px minmax(130px, 1fr) 78px 88px 118px 82px;
   }
 }
 
 @media (max-width: 920px) {
-  .capture-config-head {
-    min-width: 720px;
+  .capture-config-head,
+  .capture-config-grid,
+  .capture-ca-row {
+    grid-template-columns: 1fr;
   }
 }
 </style>
