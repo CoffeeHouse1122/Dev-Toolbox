@@ -1,0 +1,462 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Dev Toolbox 桌面版下载</title>
+    <link rel="shortcut icon" href="favicon.ico" type="image/x-icon">
+    <style>
+      :root {
+        --bg: #1e1e1e;
+        --panel: #252526;
+        --panel-border: #333333;
+        --text: #cccccc;
+        --text-heading: #ffffff;
+        --accent: #0969da;
+        --accent-hover: #0550ae;
+        --muted: #999999;
+        --font-family: "Segoe UI", "Helvetica Neue", Helvetica, "Microsoft YaHei", "PingFang SC", Arial, sans-serif;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body, html {
+        margin: 0;
+        padding: 0;
+        background-color: var(--bg);
+        color: var(--text);
+        font-family: var(--font-family);
+        min-height: 100vh;
+        line-height: 1.6;
+      }
+
+      a {
+        color: #58a6ff;
+        text-decoration: none;
+      }
+      a:hover {
+        text-decoration: underline;
+      }
+
+      .page {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 80px 20px;
+        position: relative;
+        z-index: 1;
+      }
+
+      /* Hero Section */
+      .hero {
+        text-align: center;
+        margin-bottom: 60px;
+      }
+
+      .badge {
+        display: inline-block;
+        padding: 6px 14px;
+        background-color: rgba(255, 255, 255, 0.1);
+        color: var(--text-heading);
+        border-radius: 20px;
+        font-size: 13px;
+        margin-bottom: 24px;
+      }
+
+      h1 {
+        color: var(--text-heading);
+        font-size: 3.5rem;
+        font-weight: 600;
+        margin: 0 0 24px;
+        letter-spacing: -0.02em;
+      }
+
+      .lead {
+        font-size: 1.25rem;
+        max-width: 600px;
+        margin: 0 auto 40px;
+        color: var(--muted);
+      }
+
+      /* Download Action Area */
+      .download-card {
+        background-color: var(--panel);
+        border: 1px solid var(--panel-border);
+        border-radius: 6px;
+        padding: 40px;
+        max-width: 800px;
+        margin: 0 auto 60px;
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+      }
+
+      .button-row {
+        display: flex;
+        justify-content: center;
+        gap: 16px;
+        flex-wrap: wrap;
+        margin-bottom: 30px;
+      }
+
+      .button-primary {
+        background-color: var(--accent);
+        color: #ffffff;
+        padding: 16px 36px;
+        font-size: 1.25rem;
+        font-weight: 600;
+        border-radius: 4px;
+        display: inline-flex;
+        align-items: center;
+        text-decoration: none;
+        transition: background-color 0.2s;
+        border: none;
+      }
+
+      .button-primary:hover {
+        background-color: var(--accent-hover);
+        text-decoration: none;
+      }
+
+      .button-secondary {
+        background-color: transparent;
+        color: var(--text-heading);
+        padding: 16px 36px;
+        font-size: 1.1rem;
+        font-weight: 500;
+        border-radius: 4px;
+        display: inline-flex;
+        align-items: center;
+        text-decoration: none;
+        border: 1px solid var(--panel-border);
+        transition: background-color 0.2s;
+      }
+
+      .button-secondary:hover {
+        background-color: rgba(255, 255, 255, 0.05);
+        text-decoration: none;
+      }
+
+      .download-meta {
+        display: flex;
+        justify-content: center;
+        gap: 40px;
+        flex-wrap: wrap;
+        padding-top: 30px;
+        border-top: 1px solid var(--panel-border);
+      }
+
+      .meta-item {
+        text-align: center;
+      }
+
+      .meta-label {
+        display: block;
+        font-size: 0.85rem;
+        color: var(--muted);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin-bottom: 8px;
+      }
+
+      .meta-value {
+        font-size: 1.1rem;
+        color: var(--text-heading);
+        font-weight: 500;
+      }
+
+      .hint {
+        text-align: center;
+        color: var(--muted);
+        font-size: 0.9rem;
+        margin-top: 20px;
+      }
+
+      /* Content Grids */
+      .section-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 30px;
+        margin-bottom: 60px;
+      }
+
+      .panel {
+        background-color: var(--panel);
+        border: 1px solid var(--panel-border);
+        border-radius: 6px;
+        padding: 30px;
+      }
+
+      .panel h2, .logs h2 {
+        color: var(--text-heading);
+        font-size: 1.5rem;
+        font-weight: 400;
+        margin-top: 0;
+        margin-bottom: 24px;
+      }
+
+      .feature-list, .spec-list {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+      }
+
+      .feature-list li, .spec-list li {
+        position: relative;
+        padding-left: 28px;
+        margin-bottom: 16px;
+      }
+
+      .feature-list li::before, .spec-list li::before {
+        content: '\2713';
+        position: absolute;
+        left: 0;
+        color: var(--accent);
+        font-weight: bold;
+      }
+
+      /* Logs Section */
+      .logs {
+        max-width: 800px;
+        margin: 0 auto;
+      }
+
+      .log-item {
+        padding: 30px;
+        background-color: var(--panel);
+        border: 1px solid var(--panel-border);
+        border-radius: 6px;
+        margin-bottom: 20px;
+      }
+
+      .log-head {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        margin-bottom: 16px;
+        flex-wrap: wrap;
+      }
+
+      .log-version {
+        color: var(--text-heading);
+        font-size: 1.4rem;
+        font-weight: 600;
+      }
+
+      .log-date {
+        color: var(--muted);
+        font-size: 0.95rem;
+      }
+
+      .log-desc {
+        margin: 0 0 16px 0;
+        font-size: 1.05rem;
+      }
+
+      .log-changes {
+        padding-left: 20px;
+        margin: 0;
+        color: var(--text);
+      }
+
+      .log-changes li {
+        margin-bottom: 8px;
+      }
+
+      .footer {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 16px;
+        padding-top: 40px;
+        margin-top: 60px;
+        border-top: 1px solid var(--panel-border);
+        color: var(--muted);
+        font-size: 0.9rem;
+      }
+
+      @media (max-width: 768px) {
+        h1 {
+          font-size: 2.5rem;
+        }
+        .download-card {
+          padding: 30px 20px;
+        }
+        .button-row {
+          flex-direction: column;
+        }
+        .button-primary, .button-secondary {
+          width: 100%;
+          justify-content: center;
+        }
+        .download-meta {
+          gap: 20px;
+          flex-direction: column;
+        }
+      }
+
+      #bg-grid-wrapper {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        z-index: 0;
+        overflow: hidden;
+        perspective: 2000px;
+        pointer-events: auto;
+      }
+
+      #grid-container {
+        width: 150vw;
+        height: 150vw;
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%) rotateX(60deg) rotateY(0deg) rotateZ(45deg) scale(1.5);
+        display: grid;
+        grid-template-rows: repeat(40, 1fr);
+        grid-template-columns: repeat(40, 1fr);
+      }
+
+      #grid-container:after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        z-index: 3;
+        background: radial-gradient(circle, transparent 25%, var(--bg) 70%);
+      }
+
+      .grid-tile {
+        border: 1px solid rgba(255, 255, 255, 0.03);
+        transition: background-color 1500ms;
+      }
+
+      .grid-tile:hover {
+        transition-duration: 0ms;
+      }
+
+      .grid-tile:nth-child(4n):hover { background-color: rgba(56, 189, 248, 0.4); }
+      .grid-tile:nth-child(4n + 1):hover { background-color: rgba(74, 222, 128, 0.4); }
+      .grid-tile:nth-child(4n + 2):hover { background-color: rgba(253, 224, 71, 0.4); }
+      .grid-tile:nth-child(4n + 3):hover { background-color: rgba(248, 113, 113, 0.4); }
+      .grid-tile:nth-child(7n):hover { background-color: rgba(56, 189, 248, 0.4); }
+      .grid-tile:nth-child(7n + 3):hover { background-color: rgba(74, 222, 128, 0.4); }
+      .grid-tile:nth-child(7n + 5):hover { background-color: rgba(253, 224, 71, 0.4); }
+      .grid-tile:nth-child(7n + 6):hover { background-color: rgba(248, 113, 113, 0.4); }
+
+      .app-icon {
+        width: 96px;
+        height: 96px;
+        margin: 0 auto 20px;
+        display: block;
+      }
+
+      .page { pointer-events: none; }
+      .page a, .page button, .panel, .download-card, .log-item { pointer-events: auto; }
+
+      .conic-btn {
+        position: relative;
+        overflow: hidden;
+      }
+
+      .conic-btn::after {
+        content: "";
+        width: 150px;
+        height: 150px;
+        position: absolute;
+        left: var(--x, 50%);
+        top: var(--y, 50%);
+        transform: translate(-50%, -50%);
+        background-image: conic-gradient(from 0deg, transparent, #0550ae, #0969da, transparent);
+        border-radius: 50%;
+        filter: blur(20px);
+        mix-blend-mode: screen;
+        opacity: 0;
+        transition: opacity 0.3s ease;
+        z-index: 0;
+        pointer-events: none;
+      }
+
+      .conic-btn:hover::after {
+        opacity: 0.85;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="bg-grid-wrapper"><div id="grid-container"><div class="grid-tile"></div></div></div>
+    <main class="page">
+      <section class="hero">
+        <img src="icon.png" alt="Dev Toolbox Icon" class="app-icon" />
+        <span class="badge">桌面客户端下载</span>
+        <h1 id="page-title">Dev Toolbox 开发工具箱</h1>
+        <p class="lead" id="hero-description">正在加载版本信息与更新日志...</p>
+      </section>
+
+      <article class="download-card">
+        <div class="button-row" id="download-buttons">
+          <a class="button-secondary" href="#update-log">查看更新日志</a>
+        </div>
+
+        <p class="hint" id="download-hint">更新清单会自动驱动版本号、下载按钮和更新日志展示。</p>
+
+        <div class="download-meta">
+          <div class="meta-item">
+            <span class="meta-label">当前版本</span>
+            <strong class="meta-value" id="current-version">--</strong>
+          </div>
+          <div class="meta-item">
+            <span class="meta-label">适用系统</span>
+            <strong class="meta-value" id="system-value">--</strong>
+          </div>
+          <div class="meta-item">
+            <span class="meta-label">安装包类型</span>
+            <strong class="meta-value" id="package-type">--</strong>
+          </div>
+          <div class="meta-item">
+            <span class="meta-label">建议环境</span>
+            <strong class="meta-value" id="recommended-environment">--</strong>
+          </div>
+        </div>
+      </article>
+
+      <section class="section-grid">
+        <article class="panel">
+          <h2>包含功能</h2>
+          <ul class="feature-list" id="feature-list"></ul>
+        </article>
+
+        <article class="panel">
+          <h2>安装说明</h2>
+          <ul class="spec-list" id="installation-list"></ul>
+        </article>
+
+        <article class="panel">
+          <h2>使用前准备</h2>
+          <ul class="spec-list" id="preparation-list"></ul>
+        </article>
+      </section>
+
+      <section class="logs" id="update-log">
+        <h2>更新日志</h2>
+        <div class="log-list" id="release-log-list"></div>
+      </section>
+
+      <footer class="footer">
+        <span id="footer-app-name">Dev Toolbox</span>
+        <span>如下载地址调整，请同步更新 release-manifest.json。</span>
+      </footer>
+    </main>
+    <script>
+      const container = document.querySelector("#grid-container"),
+        tile = document.querySelector(".grid-tile");
+      if (container && tile) {
+        for (let i = 0; i < 1599; i++) {
+          container.appendChild(tile.cloneNode());
+        }
+      }
+    </script>
+    <script type="module" src="./main.js"></script>
+  </body>
+</html>
