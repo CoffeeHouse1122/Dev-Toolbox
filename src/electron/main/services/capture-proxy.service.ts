@@ -2,6 +2,7 @@ import { app } from "electron";
 import { createPrivateKey, createPublicKey, X509Certificate } from "node:crypto";
 import fs from "node:fs/promises";
 import http, { type IncomingHttpHeaders } from "node:http";
+import { networkInterfaces } from "node:os";
 import path from "node:path";
 import { TextDecoder } from "node:util";
 import zlib from "node:zlib";
@@ -280,6 +281,25 @@ function shouldIgnoreError(error: Error | null | undefined) {
   return code === "ECONNRESET" || message.includes("ECONNRESET") || message.includes("socket hang up");
 }
 
+function availableListenHosts() {
+  const hosts = new Set<string>(["0.0.0.0", "127.0.0.1"]);
+  const interfaces = networkInterfaces();
+  for (const entries of Object.values(interfaces)) {
+    for (const entry of entries || []) {
+      if (entry.family === "IPv4") hosts.add(entry.address);
+    }
+  }
+  return hosts;
+}
+
+function assertListenHostAvailable(host: string) {
+  if (host === "0.0.0.0" || host.startsWith("127.")) return;
+  const hosts = availableListenHosts();
+  if (hosts.has(host)) return;
+  const candidates = Array.from(hosts).filter((item) => item !== "0.0.0.0").join("、");
+  throw new Error(`监听 IP ${host} 不在当前机器网卡上。请确认本机局域网 IP，或改用 0.0.0.0。当前可用地址：${candidates}`);
+}
+
 function status(): CaptureProxyStatus {
   return {
     running: Boolean(proxyServer),
@@ -386,6 +406,7 @@ function registerHandlers(proxy: Proxy) {
 
 export async function startCaptureProxy(options: CaptureProxyStartOptions): Promise<CaptureProxyStatus> {
   if (proxyServer) await stopCaptureProxy();
+  assertListenHostAvailable(options.host);
   await prepareCertificateCache();
   currentOptions = options;
   lastError = "";
@@ -394,21 +415,28 @@ export async function startCaptureProxy(options: CaptureProxyStartOptions): Prom
   registerHandlers(proxy);
   proxyServer = proxy;
 
-  await new Promise<void>((resolve, reject) => {
-    proxy.listen(
-      {
-        port: options.port,
-        host: options.host,
-        sslCaDir: captureCaDir(),
-        forceSNI: options.enableHttps,
-        forceChunkedRequest: false
-      },
-      (error?: Error | null) => {
-        if (error) reject(error);
-        else resolve();
-      }
-    );
-  });
+  try {
+    await new Promise<void>((resolve, reject) => {
+      proxy.listen(
+        {
+          port: options.port,
+          host: options.host,
+          sslCaDir: captureCaDir(),
+          forceSNI: options.enableHttps,
+          forceChunkedRequest: false
+        },
+        (error?: Error | null) => {
+          if (error) reject(error);
+          else resolve();
+        }
+      );
+    });
+  } catch (error) {
+    proxyServer = null;
+    const message = error instanceof Error ? error.message : String(error);
+    lastError = message;
+    throw error;
+  }
 
   startedAt = Date.now();
   return status();

@@ -25,3 +25,4 @@
 - 新增主进程 JSON 配置服务：工具持久化配置统一写入 `userData/data/configs/*.json`；导航配置从 renderer localStorage 迁移到主进程配置服务，并兼容首次迁移旧配置。
 - 修复导航配置保存时 Vue reactive 对象跨 `contextBridge` 克隆失败的问题；Electron 系统标题栏改为跟随界面主题并使用正文色按钮，模态蒙版统一避让顶部系统横条；抓包代理启动前会校验并清理失配的 HTTPS 证书缓存，降低 `KEY_VALUES_MISMATCH` 崩溃风险。
 - 抓包正文预览增强：文本内容会在 `content-type` 不准确时通过内容嗅探继续展示，真正二进制内容会展示类型和十六进制文件头预览；HTTPS CA 说明明确为首次启动抓包代理时在用户数据目录自动生成，不随安装包预置。
+- 抓包代理监听增强：局域网模式启动前会校验监听 IP 是否属于当前机器网卡，若地址不可用则直接返回可读错误并提示可用本机地址，避免 Electron 主进程因 `EADDRNOTAVAIL` 异常退出。
