@@ -1,4 +1,6 @@
 import { app } from "electron";
+import { createPrivateKey, createPublicKey, X509Certificate } from "node:crypto";
+import fs from "node:fs/promises";
 import http, { type IncomingHttpHeaders } from "node:http";
 import path from "node:path";
 import zlib from "node:zlib";
@@ -44,6 +46,64 @@ function captureCaDir() {
 
 function caCertPath() {
   return path.join(captureCaDir(), "certs", "ca.pem");
+}
+
+function caPrivateKeyPath() {
+  return path.join(captureCaDir(), "keys", "ca.private.key");
+}
+
+function publicKeyDerFromCertificate(certificatePem: string) {
+  return new X509Certificate(certificatePem).publicKey.export({ format: "der", type: "spki" }) as Buffer;
+}
+
+function publicKeyDerFromPrivateKey(privateKeyPem: string) {
+  return createPublicKey(createPrivateKey(privateKeyPem)).export({ format: "der", type: "spki" }) as Buffer;
+}
+
+async function caKeyPairMatches() {
+  const readOptional = async (filePath: string) => {
+    try {
+      return await fs.readFile(filePath, "utf8");
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
+      throw error;
+    }
+  };
+
+  try {
+    const [certificatePem, privateKeyPem] = await Promise.all([readOptional(caCertPath()), readOptional(caPrivateKeyPath())]);
+    if (!certificatePem && !privateKeyPem) return true;
+    if (!certificatePem || !privateKeyPem) return false;
+    return publicKeyDerFromCertificate(certificatePem).equals(publicKeyDerFromPrivateKey(privateKeyPem));
+  } catch {
+    return false;
+  }
+}
+
+async function removeDirectoryChildren(directory: string, keepNames: Set<string>) {
+  try {
+    const entries = await fs.readdir(directory, { withFileTypes: true });
+    await Promise.all(entries.map(async (entry) => {
+      if (keepNames.has(entry.name)) return;
+      await fs.rm(path.join(directory, entry.name), { recursive: true, force: true });
+    }));
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return;
+    throw error;
+  }
+}
+
+async function prepareCertificateCache() {
+  const root = captureCaDir();
+  if (!(await caKeyPairMatches())) {
+    await fs.rm(root, { recursive: true, force: true });
+    return;
+  }
+
+  await Promise.all([
+    removeDirectoryChildren(path.join(root, "certs"), new Set(["ca.pem"])),
+    removeDirectoryChildren(path.join(root, "keys"), new Set(["ca.private.key", "ca.public.key"]))
+  ]);
 }
 
 function normalizeHeaderValue(value: string | string[] | number | undefined) {
@@ -293,6 +353,7 @@ function registerHandlers(proxy: Proxy) {
 
 export async function startCaptureProxy(options: CaptureProxyStartOptions): Promise<CaptureProxyStatus> {
   if (proxyServer) await stopCaptureProxy();
+  await prepareCertificateCache();
   currentOptions = options;
   lastError = "";
 

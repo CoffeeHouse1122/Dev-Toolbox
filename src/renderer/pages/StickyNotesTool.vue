@@ -910,7 +910,7 @@ onBeforeUnmount(() => {
 .note-preview-mask,
 .note-confirm-mask {
   position: fixed;
-  inset: 0;
+  inset: var(--titlebar-height) 0 0 0;
   z-index: 80;
   display: grid;
   place-items: center;

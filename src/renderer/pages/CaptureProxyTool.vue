@@ -822,7 +822,7 @@ onBeforeUnmount(() => {
 
 .capture-guide-mask {
   position: fixed;
-  inset: 0;
+  inset: var(--titlebar-height) 0 0 0;
   z-index: 1100;
   display: flex;
   justify-content: flex-end;
@@ -834,7 +834,7 @@ onBeforeUnmount(() => {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
   width: min(520px, 100vw);
-  height: 100vh;
+  height: calc(100vh - var(--titlebar-height));
   border-left: 1px solid var(--border);
   background: var(--surface);
   box-shadow: -18px 0 48px rgba(1, 4, 9, 0.34);

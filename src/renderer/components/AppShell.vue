@@ -225,8 +225,8 @@ async function loadNavConfig() {
 function saveNavConfig() {
   if (!navConfigLoaded.value) return;
   void window.devToolbox.saveToolConfig("navigation", {
-    groups: groups.value,
-    collapsedGroups: collapsedGroups.value
+    groups: cloneGroups(groups.value),
+    collapsedGroups: { ...collapsedGroups.value }
   } satisfies NavConfig);
 }
 

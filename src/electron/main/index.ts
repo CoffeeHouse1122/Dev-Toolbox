@@ -91,7 +91,7 @@ function createWindow() {
     titleBarStyle: "hidden",
     titleBarOverlay: {
       color: DEFAULT_TITLEBAR_THEME.surfaceColor,
-      symbolColor: DEFAULT_TITLEBAR_THEME.accentColor,
+      symbolColor: DEFAULT_TITLEBAR_THEME.textColor,
       height: 36
     },
     autoHideMenuBar: true,
@@ -112,7 +112,7 @@ function createWindow() {
   try {
     win.setTitleBarOverlay({
       color: DEFAULT_TITLEBAR_THEME.surfaceColor,
-      symbolColor: DEFAULT_TITLEBAR_THEME.accentColor,
+      symbolColor: DEFAULT_TITLEBAR_THEME.textColor,
       height: 36
     });
   } catch {
@@ -193,13 +193,12 @@ ipcMain.handle("update:current-version", () => {
 
 // 渲染进程通知主题变化 → 更新标题栏颜色
 ipcMain.on("theme:background", (_event, payload: ThemeTitleBarPayload) => {
-  const accentColor = payload?.accentColor || DEFAULT_TITLEBAR_THEME.accentColor;
   const surfaceColor = payload?.surfaceColor || DEFAULT_TITLEBAR_THEME.surfaceColor;
   const textColor = payload?.textColor || DEFAULT_TITLEBAR_THEME.textColor;
 
   mainWindow?.setBackgroundColor(surfaceColor);
   try {
-    mainWindow?.setTitleBarOverlay({ color: surfaceColor, symbolColor: accentColor || textColor, height: 36 });
+    mainWindow?.setTitleBarOverlay({ color: surfaceColor, symbolColor: textColor, height: 36 });
   } catch {
     /* older Electron or non-Windows */
   }

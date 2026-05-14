@@ -23,3 +23,4 @@
 - 抓包工具新增“代理使用指引”抽屉，集中说明 HTTP/HTTPS 代理配置、CA 信任流程、CONNECT 常见原因和更轻量的抓包方式；抓包表单配置改由主进程 JSON 配置服务持久化。
 - 设置页新增本地诊断信息：展示 Vite 开发服务端口、抓包代理默认端口占用状态，并提供用户数据目录、日志目录的打开入口。
 - 新增主进程 JSON 配置服务：工具持久化配置统一写入 `userData/data/configs/*.json`；导航配置从 renderer localStorage 迁移到主进程配置服务，并兼容首次迁移旧配置。
+- 修复导航配置保存时 Vue reactive 对象跨 `contextBridge` 克隆失败的问题；Electron 系统标题栏改为跟随界面主题并使用正文色按钮，模态蒙版统一避让顶部系统横条；抓包代理启动前会校验并清理失配的 HTTPS 证书缓存，降低 `KEY_VALUES_MISMATCH` 崩溃风险。
