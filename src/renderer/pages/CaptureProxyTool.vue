@@ -189,18 +189,7 @@ onBeforeUnmount(() => {
             <h2>代理配置</h2>
             <span class="status-pill" :class="{ running: status.running }">{{ status.running ? "RUNNING" : "STOPPED" }}</span>
           </div>
-          <div class="proxy-address-card" :title="proxyAddress">
-            <span>代理地址</span>
-            <strong>{{ proxyAddress }}</strong>
-            <button type="button" class="secondary-button" @click="copyProxyAddress">
-              <i :class="copied ? 'ri-check-line' : 'ri-file-copy-line'" aria-hidden="true"></i>
-              {{ copied ? "已复制" : "复制" }}
-            </button>
-            <button type="button" class="secondary-button" :disabled="!status.running || selfTesting" @click="runSelfTest">
-              <i class="ri-pulse-line" aria-hidden="true"></i>
-              {{ selfTesting ? "自检中" : "自检" }}
-            </button>
-          </div>
+
         </div>
 
         <div class="capture-config-grid">
@@ -246,6 +235,18 @@ onBeforeUnmount(() => {
         </div>
 
         <div class="capture-stats">
+          <div class="proxy-address-card" :title="proxyAddress">
+            <span>代理地址</span>
+            <strong>{{ proxyAddress }}</strong>
+            <button type="button" class="secondary-button" @click="copyProxyAddress">
+              <i :class="copied ? 'ri-check-line' : 'ri-file-copy-line'" aria-hidden="true"></i>
+              {{ copied ? "已复制" : "复制" }}
+            </button>
+            <button type="button" class="secondary-button" :disabled="!status.running || selfTesting" @click="runSelfTest">
+              <i class="ri-pulse-line" aria-hidden="true"></i>
+              {{ selfTesting ? "自检中" : "自检" }}
+            </button>
+          </div>
           <div><span>启动时间</span><strong>{{ activeSince }}</strong></div>
           <div><span>HTTP</span><strong>{{ summary.http }}</strong></div>
           <div><span>CONNECT</span><strong>{{ summary.tunnels }}</strong></div>
@@ -382,7 +383,7 @@ onBeforeUnmount(() => {
 
 .capture-config-grid {
   display: grid;
-  grid-template-columns: 136px minmax(150px, 1fr) 92px 102px minmax(148px, auto) 96px;
+  grid-template-columns: 200px minmax(150px, 1fr) 102px 102px 170px 90px;
   gap: 8px;
   align-items: end;
   min-width: 0;
@@ -511,7 +512,7 @@ onBeforeUnmount(() => {
 
 .capture-stats {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: 300px repeat(4, minmax(0, 1fr));
   gap: 6px;
 }
 
@@ -727,7 +728,7 @@ onBeforeUnmount(() => {
   }
 
   .capture-config-grid {
-    grid-template-columns: 126px minmax(128px, 1fr) 84px 94px 138px 90px;
+    grid-template-columns: 200px minmax(200px, 1fr) 84px 84px 165px 90px;
   }
 }
 

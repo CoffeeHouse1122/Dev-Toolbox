@@ -27,6 +27,8 @@ import { generateOgImage } from "./services/og-image.service";
 import { registerClipboardIpc } from "./services/clipboard-history.service";
 import { getSharedDiskStatus } from "./services/shared-disk-status.service";
 import { loadAppSettings, saveAppSettings } from "./services/settings.service";
+import { getAppDiagnostics } from "./services/diagnostics.service";
+import { loadToolConfig, saveToolConfig } from "./services/json-config.service";
 import {
   createStickyNote,
   deleteStickyNote,
@@ -295,6 +297,8 @@ const appSettingsSchema = z.object({
   autoLaunch: z.boolean()
 });
 
+const toolConfigKeySchema = z.enum(["navigation", "capture-proxy"]);
+
 const sharedDiskSchema = z.object({
   url: z.string().min(1),
   username: z.string(),
@@ -505,6 +509,9 @@ export function registerIpc() {
 
   ipcMain.handle("settings:load", async () => loadAppSettings());
   ipcMain.handle("settings:save", async (_event, raw: AppSettings) => saveAppSettings(appSettingsSchema.parse(raw)));
+  ipcMain.handle("diagnostics:get", async () => getAppDiagnostics());
+  ipcMain.handle("config:load", async (_event, key: string) => loadToolConfig(toolConfigKeySchema.parse(key)));
+  ipcMain.handle("config:save", async (_event, key: string, value: unknown) => saveToolConfig(toolConfigKeySchema.parse(key), value));
 
   ipcMain.handle("notes:load", async () => loadStickyNotes());
 

@@ -328,6 +328,20 @@ export interface AppSettings {
   autoLaunch: boolean;
 }
 
+export type ToolConfigKey = "navigation" | "capture-proxy";
+
+export interface PortDiagnostic {
+  label: string;
+  port: number;
+  inUse: boolean;
+}
+
+export interface AppDiagnostics {
+  userDataDir: string;
+  logsDir: string;
+  ports: PortDiagnostic[];
+}
+
 export interface Base64ImageResult {
   mimeType: string;
   base64: string;
@@ -465,6 +479,9 @@ export interface DevToolboxApi {
   onClipboardUpdate(handler: (entries: ClipboardEntry[]) => void): () => void;
   loadAppSettings(): Promise<AppSettings>;
   saveAppSettings(settings: AppSettings): Promise<AppSettings>;
+  getAppDiagnostics(): Promise<AppDiagnostics>;
+  loadToolConfig(key: ToolConfigKey): Promise<unknown | null>;
+  saveToolConfig(key: ToolConfigKey, value: unknown): Promise<unknown>;
   /** 手动检查更新 */
   checkForUpdates(): Promise<void>;
   /** 手动下载已发现的更新 */

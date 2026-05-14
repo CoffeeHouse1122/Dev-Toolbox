@@ -28,6 +28,7 @@ import type {
   VideoMuteOptions,
   SequenceAnimationOptions,
   ThemeTitleBarPayload,
+  ToolConfigKey,
   WebpOptions,
   UpdateStatus
 } from "../../shared/types";
@@ -105,6 +106,9 @@ const api: DevToolboxApi = {
   },
   loadAppSettings: () => ipcRenderer.invoke("settings:load"),
   saveAppSettings: (settings: AppSettings) => ipcRenderer.invoke("settings:save", toPlain(settings)),
+  getAppDiagnostics: () => ipcRenderer.invoke("diagnostics:get"),
+  loadToolConfig: (key: ToolConfigKey) => ipcRenderer.invoke("config:load", key),
+  saveToolConfig: (key: ToolConfigKey, value: unknown) => ipcRenderer.invoke("config:save", key, toPlain(value)),
   checkForUpdates: () => ipcRenderer.invoke("update:check"),
   downloadUpdate: () => ipcRenderer.invoke("update:download"),
   installUpdate: () => ipcRenderer.invoke("update:install"),

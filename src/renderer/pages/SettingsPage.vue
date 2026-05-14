@@ -1,12 +1,14 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted, ref } from "vue";
 import { useThemeStore, type ThemeMode } from "../stores/theme";
-import type { AppCloseBehavior, AppSettings, UpdateStatus } from "../../shared/types";
+import type { AppCloseBehavior, AppDiagnostics, AppSettings, UpdateStatus } from "../../shared/types";
 
 const theme = useThemeStore();
 
 const settings = ref<AppSettings>({ closeBehavior: "minimize-to-tray", autoLaunch: false });
 const status = ref("");
+const diagnostics = ref<AppDiagnostics | null>(null);
+const diagnosticsBusy = ref(false);
 
 // 更新相关状态
 const currentVersion = ref("");
@@ -33,6 +35,19 @@ async function setAutoLaunch(value: boolean) {
   settings.value.autoLaunch = value;
   settings.value = await window.devToolbox.saveAppSettings({ ...settings.value });
   // status.value = value ? "已开启开机自启" : "已关闭开机自启";
+}
+
+async function loadDiagnostics() {
+  diagnosticsBusy.value = true;
+  try {
+    diagnostics.value = await window.devToolbox.getAppDiagnostics();
+  } finally {
+    diagnosticsBusy.value = false;
+  }
+}
+
+function openPath(targetPath: string) {
+  void window.devToolbox.revealPath(targetPath);
 }
 
 // 手动检查更新
@@ -67,6 +82,7 @@ function handleInstallUpdate() {
 
 onMounted(async () => {
   loadSettings();
+  loadDiagnostics();
   // 获取当前版本号
   try {
     currentVersion.value = await window.devToolbox.getCurrentVersion();
@@ -143,6 +159,34 @@ onUnmounted(() => {
           <span>启动 Windows 后自动打开 Dev Toolbox</span>
         </label>
       </div>
+      <div class="settings-block diagnostics-block">
+        <div class="settings-block-head">
+          <h3>诊断</h3>
+          <button type="button" class="secondary-button" :disabled="diagnosticsBusy" @click="loadDiagnostics">
+            <i class="ri-refresh-line" aria-hidden="true"></i>
+            {{ diagnosticsBusy ? "刷新中" : "刷新" }}
+          </button>
+        </div>
+        <div class="diagnostics-grid">
+          <div class="diagnostic-path-row">
+            <span>用户数据目录</span>
+            <code :title="diagnostics?.userDataDir || ''">{{ diagnostics?.userDataDir || "加载中..." }}</code>
+            <button type="button" class="secondary-button" :disabled="!diagnostics?.userDataDir" @click="openPath(diagnostics!.userDataDir)">打开</button>
+          </div>
+          <div class="diagnostic-path-row">
+            <span>日志目录</span>
+            <code :title="diagnostics?.logsDir || ''">{{ diagnostics?.logsDir || "加载中..." }}</code>
+            <button type="button" class="secondary-button" :disabled="!diagnostics?.logsDir" @click="openPath(diagnostics!.logsDir)">打开</button>
+          </div>
+          <div class="diagnostic-port-list">
+            <div v-for="item in diagnostics?.ports || []" :key="item.port" class="diagnostic-port-row">
+              <span>{{ item.label }}</span>
+              <code>{{ item.port }}</code>
+              <strong :class="item.inUse ? 'busy' : 'free'">{{ item.inUse ? "占用" : "空闲" }}</strong>
+            </div>
+          </div>
+        </div>
+      </div>
       <div class="settings-block">
         <h3>版本更新</h3>
         <p>
@@ -205,3 +249,68 @@ onUnmounted(() => {
     </section>
   </section>
 </template>
+
+<style scoped>
+.settings-block-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.settings-block-head h3 {
+  margin: 0;
+}
+
+.diagnostics-grid {
+  display: grid;
+  gap: 8px;
+}
+
+.diagnostic-path-row,
+.diagnostic-port-row {
+  display: grid;
+  grid-template-columns: 104px minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  min-width: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-subtle);
+}
+
+.diagnostic-path-row span,
+.diagnostic-port-row span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.diagnostic-path-row code,
+.diagnostic-port-row code {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.diagnostic-port-list {
+  display: grid;
+  gap: 8px;
+}
+
+.diagnostic-port-row strong {
+  font-size: 12px;
+}
+
+.diagnostic-port-row strong.busy {
+  color: var(--danger);
+}
+
+.diagnostic-port-row strong.free {
+  color: var(--success);
+}
+</style>
