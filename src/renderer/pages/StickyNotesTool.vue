@@ -37,6 +37,10 @@ let previewDrag:
 
 const activeNote = computed(() => notes.value.find((note) => note.id === activeId.value) ?? null);
 
+function sortNotes(input: StickyNote[]) {
+  return [...input].sort((left, right) => Number(right.pinned) - Number(left.pinned) || right.updatedAt - left.updatedAt);
+}
+
 function escapeHtml(value: string) {
   return value
     .replace(/&/g, "&amp;")
@@ -105,7 +109,7 @@ async function saveNoteContent(id: string, content: string) {
   } else {
     notes.value = [saved, ...notes.value];
   }
-  notes.value = [...notes.value].sort((left, right) => right.updatedAt - left.updatedAt);
+  notes.value = sortNotes(notes.value);
   if (wasActive) {
     activeId.value = saved.id;
     draftContent.value = saved.content;
@@ -129,7 +133,7 @@ async function loadNotes() {
   try {
     const state = await window.devToolbox.loadStickyNotes();
     directory.value = state.directory;
-    notes.value = state.notes;
+    notes.value = sortNotes(state.notes);
     if (!activeId.value && state.notes[0]) await selectNote(state.notes[0]);
     if (activeId.value && !state.notes.some((note) => note.id === activeId.value)) {
       await selectNote(state.notes[0] ?? null);
@@ -164,8 +168,17 @@ async function chooseDirectory() {
   await flushPendingSave();
   const state = await window.devToolbox.setStickyNotesDirectory(target);
   directory.value = state.directory;
-  notes.value = state.notes;
+  notes.value = sortNotes(state.notes);
   await selectNote(state.notes[0] ?? null);
+}
+
+async function toggleNotePinned(note: StickyNote) {
+  const state = await window.devToolbox.setStickyNotePinned(note.id, !note.pinned);
+  directory.value = state.directory;
+  notes.value = sortNotes(state.notes);
+  if (activeId.value && !notes.value.some((item) => item.id === activeId.value)) {
+    await selectNote(notes.value[0] ?? null);
+  }
 }
 
 function requestDeleteNote(note: StickyNote) {
@@ -513,7 +526,7 @@ onBeforeUnmount(() => {
               v-for="note in notes"
               :key="note.id"
               class="note-card"
-              :class="{ active: note.id === activeId }"
+              :class="{ active: note.id === activeId, pinned: note.pinned }"
               :title="note.title"
               @click="selectNote(note)"
             >
@@ -521,6 +534,9 @@ onBeforeUnmount(() => {
                 <strong>{{ note.title }}</strong>
                 <small>{{ formatTime(note.updatedAt) }}</small>
               </div>
+              <button type="button" class="icon-button" :title="note.pinned ? '取消置顶' : '置顶便签'" @click.stop="toggleNotePinned(note)">
+                <i :class="note.pinned ? 'ri-pushpin-fill' : 'ri-pushpin-line'" aria-hidden="true"></i>
+              </button>
               <button type="button" class="icon-button" title="删除便签" @click.stop="requestDeleteNote(note)">
                 <i class="ri-delete-bin-line" aria-hidden="true"></i>
               </button>
@@ -735,7 +751,7 @@ onBeforeUnmount(() => {
 
 .note-card {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 30px;
+  grid-template-columns: minmax(0, 1fr) 30px 30px;
   gap: 9px;
   align-items: center;
   width: 100%;
@@ -746,6 +762,16 @@ onBeforeUnmount(() => {
   border-radius: 8px;
   background: var(--surface-subtle);
   cursor: pointer;
+}
+
+.note-card.pinned {
+  border-color: color-mix(in srgb, var(--accent) 42%, var(--border));
+  background: color-mix(in srgb, var(--accent) 7%, var(--surface));
+}
+
+.note-card.pinned .note-card-text strong::before {
+  content: "置顶 · ";
+  color: var(--accent-strong);
 }
 
 .note-card.active {

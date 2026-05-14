@@ -1,8 +1,8 @@
 import { app } from "electron";
+import http, { type IncomingHttpHeaders } from "node:http";
 import path from "node:path";
 import zlib from "node:zlib";
 import { Proxy, type IContext } from "http-mitm-proxy";
-import type { IncomingHttpHeaders } from "node:http";
 import type { CaptureProxyRecord, CaptureProxyStartOptions, CaptureProxyStatus } from "../../../shared/types";
 
 type HeaderBag = IncomingHttpHeaders | Record<string, string | string[] | number | undefined>;
@@ -342,4 +342,49 @@ export function listCaptureProxyRecords(): CaptureProxyRecord[] {
 export function clearCaptureProxyRecords(): CaptureProxyRecord[] {
   records.length = 0;
   return [];
+}
+
+export async function testCaptureProxy(): Promise<CaptureProxyRecord> {
+  if (!proxyServer) throw new Error("请先启动抓包代理");
+
+  const target = http.createServer((request, response) => {
+    response.setHeader("content-type", "application/json; charset=utf-8");
+    response.end(JSON.stringify({ ok: true, method: request.method, url: request.url }));
+  });
+
+  await new Promise<void>((resolve) => target.listen(0, "127.0.0.1", resolve));
+  const targetAddress = target.address();
+  const targetPort = typeof targetAddress === "object" && targetAddress ? targetAddress.port : 0;
+  const proxyHost = currentOptions.host === "0.0.0.0" ? "127.0.0.1" : currentOptions.host;
+  const targetUrl = `http://127.0.0.1:${targetPort}/dev-toolbox-capture-self-test`;
+
+  try {
+    await new Promise<void>((resolve, reject) => {
+      const request = http.request(
+        {
+          host: proxyHost,
+          port: currentOptions.port,
+          method: "GET",
+          path: targetUrl,
+          timeout: 5000
+        },
+        (response) => {
+          response.resume();
+          response.on("end", resolve);
+        }
+      );
+      request.on("timeout", () => {
+        request.destroy(new Error("抓包代理自检超时"));
+      });
+      request.on("error", reject);
+      request.end();
+    });
+
+    await new Promise((resolve) => setTimeout(resolve, 120));
+    const record = records.find((item) => item.url === targetUrl);
+    if (!record) throw new Error("自检请求已发送，但请求列表未生成记录");
+    return { ...record };
+  } finally {
+    target.close();
+  }
 }

@@ -5,6 +5,11 @@ import type { StickyNote, StickyNotesState } from "../../../shared/types";
 
 const settingsFileName = "sticky-notes-settings.json";
 
+type StickyNotesSettings = {
+  directory: string;
+  pinnedIds: string[];
+};
+
 function settingsPath() {
   return path.join(app.getPath("userData"), "data", settingsFileName);
 }
@@ -13,19 +18,39 @@ function defaultNotesDir() {
   return path.join(app.getPath("userData"), "notes");
 }
 
-async function loadNotesDir() {
+async function loadStickyNotesSettings(): Promise<StickyNotesSettings> {
   try {
     const raw = await fs.readFile(settingsPath(), "utf8");
-    const parsed = JSON.parse(raw) as { directory?: string };
-    return parsed.directory || defaultNotesDir();
+    const parsed = JSON.parse(raw) as Partial<StickyNotesSettings>;
+    return {
+      directory: parsed.directory || defaultNotesDir(),
+      pinnedIds: Array.isArray(parsed.pinnedIds) ? parsed.pinnedIds.map(String) : []
+    };
   } catch {
-    return defaultNotesDir();
+    return { directory: defaultNotesDir(), pinnedIds: [] };
   }
 }
 
-async function saveNotesDir(directory: string) {
+async function loadNotesDir() {
+  return (await loadStickyNotesSettings()).directory;
+}
+
+async function saveStickyNotesSettings(settings: StickyNotesSettings) {
   await fs.mkdir(path.dirname(settingsPath()), { recursive: true });
-  await fs.writeFile(settingsPath(), `${JSON.stringify({ directory }, null, 2)}\n`, "utf8");
+  await fs.writeFile(settingsPath(), `${JSON.stringify(settings, null, 2)}\n`, "utf8");
+}
+
+async function saveNotesDir(directory: string) {
+  const settings = await loadStickyNotesSettings();
+  await saveStickyNotesSettings({ ...settings, directory });
+}
+
+async function updatePinnedId(oldId: string, nextId: string) {
+  if (oldId === nextId) return;
+  const settings = await loadStickyNotesSettings();
+  if (!settings.pinnedIds.includes(oldId)) return;
+  const pinnedIds = settings.pinnedIds.map((id) => (id === oldId ? nextId : id));
+  await saveStickyNotesSettings({ ...settings, pinnedIds: [...new Set(pinnedIds)] });
 }
 
 function safeFileName(title: string) {
@@ -79,7 +104,7 @@ function resolveTitle(fileName: string, content: string) {
   return firstLine?.trim().slice(0, 36) || path.basename(fileName, ".txt");
 }
 
-async function readNote(filePath: string): Promise<StickyNote> {
+async function readNote(filePath: string, pinnedIds: string[] = []): Promise<StickyNote> {
   const rawContent = await fs.readFile(filePath, "utf8");
   const content = normalizeStoredContent(rawContent);
   if (content !== rawContent) {
@@ -93,7 +118,8 @@ async function readNote(filePath: string): Promise<StickyNote> {
     filePath,
     title: resolveTitle(fileName, content),
     content,
-    updatedAt: stat.mtimeMs
+    updatedAt: stat.mtimeMs,
+    pinned: pinnedIds.includes(fileName)
   };
 }
 
@@ -102,7 +128,8 @@ function resolveNotePath(directory: string, id: string) {
 }
 
 export async function loadStickyNotes(): Promise<StickyNotesState> {
-  const directory = await loadNotesDir();
+  const settings = await loadStickyNotesSettings();
+  const directory = settings.directory;
   await fs.mkdir(directory, { recursive: true });
   const entries = await fs.readdir(directory, { withFileTypes: true });
   const noteFiles = entries
@@ -111,16 +138,18 @@ export async function loadStickyNotes(): Promise<StickyNotesState> {
 
   const notes: StickyNote[] = [];
   for (const filePath of noteFiles) {
-    const note = await readNote(filePath);
+    const note = await readNote(filePath, settings.pinnedIds);
     const syncedPath = await uniqueNotePath(directory, note.title, note.filePath);
     if (path.resolve(syncedPath) !== path.resolve(note.filePath)) {
       await fs.rename(note.filePath, syncedPath);
-      notes.push(await readNote(syncedPath));
+      await updatePinnedId(note.id, path.basename(syncedPath));
+      const nextSettings = await loadStickyNotesSettings();
+      notes.push(await readNote(syncedPath, nextSettings.pinnedIds));
     } else {
       notes.push(note);
     }
   }
-  notes.sort((left, right) => right.updatedAt - left.updatedAt);
+  notes.sort((left, right) => Number(right.pinned) - Number(left.pinned) || right.updatedAt - left.updatedAt);
   return { directory, notes };
 }
 
@@ -143,6 +172,7 @@ export async function createStickyNote(content = ""): Promise<StickyNote> {
 
 export async function saveStickyNote(id: string, content: string): Promise<StickyNote> {
   const directory = await loadNotesDir();
+  const settings = await loadStickyNotesSettings();
   const filePath = resolveNotePath(directory, id);
   const normalizedContent = normalizeStoredContent(content);
   await fs.writeFile(filePath, normalizedContent, "utf8");
@@ -151,14 +181,27 @@ export async function saveStickyNote(id: string, content: string): Promise<Stick
   const nextPath = await uniqueNotePath(directory, title, filePath);
   if (path.resolve(nextPath) !== path.resolve(filePath)) {
     await fs.rename(filePath, nextPath);
-    return readNote(nextPath);
+    await updatePinnedId(id, path.basename(nextPath));
+    const nextSettings = await loadStickyNotesSettings();
+    return readNote(nextPath, nextSettings.pinnedIds);
   }
 
-  return readNote(filePath);
+  return readNote(filePath, settings.pinnedIds);
+}
+
+export async function setStickyNotePinned(id: string, pinned: boolean): Promise<StickyNotesState> {
+  const settings = await loadStickyNotesSettings();
+  const basename = path.basename(id);
+  const pinnedIds = pinned
+    ? [...new Set([...settings.pinnedIds, basename])]
+    : settings.pinnedIds.filter((item) => item !== basename);
+  await saveStickyNotesSettings({ ...settings, pinnedIds });
+  return loadStickyNotes();
 }
 
 export async function deleteStickyNote(id: string): Promise<void> {
   const directory = await loadNotesDir();
+  await setStickyNotePinned(id, false);
   await fs.rm(resolveNotePath(directory, id), { force: true });
 }
 

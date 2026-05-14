@@ -16,7 +16,8 @@ import {
   getCaptureProxyStatus,
   listCaptureProxyRecords,
   startCaptureProxy,
-  stopCaptureProxy
+  stopCaptureProxy,
+  testCaptureProxy
 } from "./services/capture-proxy.service";
 import { generateAssetManifest } from "./services/asset-manifest.service";
 import { generateSprite } from "./services/sprite.service";
@@ -32,6 +33,7 @@ import {
   exportStickyNotes,
   loadStickyNotes,
   saveStickyNote,
+  setStickyNotePinned,
   setStickyNotesDirectory
 } from "./services/sticky-notes.service";
 import type { AppSettings } from "../../shared/types";
@@ -438,6 +440,7 @@ export function registerIpc() {
   ipcMain.handle("capture-proxy:status", async () => getCaptureProxyStatus());
   ipcMain.handle("capture-proxy:list", async () => listCaptureProxyRecords());
   ipcMain.handle("capture-proxy:clear", async () => clearCaptureProxyRecords());
+  ipcMain.handle("capture-proxy:test", async () => testCaptureProxy());
 
   ipcMain.handle("assets:manifest", async (_event, raw: AssetManifestOptions) => {
     const options = assetManifestSchema.parse(raw);
@@ -514,6 +517,11 @@ export function registerIpc() {
   ipcMain.handle("notes:save", async (_event, raw: { id: string; content: string }) => {
     const payload = stickyNoteSaveSchema.parse(raw);
     return saveStickyNote(payload.id, payload.content);
+  });
+
+  ipcMain.handle("notes:pin", async (_event, raw: { id: string; pinned: boolean }) => {
+    const payload = z.object({ id: z.string().min(1), pinned: z.boolean() }).parse(raw);
+    return setStickyNotePinned(payload.id, payload.pinned);
   });
 
   ipcMain.handle("notes:delete", async (_event, id: string) => {

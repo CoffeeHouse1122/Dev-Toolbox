@@ -18,6 +18,8 @@ const query = ref("");
 const methodFilter = ref<MethodFilter>("all");
 const busy = ref(false);
 const copied = ref(false);
+const selfTesting = ref(false);
+const selfTestMessage = ref("");
 const errorMessage = ref("");
 
 let refreshTimer: ReturnType<typeof setInterval> | null = null;
@@ -26,11 +28,7 @@ const proxyHost = computed(() => (hostMode.value === "local" ? "127.0.0.1" : lis
 const selectedRecord = computed(() => records.value.find((record) => record.id === selectedId.value) ?? records.value[0] ?? null);
 const proxyAddress = computed(() => `${status.value.host === "0.0.0.0" ? "本机局域网 IP" : status.value.host}:${status.value.port}`);
 const activeSince = computed(() => (status.value.startedAt ? formatTime(status.value.startedAt) : "未启动"));
-const httpsUsageText = computed(() => {
-  if (!enableHttps.value) return "HTTPS 解密未启用";
-  return "信任 CA 后，将系统或浏览器代理设置为上方地址即可抓取 HTTPS 明文。";
-});
-const portHelpText = "代理端口，不是目标服务端口；目标服务端口写在请求 URL 中，例如 http://10.0.14.33:8080/api。";
+const portHelpText = "这里是代理端口，目标服务端口写在请求 URL 中。";
 
 const summary = computed(() => {
   const total = records.value.length;
@@ -130,6 +128,24 @@ async function copyProxyAddress() {
   }, 1200);
 }
 
+async function runSelfTest() {
+  if (!status.value.running) return;
+  selfTesting.value = true;
+  selfTestMessage.value = "";
+  errorMessage.value = "";
+  try {
+    const record = await window.devToolbox.testCaptureProxy();
+    selfTestMessage.value = `自检成功：${record.statusCode ?? "-"}`;
+    selectedId.value = record.id;
+    await refresh();
+  } catch (error) {
+    selfTestMessage.value = "";
+    errorMessage.value = error instanceof Error ? error.message : String(error);
+  } finally {
+    selfTesting.value = false;
+  }
+}
+
 function openCaCertificate() {
   if (!status.value.caCertPath) return;
   void window.devToolbox.revealPath(status.value.caCertPath);
@@ -180,6 +196,10 @@ onBeforeUnmount(() => {
               <i :class="copied ? 'ri-check-line' : 'ri-file-copy-line'" aria-hidden="true"></i>
               {{ copied ? "已复制" : "复制" }}
             </button>
+            <button type="button" class="secondary-button" :disabled="!status.running || selfTesting" @click="runSelfTest">
+              <i class="ri-pulse-line" aria-hidden="true"></i>
+              {{ selfTesting ? "自检中" : "自检" }}
+            </button>
           </div>
         </div>
 
@@ -199,7 +219,7 @@ onBeforeUnmount(() => {
             <input v-model="listenHost" :disabled="status.running || hostMode === 'local'" placeholder="0.0.0.0 或本机局域网 IP" />
           </label>
           <label class="field">
-            <span>端口</span>
+            <span>代理端口</span>
             <input v-model.number="port" type="number" min="1024" max="65535" :disabled="status.running" :title="portHelpText" />
           </label>
           <label class="field">
@@ -217,8 +237,7 @@ onBeforeUnmount(() => {
         </div>
 
         <div class="capture-ca-row">
-          <span :title="portHelpText">{{ portHelpText }}</span>
-          <span>{{ httpsUsageText }}</span>
+          <span>HTTPS CA</span>
           <code>{{ status.caCertPath }}</code>
           <button type="button" class="secondary-button" :disabled="!status.caCertPath" @click="openCaCertificate">
             <i class="ri-folder-open-line" aria-hidden="true"></i>
@@ -233,6 +252,7 @@ onBeforeUnmount(() => {
           <div><span>错误</span><strong>{{ summary.errors }}</strong></div>
         </div>
         <p v-if="errorMessage" class="error-banner">{{ errorMessage }}</p>
+        <p v-else-if="selfTestMessage" class="capture-inline-status">{{ selfTestMessage }}</p>
       </section>
 
       <div class="capture-workspace">
@@ -269,7 +289,9 @@ onBeforeUnmount(() => {
               <span class="capture-url" :title="record.url">{{ record.url }}</span>
               <span class="capture-time">{{ record.durationMs ?? "-" }}ms</span>
             </button>
-            <p v-if="!filteredRecords.length" class="empty-state">暂无请求。</p>
+            <p v-if="!filteredRecords.length" class="empty-state capture-empty-tip">
+              暂无请求。请确认发起请求的浏览器、系统或客户端代理已设置为 {{ proxyAddress }}；也可以点击“自检”确认代理是否可用。
+            </p>
           </div>
         </section>
 
@@ -346,21 +368,21 @@ onBeforeUnmount(() => {
 }
 
 .capture-config-panel {
-  gap: 8px;
+  gap: 10px;
   padding: 12px;
   overflow: visible;
 }
 
 .capture-config-head {
   display: grid;
-  grid-template-columns: auto minmax(240px, 1fr);
+  grid-template-columns: minmax(150px, auto) minmax(280px, 1fr);
   gap: 10px;
   align-items: center;
 }
 
 .capture-config-grid {
   display: grid;
-  grid-template-columns: 136px minmax(142px, 1fr) 82px 92px minmax(120px, auto) 88px;
+  grid-template-columns: 136px minmax(150px, 1fr) 92px 102px minmax(148px, auto) 96px;
   gap: 8px;
   align-items: end;
   min-width: 0;
@@ -423,7 +445,7 @@ onBeforeUnmount(() => {
 
 .capture-ca-row {
   display: grid;
-  grid-template-columns: minmax(210px, 0.8fr) minmax(220px, 1fr) minmax(0, 1fr) auto;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   gap: 8px;
   align-items: center;
   min-width: 0;
@@ -438,8 +460,6 @@ onBeforeUnmount(() => {
   color: var(--muted);
   font-size: 12px;
   font-weight: 700;
-  overflow: hidden;
-  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
@@ -453,7 +473,7 @@ onBeforeUnmount(() => {
 
 .proxy-address-card {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) auto auto;
   gap: 4px 8px;
   align-items: center;
   padding: 8px;
@@ -464,6 +484,13 @@ onBeforeUnmount(() => {
 
 .proxy-address-card span {
   grid-column: 1 / -1;
+}
+
+.proxy-address-card .secondary-button {
+  min-height: 30px;
+  padding: 4px 9px;
+  font-size: 12px;
+  white-space: nowrap;
 }
 
 .proxy-address-card span,
@@ -496,6 +523,18 @@ onBeforeUnmount(() => {
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--surface-subtle);
+}
+
+.capture-inline-status {
+  margin: 0;
+  color: var(--success);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.capture-empty-tip {
+  padding: 14px;
+  line-height: 1.6;
 }
 
 .capture-workspace {
@@ -684,11 +723,11 @@ onBeforeUnmount(() => {
 
 @media (max-width: 1280px) {
   .capture-config-head {
-    grid-template-columns: auto minmax(220px, 1fr);
+    grid-template-columns: minmax(140px, auto) minmax(260px, 1fr);
   }
 
   .capture-config-grid {
-    grid-template-columns: 126px minmax(128px, 1fr) 76px 86px 112px 80px;
+    grid-template-columns: 126px minmax(128px, 1fr) 84px 94px 138px 90px;
   }
 }
 

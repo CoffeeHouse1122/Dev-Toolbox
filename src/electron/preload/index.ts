@@ -69,6 +69,7 @@ const api: DevToolboxApi = {
   getCaptureProxyStatus: () => ipcRenderer.invoke("capture-proxy:status"),
   listCaptureProxyRecords: () => ipcRenderer.invoke("capture-proxy:list"),
   clearCaptureProxyRecords: () => ipcRenderer.invoke("capture-proxy:clear"),
+  testCaptureProxy: () => ipcRenderer.invoke("capture-proxy:test"),
   generateAssetManifest: (options: AssetManifestOptions) => ipcRenderer.invoke("assets:manifest", toPlain(options)),
   generateSeoFiles: (options: SeoFilesOptions) => ipcRenderer.invoke("seo:files", toPlain(options)),
   generateOgImage: (options: OgImageOptions) => ipcRenderer.invoke("seo:og-image", toPlain(options)),
@@ -120,6 +121,7 @@ const api: DevToolboxApi = {
   setStickyNotesDirectory: (directory: string) => ipcRenderer.invoke("notes:set-directory", directory),
   createStickyNote: (content?: string) => ipcRenderer.invoke("notes:create", content),
   saveStickyNote: (id: string, content: string) => ipcRenderer.invoke("notes:save", { id, content }),
+  setStickyNotePinned: (id: string, pinned: boolean) => ipcRenderer.invoke("notes:pin", { id, pinned }),
   deleteStickyNote: (id: string) => ipcRenderer.invoke("notes:delete", id),
   exportStickyNotes: (outputDir: string, ids?: string[]) => ipcRenderer.invoke("notes:export", { outputDir, ids })
 };

@@ -362,6 +362,7 @@ export interface StickyNote {
   title: string;
   content: string;
   updatedAt: number;
+  pinned: boolean;
 }
 
 export interface StickyNotesState {
@@ -482,8 +483,10 @@ export interface DevToolboxApi {
   setStickyNotesDirectory(directory: string): Promise<StickyNotesState>;
   createStickyNote(content?: string): Promise<StickyNote>;
   saveStickyNote(id: string, content: string): Promise<StickyNote>;
+  setStickyNotePinned(id: string, pinned: boolean): Promise<StickyNotesState>;
   deleteStickyNote(id: string): Promise<void>;
   exportStickyNotes(outputDir: string, ids?: string[]): Promise<string[]>;
+  testCaptureProxy(): Promise<CaptureProxyRecord>;
 }
 
 /** 更新状态 */
