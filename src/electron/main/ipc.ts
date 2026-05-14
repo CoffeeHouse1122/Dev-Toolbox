@@ -288,6 +288,11 @@ const captureProxyStartSchema = z.object({
   enableHttps: z.boolean()
 });
 
+const appSettingsSchema = z.object({
+  closeBehavior: z.enum(["minimize-to-tray", "exit"]),
+  autoLaunch: z.boolean()
+});
+
 const sharedDiskSchema = z.object({
   url: z.string().min(1),
   username: z.string(),
@@ -496,7 +501,7 @@ export function registerIpc() {
   });
 
   ipcMain.handle("settings:load", async () => loadAppSettings());
-  ipcMain.handle("settings:save", async (_event, raw: AppSettings) => saveAppSettings(raw));
+  ipcMain.handle("settings:save", async (_event, raw: AppSettings) => saveAppSettings(appSettingsSchema.parse(raw)));
 
   ipcMain.handle("notes:load", async () => loadStickyNotes());
 

@@ -325,6 +325,7 @@ export type AppCloseBehavior = "minimize-to-tray" | "exit";
 
 export interface AppSettings {
   closeBehavior: AppCloseBehavior;
+  autoLaunch: boolean;
 }
 
 export interface Base64ImageResult {

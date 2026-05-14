@@ -298,6 +298,7 @@ watch(
                   <strong>{{ item.domain }}</strong>
                 </td>
                 <td class="certificate-issuer-cell" :title="issuerLabel(item)">
+                  <span class="issuer-column-label">签发者</span>
                   <strong>{{ issuerLabel(item) }}</strong>
                   <small v-if="item.status === 'error' && item.errorMessage">{{ item.errorMessage }}</small>
                 </td>
@@ -492,6 +493,14 @@ watch(
   display: block;
   color: var(--text);
   font-weight: 700;
+}
+
+.issuer-column-label {
+  display: block;
+  margin-bottom: 2px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
 }
 
 .certificate-table tr.expiring {

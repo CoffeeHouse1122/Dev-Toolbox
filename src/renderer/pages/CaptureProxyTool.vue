@@ -30,6 +30,7 @@ const httpsUsageText = computed(() => {
   if (!enableHttps.value) return "HTTPS 解密未启用";
   return "信任 CA 后，将系统或浏览器代理设置为上方地址即可抓取 HTTPS 明文。";
 });
+const portHelpText = "代理端口，不是目标服务端口；目标服务端口写在请求 URL 中，例如 http://10.0.14.33:8080/api。";
 
 const summary = computed(() => {
   const total = records.value.length;
@@ -199,7 +200,7 @@ onBeforeUnmount(() => {
           </label>
           <label class="field">
             <span>端口</span>
-            <input v-model.number="port" type="number" min="1024" max="65535" :disabled="status.running" />
+            <input v-model.number="port" type="number" min="1024" max="65535" :disabled="status.running" :title="portHelpText" />
           </label>
           <label class="field">
             <span>正文上限 KB</span>
@@ -216,6 +217,7 @@ onBeforeUnmount(() => {
         </div>
 
         <div class="capture-ca-row">
+          <span :title="portHelpText">{{ portHelpText }}</span>
           <span>{{ httpsUsageText }}</span>
           <code>{{ status.caCertPath }}</code>
           <button type="button" class="secondary-button" :disabled="!status.caCertPath" @click="openCaCertificate">
@@ -351,14 +353,14 @@ onBeforeUnmount(() => {
 
 .capture-config-head {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(230px, 330px);
+  grid-template-columns: auto minmax(240px, 1fr);
   gap: 10px;
   align-items: center;
 }
 
 .capture-config-grid {
   display: grid;
-  grid-template-columns: 150px minmax(150px, 1fr) 84px 96px minmax(132px, auto) 92px;
+  grid-template-columns: 136px minmax(142px, 1fr) 82px 92px minmax(120px, auto) 88px;
   gap: 8px;
   align-items: end;
   min-width: 0;
@@ -372,7 +374,12 @@ onBeforeUnmount(() => {
 
 .capture-mode-grid .secondary-button {
   justify-content: center;
-  min-height: 36px;
+  min-height: 30px;
+  padding: 4px 8px;
+  gap: 5px;
+  white-space: nowrap;
+  word-break: keep-all;
+  font-size: 12px;
 }
 
 .capture-config-grid .field {
@@ -395,11 +402,28 @@ onBeforeUnmount(() => {
   align-self: end;
   gap: 6px;
   font-size: 12px;
+  white-space: nowrap;
+  word-break: keep-all;
+}
+
+.capture-body-check input[type="checkbox"] {
+  width: 14px;
+  min-height: 14px;
+  margin: 0;
+  accent-color: var(--accent);
+  outline: none;
+  box-shadow: none;
+}
+
+.capture-body-check input[type="checkbox"]:focus,
+.capture-body-check input[type="checkbox"]:focus-visible {
+  outline: none;
+  box-shadow: none;
 }
 
 .capture-ca-row {
   display: grid;
-  grid-template-columns: minmax(190px, auto) minmax(0, 1fr) auto;
+  grid-template-columns: minmax(210px, 0.8fr) minmax(220px, 1fr) minmax(0, 1fr) auto;
   gap: 8px;
   align-items: center;
   min-width: 0;
@@ -660,11 +684,11 @@ onBeforeUnmount(() => {
 
 @media (max-width: 1280px) {
   .capture-config-head {
-    grid-template-columns: minmax(0, 1fr) minmax(220px, 300px);
+    grid-template-columns: auto minmax(220px, 1fr);
   }
 
   .capture-config-grid {
-    grid-template-columns: 138px minmax(130px, 1fr) 78px 88px 118px 82px;
+    grid-template-columns: 126px minmax(128px, 1fr) 76px 86px 112px 80px;
   }
 }
 

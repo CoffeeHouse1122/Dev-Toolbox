@@ -5,7 +5,7 @@ import type { AppCloseBehavior, AppSettings, UpdateStatus } from "../../shared/t
 
 const theme = useThemeStore();
 
-const settings = ref<AppSettings>({ closeBehavior: "minimize-to-tray" });
+const settings = ref<AppSettings>({ closeBehavior: "minimize-to-tray", autoLaunch: false });
 const status = ref("");
 
 // 更新相关状态
@@ -27,6 +27,12 @@ async function setCloseBehavior(value: AppCloseBehavior) {
   settings.value.closeBehavior = value;
   settings.value = await window.devToolbox.saveAppSettings({ ...settings.value });
   status.value = value === "minimize-to-tray" ? "已设置为关闭时最小化到托盘" : "已设置为关闭时直接退出";
+}
+
+async function setAutoLaunch(value: boolean) {
+  settings.value.autoLaunch = value;
+  settings.value = await window.devToolbox.saveAppSettings({ ...settings.value });
+  status.value = value ? "已开启开机自启" : "已关闭开机自启";
 }
 
 // 手动检查更新
@@ -128,6 +134,14 @@ onUnmounted(() => {
           </button>
         </div>
         <p v-if="status" class="empty-state">{{ status }}</p>
+      </div>
+
+      <div class="settings-block">
+        <h3>开机自启</h3>
+        <label class="settings-toggle-row">
+          <input type="checkbox" :checked="settings.autoLaunch" @change="setAutoLaunch(($event.target as HTMLInputElement).checked)" />
+          <span>启动 Windows 后自动打开 Dev Toolbox</span>
+        </label>
       </div>
 
       <div class="settings-block">

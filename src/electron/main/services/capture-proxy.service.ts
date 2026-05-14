@@ -169,6 +169,18 @@ function applyTargetHostHeader(ctx: IContext, url: string) {
   }
 }
 
+function cleanForwardHeaders(ctx: IContext) {
+  const headers = ctx.proxyToServerRequestOptions?.headers;
+  if (!headers) return;
+  for (const key of Object.keys(headers)) {
+    if (/^(proxy-|connection$|keep-alive$|te$|trailer$|transfer-encoding$|upgrade$)/i.test(key)) {
+      delete headers[key];
+    }
+  }
+  headers["accept-encoding"] = "identity";
+  headers.connection = "close";
+}
+
 function shouldIgnoreError(error: Error | null | undefined) {
   const message = error?.message || "";
   const code = (error as NodeJS.ErrnoException | undefined)?.code;
@@ -204,6 +216,7 @@ function registerHandlers(proxy: Proxy) {
     ctx.clientToProxyRequest.headers["accept-encoding"] = "identity";
     const url = requestUrl(ctx);
     applyTargetHostHeader(ctx, url);
+    cleanForwardHeaders(ctx);
     const record: CaptureProxyRecord = {
       id: recordId(),
       startedAt: Date.now(),
@@ -215,7 +228,7 @@ function registerHandlers(proxy: Proxy) {
       status: "pending",
       statusCode: null,
       durationMs: null,
-      requestHeaders: normalizeHeaders(ctx.clientToProxyRequest.headers),
+      requestHeaders: normalizeHeaders(ctx.proxyToServerRequestOptions?.headers || ctx.clientToProxyRequest.headers),
       responseHeaders: {},
       requestBody: "",
       responseBody: "",

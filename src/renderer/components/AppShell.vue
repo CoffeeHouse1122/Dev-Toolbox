@@ -22,6 +22,8 @@ const navStorageKey = "dev-toolbox.nav.v1";
 const collapsedStorageKey = "dev-toolbox.nav-collapsed.v1";
 const theme = useThemeStore();
 const editingNav = ref(false);
+const navImportInput = ref<HTMLInputElement | null>(null);
+const navEditorMessage = ref("");
 
 const defaultGroups: NavGroup[] = [
   {
@@ -151,23 +153,38 @@ function cloneGroups(input: NavGroup[]) {
 }
 
 function mergeGroups(saved: NavGroup[]) {
+  const defaultGroupMap = new Map(defaultGroups.map((group) => [group.id, group]));
+  const defaultToolMap = new Map(defaultGroups.flatMap((group) => group.tools.map((tool) => [tool.id, tool] as const)));
+  const usedGroupIds = new Set<string>();
+  const usedToolIds = new Set<string>();
   const merged: NavGroup[] = [];
-  for (const defaultGroup of defaultGroups) {
-    const savedGroup = saved.find((group) => group.id === defaultGroup.id);
+
+  for (const savedGroup of Array.isArray(saved) ? saved : []) {
+    const sourceGroup = defaultGroupMap.get(savedGroup.id);
+    if (!sourceGroup || usedGroupIds.has(savedGroup.id)) continue;
+    usedGroupIds.add(savedGroup.id);
     const tools: NavTool[] = [];
-    const savedTools = savedGroup?.tools ?? [];
-    for (const savedTool of savedTools) {
-      const source = defaultGroup.tools.find((tool) => tool.id === savedTool.id);
-      if (source) {
-        tools.push({ ...source, label: savedTool.label || source.label, visible: savedTool.visible !== false });
+    for (const savedTool of Array.isArray(savedGroup.tools) ? savedGroup.tools : []) {
+      const sourceTool = defaultToolMap.get(savedTool.id);
+      if (!sourceTool || usedToolIds.has(savedTool.id)) continue;
+      usedToolIds.add(savedTool.id);
+      tools.push({ ...sourceTool, label: savedTool.label || sourceTool.label, visible: savedTool.visible !== false });
+    }
+    merged.push({ ...sourceGroup, label: savedGroup.label || sourceGroup.label, tools });
+  }
+
+  for (const defaultGroup of defaultGroups) {
+    let targetGroup = merged.find((group) => group.id === defaultGroup.id);
+    if (!targetGroup) {
+      targetGroup = { ...defaultGroup, tools: [] };
+      merged.push(targetGroup);
+    }
+    for (const sourceTool of defaultGroup.tools) {
+      if (!usedToolIds.has(sourceTool.id)) {
+        targetGroup.tools.push({ ...sourceTool });
+        usedToolIds.add(sourceTool.id);
       }
     }
-    for (const source of defaultGroup.tools) {
-      if (!tools.some((tool) => tool.id === source.id)) {
-        tools.push({ ...source });
-      }
-    }
-    merged.push({ ...defaultGroup, label: savedGroup?.label || defaultGroup.label, tools });
   }
   return merged;
 }
@@ -184,6 +201,45 @@ function loadNavGroups() {
 
 function resetNav() {
   groups.value = cloneGroups(defaultGroups);
+  navEditorMessage.value = "已恢复默认导航";
+}
+
+function exportNavConfig() {
+  const payload = {
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    groups: groups.value
+  };
+  const blob = new Blob([`${JSON.stringify(payload, null, 2)}\n`], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `dev-toolbox-nav-${new Date().toISOString().slice(0, 10)}.json`;
+  link.click();
+  URL.revokeObjectURL(url);
+  navEditorMessage.value = "已导出导航 JSON";
+}
+
+function pickNavConfigFile() {
+  navImportInput.value?.click();
+}
+
+async function importNavConfig(event: Event) {
+  const input = event.target as HTMLInputElement;
+  const file = input.files?.[0];
+  input.value = "";
+  if (!file) return;
+
+  try {
+    const raw = await file.text();
+    const parsed = JSON.parse(raw) as { groups?: NavGroup[] } | NavGroup[];
+    const importedGroups = Array.isArray(parsed) ? parsed : parsed.groups;
+    if (!Array.isArray(importedGroups)) throw new Error("JSON 中缺少 groups 数组");
+    groups.value = mergeGroups(importedGroups);
+    navEditorMessage.value = `已导入 ${file.name}`;
+  } catch (error) {
+    navEditorMessage.value = error instanceof Error ? error.message : String(error);
+  }
 }
 
 function moveGroup(index: number, direction: -1 | 1) {
@@ -399,6 +455,15 @@ onMounted(() => {
               <p style="margin: 4px 0 0; color: var(--muted); font-size: 12px;">拖动分组或工具调整顺序，可跨分组移动；取消勾选可隐藏</p>
             </div>
             <div style="display: flex; gap: 8px; align-items: center;">
+              <input ref="navImportInput" type="file" accept="application/json,.json" class="visually-hidden-input" @change="importNavConfig" />
+              <button type="button" class="secondary-button" @click="pickNavConfigFile">
+                <i class="ri-upload-2-line" aria-hidden="true"></i>
+                导入 JSON
+              </button>
+              <button type="button" class="secondary-button" @click="exportNavConfig">
+                <i class="ri-download-2-line" aria-hidden="true"></i>
+                导出 JSON
+              </button>
               <button type="button" class="secondary-button" @click="resetNav">
                 <i class="ri-reset-left-line" aria-hidden="true"></i>
                 恢复默认
@@ -408,6 +473,7 @@ onMounted(() => {
               </button>
             </div>
           </header>
+          <p v-if="navEditorMessage" class="nav-editor-message">{{ navEditorMessage }}</p>
           <div class="dt-modal-body nav-editor-modal-body">
             <section
               v-for="(group, groupIndex) in groups"
