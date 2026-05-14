@@ -26,13 +26,13 @@ async function loadSettings() {
 async function setCloseBehavior(value: AppCloseBehavior) {
   settings.value.closeBehavior = value;
   settings.value = await window.devToolbox.saveAppSettings({ ...settings.value });
-  status.value = value === "minimize-to-tray" ? "已设置为关闭时最小化到托盘" : "已设置为关闭时直接退出";
+  // status.value = value === "minimize-to-tray" ? "已设置为关闭时最小化到托盘" : "已设置为关闭时直接退出";
 }
 
 async function setAutoLaunch(value: boolean) {
   settings.value.autoLaunch = value;
   settings.value = await window.devToolbox.saveAppSettings({ ...settings.value });
-  status.value = value ? "已开启开机自启" : "已关闭开机自启";
+  // status.value = value ? "已开启开机自启" : "已关闭开机自启";
 }
 
 // 手动检查更新
@@ -143,17 +143,6 @@ onUnmounted(() => {
           <span>启动 Windows 后自动打开 Dev Toolbox</span>
         </label>
       </div>
-
-      <div class="settings-block">
-        <h3>实例策略</h3>
-        <p>仅允许同时运行一个 Dev Toolbox 实例。再次启动客户端时，将自动唤起已开启的窗口。</p>
-      </div>
-
-      <div class="settings-block">
-        <h3>存储</h3>
-        <p>转换历史保存在 Electron 用户数据目录中。</p>
-      </div>
-
       <div class="settings-block">
         <h3>版本更新</h3>
         <p>

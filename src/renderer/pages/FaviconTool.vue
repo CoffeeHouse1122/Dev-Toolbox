@@ -10,7 +10,7 @@ const input = ref<string[]>([]);
 const outputDir = ref("");
 const includePng = ref(true);
 const includeManifest = ref(true);
-const sizes = ref([16, 32, 48, 64, 128, 256]);
+const sizes = ref([256]);
 const busy = ref(false);
 const result = ref<ConversionResult | null>(null);
 

@@ -473,7 +473,7 @@ onMounted(() => {
               </button>
             </div>
           </header>
-          <p v-if="navEditorMessage" class="nav-editor-message">{{ navEditorMessage }}</p>
+          <!-- <p v-if="navEditorMessage" class="nav-editor-message">{{ navEditorMessage }}</p> -->
           <div class="dt-modal-body nav-editor-modal-body">
             <section
               v-for="(group, groupIndex) in groups"
