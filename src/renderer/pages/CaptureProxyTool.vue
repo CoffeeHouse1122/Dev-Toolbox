@@ -1,9 +1,17 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import type { CaptureProxyRecord, CaptureProxyStatus } from "../../shared/types";
 
 type HostMode = "local" | "lan";
 type MethodFilter = "all" | "http" | "connect" | "error";
+type CaptureProxyConfig = {
+  hostMode: HostMode;
+  listenHost: string;
+  port: number;
+  captureBodies: boolean;
+  enableHttps: boolean;
+  maxBodyKb: number;
+};
 
 const hostMode = ref<HostMode>("local");
 const listenHost = ref("0.0.0.0");
@@ -21,6 +29,8 @@ const copied = ref(false);
 const selfTesting = ref(false);
 const selfTestMessage = ref("");
 const errorMessage = ref("");
+const guideOpen = ref(false);
+const captureConfigLoaded = ref(false);
 
 let refreshTimer: ReturnType<typeof setInterval> | null = null;
 
@@ -77,6 +87,39 @@ function statusLabel(record: CaptureProxyRecord) {
 
 function headerEntries(headers: Record<string, string>) {
   return Object.entries(headers || {});
+}
+
+function sanitizeNumber(value: unknown, fallback: number, min: number, max: number) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.min(max, Math.max(min, Math.round(parsed)));
+}
+
+async function loadCaptureConfig() {
+  try {
+    const saved = await window.devToolbox.loadToolConfig("capture-proxy") as Partial<CaptureProxyConfig> | null;
+    if (!saved) return;
+    if (saved.hostMode === "local" || saved.hostMode === "lan") hostMode.value = saved.hostMode;
+    if (typeof saved.listenHost === "string") listenHost.value = saved.listenHost;
+    port.value = sanitizeNumber(saved.port, port.value, 1024, 65535);
+    maxBodyKb.value = sanitizeNumber(saved.maxBodyKb, maxBodyKb.value, 1, 2048);
+    if (typeof saved.captureBodies === "boolean") captureBodies.value = saved.captureBodies;
+    if (typeof saved.enableHttps === "boolean") enableHttps.value = saved.enableHttps;
+  } finally {
+    captureConfigLoaded.value = true;
+  }
+}
+
+function saveCaptureConfig() {
+  if (!captureConfigLoaded.value) return;
+  void window.devToolbox.saveToolConfig("capture-proxy", {
+    hostMode: hostMode.value,
+    listenHost: listenHost.value,
+    port: port.value,
+    captureBodies: captureBodies.value,
+    enableHttps: enableHttps.value,
+    maxBodyKb: maxBodyKb.value
+  } satisfies CaptureProxyConfig);
 }
 
 async function refresh() {
@@ -152,11 +195,14 @@ function openCaCertificate() {
 }
 
 onMounted(async () => {
+  await loadCaptureConfig();
   await refresh();
   refreshTimer = setInterval(() => {
     void refresh();
   }, 1200);
 });
+
+watch([hostMode, listenHost, port, captureBodies, enableHttps, maxBodyKb], saveCaptureConfig);
 
 onBeforeUnmount(() => {
   if (refreshTimer) clearInterval(refreshTimer);
@@ -171,6 +217,10 @@ onBeforeUnmount(() => {
         <p>HTTP 明文请求与 HTTPS 隧道记录</p>
       </div>
       <div class="header-actions">
+        <button type="button" class="secondary-button" @click="guideOpen = true">
+          <i class="ri-question-line" aria-hidden="true"></i>
+          代理使用指引
+        </button>
         <button v-if="!status.running" type="button" class="primary-button" :disabled="busy" @click="startProxy">
           <i class="ri-play-fill" aria-hidden="true"></i>
           启动代理
@@ -341,6 +391,54 @@ onBeforeUnmount(() => {
         </aside>
       </div>
     </div>
+
+    <Teleport to="body">
+      <div v-if="guideOpen" class="capture-guide-mask" @click.self="guideOpen = false">
+        <aside class="capture-guide-drawer" role="dialog" aria-modal="true" aria-labelledby="capture-guide-title">
+          <header class="capture-guide-head">
+            <div>
+              <h3 id="capture-guide-title">代理使用指引</h3>
+              <p>抓包代理只负责接收已经指向它的流量，浏览器、系统或客户端需要单独设置代理。</p>
+            </div>
+            <button type="button" class="secondary-button icon-only" aria-label="关闭" @click="guideOpen = false">
+              <i class="ri-close-line" aria-hidden="true"></i>
+            </button>
+          </header>
+
+          <div class="capture-guide-body">
+            <section class="capture-guide-section">
+              <h4>最快路径</h4>
+              <ol>
+                <li>启动代理，复制当前代理地址。</li>
+                <li>把浏览器、系统代理或测试客户端的 HTTP / HTTPS 代理设置为该地址。</li>
+                <li>发起目标请求后回到列表查看记录；列表为空时先点“自检”。</li>
+              </ol>
+            </section>
+
+            <section class="capture-guide-section">
+              <h4>HTTPS 全流程</h4>
+              <ol>
+                <li>勾选“HTTPS 解密”并启动代理。</li>
+                <li>点击“打开位置”，找到本地 CA 证书文件。</li>
+                <li>Windows / Chrome / Edge：把 CA 导入“受信任的根证书颁发机构”。Firefox 需要在浏览器证书管理器中单独导入。</li>
+                <li>把客户端代理设置为当前代理地址，必要时重启浏览器或目标客户端。</li>
+                <li>访问 HTTPS 目标。如果列表只出现 CONNECT，通常是 CA 未信任、客户端未走代理，或目标应用启用了证书固定。</li>
+              </ol>
+            </section>
+
+            <section class="capture-guide-section">
+              <h4>更简单的抓法</h4>
+              <ul>
+                <li>只看浏览器请求时，Chrome / Edge DevTools 的 Network 面板最省事，但它不能抓其它应用。</li>
+                <li>想少改系统设置，可以用浏览器代理插件切换到 {{ proxyAddress }}。</li>
+                <li>命令行验证可使用 <code>curl -x http://{{ proxyAddress }} https://example.com</code>。</li>
+                <li>本工具当前保留手动代理方式，避免一键改系统代理后忘记恢复。</li>
+              </ul>
+            </section>
+          </div>
+        </aside>
+      </div>
+    </Teleport>
   </section>
 </template>
 
@@ -720,6 +818,86 @@ onBeforeUnmount(() => {
   border-color: var(--danger);
   background: color-mix(in srgb, var(--danger) 82%, var(--surface));
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--danger) 12%, transparent);
+}
+
+.capture-guide-mask {
+  position: fixed;
+  inset: 0;
+  z-index: 1100;
+  display: flex;
+  justify-content: flex-end;
+  background: color-mix(in srgb, #0d1117 45%, transparent);
+  -webkit-app-region: no-drag;
+}
+
+.capture-guide-drawer {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  width: min(520px, 100vw);
+  height: 100vh;
+  border-left: 1px solid var(--border);
+  background: var(--surface);
+  box-shadow: -18px 0 48px rgba(1, 4, 9, 0.34);
+  animation: capture-guide-in 0.16s ease-out;
+  -webkit-app-region: no-drag;
+}
+
+.capture-guide-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 18px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-subtle);
+}
+
+.capture-guide-head h3,
+.capture-guide-section h4 {
+  margin: 0;
+}
+
+.capture-guide-head p {
+  margin: 6px 0 0;
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.capture-guide-body {
+  display: grid;
+  align-content: start;
+  gap: 18px;
+  padding: 18px;
+  overflow: auto;
+}
+
+.capture-guide-section {
+  display: grid;
+  gap: 10px;
+}
+
+.capture-guide-section ol,
+.capture-guide-section ul {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding-left: 20px;
+  color: var(--text);
+  line-height: 1.6;
+}
+
+.capture-guide-section code {
+  padding: 2px 5px;
+  border-radius: 5px;
+  background: var(--surface-subtle);
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 12px;
+  word-break: break-all;
+}
+
+@keyframes capture-guide-in {
+  from { transform: translateX(18px); opacity: 0; }
+  to { transform: none; opacity: 1; }
 }
 
 @media (max-width: 1280px) {

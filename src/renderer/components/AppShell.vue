@@ -18,12 +18,18 @@ type NavGroup = {
   tools: NavTool[];
 };
 
+type NavConfig = {
+  groups: NavGroup[];
+  collapsedGroups: Record<string, boolean>;
+};
+
 const navStorageKey = "dev-toolbox.nav.v1";
 const collapsedStorageKey = "dev-toolbox.nav-collapsed.v1";
 const theme = useThemeStore();
 const editingNav = ref(false);
 const navImportInput = ref<HTMLInputElement | null>(null);
 const navEditorMessage = ref("");
+const navConfigLoaded = ref(false);
 
 const defaultGroups: NavGroup[] = [
   {
@@ -136,7 +142,7 @@ const visibleGroups = computed(() =>
 
 function toggleGroupCollapse(id: string) {
   collapsedGroups.value = { ...collapsedGroups.value, [id]: !collapsedGroups.value[id] };
-  localStorage.setItem(collapsedStorageKey, JSON.stringify(collapsedGroups.value));
+  saveNavConfig();
 }
 
 function loadCollapsedState(): Record<string, boolean> {
@@ -197,6 +203,31 @@ function loadNavGroups() {
   } catch {
     return cloneGroups(defaultGroups);
   }
+}
+
+async function loadNavConfig() {
+  let shouldSaveInitialConfig = false;
+  try {
+    const saved = await window.devToolbox.loadToolConfig("navigation") as Partial<NavConfig> | null;
+    if (saved?.groups) groups.value = mergeGroups(saved.groups);
+    if (saved?.collapsedGroups && typeof saved.collapsedGroups === "object") {
+      collapsedGroups.value = saved.collapsedGroups;
+    }
+    shouldSaveInitialConfig = !saved;
+  } catch {
+    shouldSaveInitialConfig = true;
+  } finally {
+    navConfigLoaded.value = true;
+  }
+  if (shouldSaveInitialConfig) saveNavConfig();
+}
+
+function saveNavConfig() {
+  if (!navConfigLoaded.value) return;
+  void window.devToolbox.saveToolConfig("navigation", {
+    groups: groups.value,
+    collapsedGroups: collapsedGroups.value
+  } satisfies NavConfig);
 }
 
 function resetNav() {
@@ -388,12 +419,21 @@ function isGroupDropTarget(groupIndex: number) {
 watch(
   groups,
   () => {
-    localStorage.setItem(navStorageKey, JSON.stringify(groups.value));
+    saveNavConfig();
   },
   { deep: true }
 );
 
-onMounted(() => {
+watch(
+  collapsedGroups,
+  () => {
+    saveNavConfig();
+  },
+  { deep: true }
+);
+
+onMounted(async () => {
+  await loadNavConfig();
   theme.sync();
   window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", theme.sync);
 });

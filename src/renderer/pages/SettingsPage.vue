@@ -171,12 +171,12 @@ onUnmounted(() => {
           <div class="diagnostic-path-row">
             <span>用户数据目录</span>
             <code :title="diagnostics?.userDataDir || ''">{{ diagnostics?.userDataDir || "加载中..." }}</code>
-            <button type="button" class="secondary-button" :disabled="!diagnostics?.userDataDir" @click="openPath(diagnostics!.userDataDir)">打开</button>
+            <button type="button" class="secondary-button" :disabled="!diagnostics?.userDataDir" @click="diagnostics && openPath(diagnostics.userDataDir)">打开</button>
           </div>
           <div class="diagnostic-path-row">
             <span>日志目录</span>
             <code :title="diagnostics?.logsDir || ''">{{ diagnostics?.logsDir || "加载中..." }}</code>
-            <button type="button" class="secondary-button" :disabled="!diagnostics?.logsDir" @click="openPath(diagnostics!.logsDir)">打开</button>
+            <button type="button" class="secondary-button" :disabled="!diagnostics?.logsDir" @click="diagnostics && openPath(diagnostics.logsDir)">打开</button>
           </div>
           <div class="diagnostic-port-list">
             <div v-for="item in diagnostics?.ports || []" :key="item.port" class="diagnostic-port-row">
