@@ -3,6 +3,7 @@ import { createPrivateKey, createPublicKey, X509Certificate } from "node:crypto"
 import fs from "node:fs/promises";
 import http, { type IncomingHttpHeaders } from "node:http";
 import path from "node:path";
+import { TextDecoder } from "node:util";
 import zlib from "node:zlib";
 import { Proxy, type IContext } from "http-mitm-proxy";
 import type { CaptureProxyRecord, CaptureProxyStartOptions, CaptureProxyStatus } from "../../../shared/types";
@@ -112,6 +113,14 @@ function normalizeHeaderValue(value: string | string[] | number | undefined) {
   return value ?? "";
 }
 
+function getHeaderValue(headers: HeaderBag, name: string) {
+  const expected = name.toLowerCase();
+  for (const [key, value] of Object.entries(headers || {})) {
+    if (key.toLowerCase() === expected) return normalizeHeaderValue(value);
+  }
+  return "";
+}
+
 function normalizeHeaders(headers: HeaderBag) {
   const output: Record<string, string> = {};
   for (const [key, value] of Object.entries(headers || {})) {
@@ -124,12 +133,12 @@ function normalizeHeaders(headers: HeaderBag) {
 }
 
 function isTextLike(headers: HeaderBag) {
-  const type = normalizeHeaderValue(headers?.["content-type"]).toLowerCase();
-  return !type || type.startsWith("text/") || /json|javascript|xml|graphql|form-urlencoded/.test(type);
+  const type = getHeaderValue(headers, "content-type").toLowerCase();
+  return !type || type.startsWith("text/") || /json|javascript|xml|graphql|form-urlencoded|csv|svg/.test(type);
 }
 
 function decodeBody(buffer: Buffer, headers: HeaderBag) {
-  const encoding = normalizeHeaderValue(headers?.["content-encoding"]).toLowerCase();
+  const encoding = getHeaderValue(headers, "content-encoding").toLowerCase();
   try {
     if (encoding.includes("br")) return zlib.brotliDecompressSync(buffer);
     if (encoding.includes("gzip")) return zlib.gunzipSync(buffer);
@@ -140,14 +149,38 @@ function decodeBody(buffer: Buffer, headers: HeaderBag) {
   return buffer;
 }
 
+function decodeText(buffer: Buffer, headers: HeaderBag) {
+  const contentType = getHeaderValue(headers, "content-type");
+  const charset = /charset=([^;]+)/i.exec(contentType)?.[1]?.trim().replace(/^"|"$/g, "") || "utf-8";
+  try {
+    return new TextDecoder(charset).decode(buffer);
+  } catch {
+    return new TextDecoder("utf-8").decode(buffer);
+  }
+}
+
 function looksMostlyText(value: string) {
   if (!value) return true;
   const sample = value.slice(0, 1024);
   const controlCount = Array.from(sample).filter((char) => {
     const code = char.charCodeAt(0);
-    return code < 32 && ![9, 10, 13].includes(code);
+    return char === "\uFFFD" || (code < 32 && ![9, 10, 13].includes(code));
   }).length;
   return controlCount / sample.length < 0.08;
+}
+
+function binaryPreview(buffer: Buffer, headers: HeaderBag, totalBytes: number) {
+  const contentType = getHeaderValue(headers, "content-type") || "unknown";
+  const preview = buffer.subarray(0, 192);
+  const rows: string[] = [];
+  for (let offset = 0; offset < preview.length; offset += 16) {
+    const row = preview.subarray(offset, offset + 16);
+    const hex = Array.from(row).map((byte) => byte.toString(16).padStart(2, "0")).join(" ").padEnd(47, " ");
+    const ascii = Array.from(row).map((byte) => (byte >= 32 && byte <= 126 ? String.fromCharCode(byte) : ".")).join("");
+    rows.push(`${offset.toString(16).padStart(4, "0")}  ${hex}  ${ascii}`);
+  }
+  const suffix = totalBytes > preview.length ? `\n... ${totalBytes - preview.length} bytes more` : "";
+  return `[binary body, ${totalBytes} bytes, ${contentType}]\nhex preview:\n${rows.join("\n")}${suffix}`;
 }
 
 function createCaptureState(): CaptureState {
@@ -165,10 +198,10 @@ function appendCapture(state: CaptureState, chunk: Buffer, maxBytes: number) {
 
 function capturePreview(state: CaptureState, headers: HeaderBag, enabled: boolean) {
   if (!enabled || !state.chunks.length) return "";
-  if (!isTextLike(headers)) return `[binary body, ${state.totalBytes} bytes]`;
   const decoded = decodeBody(Buffer.concat(state.chunks), headers);
-  const text = decoded.toString("utf8");
-  if (!looksMostlyText(text)) return `[binary body, ${state.totalBytes} bytes]`;
+  const text = decodeText(decoded, headers);
+  if (!isTextLike(headers) && !looksMostlyText(text)) return binaryPreview(decoded, headers, state.totalBytes);
+  if (!looksMostlyText(text)) return binaryPreview(decoded, headers, state.totalBytes);
   const suffix = state.totalBytes > state.capturedBytes ? `\n\n[truncated at ${state.capturedBytes} bytes]` : "";
   return `${text}${suffix}`;
 }

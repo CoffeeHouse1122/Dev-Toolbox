@@ -419,7 +419,7 @@ onBeforeUnmount(() => {
               <h4>HTTPS 全流程</h4>
               <ol>
                 <li>勾选“HTTPS 解密”并启动代理。</li>
-                <li>点击“打开位置”，找到本地 CA 证书文件。</li>
+                <li>点击“打开位置”，找到本机自动生成的 CA 证书文件；它保存在当前用户数据目录中，不随安装包预置。</li>
                 <li>Windows / Chrome / Edge：把 CA 导入“受信任的根证书颁发机构”。Firefox 需要在浏览器证书管理器中单独导入。</li>
                 <li>把客户端代理设置为当前代理地址，必要时重启浏览器或目标客户端。</li>
                 <li>访问 HTTPS 目标。如果列表只出现 CONNECT，通常是 CA 未信任、客户端未走代理，或目标应用启用了证书固定。</li>
@@ -433,6 +433,7 @@ onBeforeUnmount(() => {
                 <li>想少改系统设置，可以用浏览器代理插件切换到 {{ proxyAddress }}。</li>
                 <li>命令行验证可使用 <code>curl -x http://{{ proxyAddress }} https://example.com</code>。</li>
                 <li>本工具当前保留手动代理方式，避免一键改系统代理后忘记恢复。</li>
+                <li>正文仍显示 binary 时，通常表示响应确实是图片、字体、压缩包、protobuf 等二进制内容；详情里会展示文件头十六进制预览。</li>
               </ul>
             </section>
           </div>
