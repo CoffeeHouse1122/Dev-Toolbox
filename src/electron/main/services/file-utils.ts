@@ -18,3 +18,20 @@ export async function writeTextFile(filePath: string, content: string) {
   await fs.writeFile(filePath, content, "utf8");
 }
 
+export async function uniqueOutputPath(dir: string, fileName: string) {
+  const extension = path.extname(fileName);
+  const baseName = path.basename(fileName, extension);
+  let candidate = path.join(dir, fileName);
+  let suffix = 2;
+
+  while (true) {
+    try {
+      await fs.access(candidate);
+      candidate = path.join(dir, `${baseName}-${suffix}${extension}`);
+      suffix += 1;
+    } catch {
+      return candidate;
+    }
+  }
+}
+

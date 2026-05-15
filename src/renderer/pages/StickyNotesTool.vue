@@ -57,7 +57,6 @@ function noteTextToEditorHtml(content: string) {
   const lines = content.split(/\r?\n/);
   return lines
     .map((line) => {
-      if (!line) return "<br>";
       imageTokenPattern.lastIndex = 0;
       let html = "";
       let cursor = 0;
@@ -68,7 +67,7 @@ function noteTextToEditorHtml(content: string) {
         cursor = match.index + match[0].length;
       }
       html += escapeHtml(line.slice(cursor));
-      return html || "<br>";
+      return html;
     })
     .join("<br>");
 }
@@ -88,7 +87,11 @@ function editorDomToText(root: HTMLElement) {
     return childText;
   };
 
-  return Array.from(root.childNodes).map(walk).join("").replace(/\n{4,}/g, "\n\n\n");
+  return Array.from(root.childNodes)
+    .map(walk)
+    .join("")
+    .replace(/\n{4,}/g, "\n\n\n")
+    .replace(/\n+$/, (value) => (value.length > 1 ? "\n" : value));
 }
 
 function contentToPlainText(content: string) {

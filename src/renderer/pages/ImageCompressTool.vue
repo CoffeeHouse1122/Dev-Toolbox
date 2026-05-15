@@ -9,6 +9,7 @@ const input = ref<string[]>([]);
 const outputDir = ref("");
 const quality = ref(78);
 const keepMetadata = ref(false);
+const keepOriginalName = ref(false);
 const busy = ref(false);
 const result = ref<ConversionResult | null>(null);
 
@@ -20,7 +21,8 @@ async function run() {
       inputPaths: [...input.value],
       outputDir: outputDir.value,
       quality: quality.value,
-      keepMetadata: keepMetadata.value
+      keepMetadata: keepMetadata.value,
+      keepOriginalName: keepOriginalName.value
     });
   } finally {
     busy.value = false;
@@ -59,6 +61,10 @@ async function run() {
           <label class="check-row">
             <input v-model="keepMetadata" type="checkbox" />
             <span>保留元数据</span>
+          </label>
+          <label class="check-row">
+            <input v-model="keepOriginalName" type="checkbox" />
+            <span>保持原命名输出</span>
           </label>
         </div>
       </section>

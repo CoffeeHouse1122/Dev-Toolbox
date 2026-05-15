@@ -13,7 +13,7 @@ import type {
   WebpOptions
 } from "../../../shared/types";
 import type { HistoryService } from "./history.service";
-import { ensureDir, safeBaseName, uniqueId, writeTextFile } from "./file-utils";
+import { ensureDir, safeBaseName, uniqueId, uniqueOutputPath, writeTextFile } from "./file-utils";
 
 export async function createFaviconPackage(
   options: FaviconOptions,
@@ -350,7 +350,10 @@ export async function compressImages(options: ImageCompressOptions, history: His
       const metadata = await sharp(inputPath).metadata();
       const detectedFormat = metadata.format ?? (path.extname(inputPath).slice(1).toLowerCase() || "webp");
       const ext = outputExtension(detectedFormat);
-      const output = path.join(options.outputDir, `${safeBaseName(inputPath)}-compressed.${ext}`);
+      const fileName = options.keepOriginalName
+        ? `${safeBaseName(inputPath)}.${ext}`
+        : `${safeBaseName(inputPath)}-compressed.${ext}`;
+      const output = await uniqueOutputPath(options.outputDir, fileName);
       await writeByInputFormat(inputPath, output, options.quality, options.keepMetadata);
       files.push(output);
       try {

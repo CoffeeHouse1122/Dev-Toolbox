@@ -1,4 +1,4 @@
-import { dialog, ipcMain, shell } from "electron";
+import { app, dialog, ipcMain, shell } from "electron";
 import { z } from "zod";
 import { createHistoryService } from "./services/history.service";
 import { applyWatermark, compressImages, createFaviconPackage, convertImages, cropImage, resizeImages } from "./services/image.service";
@@ -54,6 +54,7 @@ import {
   saveSharedDiskConfig
 } from "./services/shared-disk.service";
 import type {
+  OpenDirectoryResult,
   DialogFileFilter,
   AssetManifestOptions,
   AudioConvertOptions,
@@ -104,7 +105,8 @@ const imageCompressSchema = z.object({
   inputPaths: z.array(z.string().min(1)).min(1),
   outputDir: z.string().min(1),
   quality: z.number().int().min(1).max(100),
-  keepMetadata: z.boolean()
+  keepMetadata: z.boolean(),
+  keepOriginalName: z.boolean()
 });
 
 const imageResizeSchema = z.object({
@@ -126,6 +128,61 @@ const imageCropSchema = z.object({
   outputFormat: z.enum(["webp", "png", "jpeg", "avif"]),
   quality: z.number().int().min(1).max(100)
 });
+
+const FOLDER_OPEN_LOCK_MS = 4000;
+let folderOpenLocked = false;
+let folderOpenReleaseTimer: ReturnType<typeof setTimeout> | null = null;
+let releaseOnWindowFocus: (() => void) | null = null;
+
+function releaseFolderOpenLock() {
+  folderOpenLocked = false;
+  if (folderOpenReleaseTimer) {
+    clearTimeout(folderOpenReleaseTimer);
+    folderOpenReleaseTimer = null;
+  }
+  if (releaseOnWindowFocus) {
+    app.off("browser-window-focus", releaseOnWindowFocus);
+    releaseOnWindowFocus = null;
+  }
+}
+
+function acquireFolderOpenLock() {
+  if (folderOpenLocked) return false;
+  folderOpenLocked = true;
+  releaseOnWindowFocus = () => {
+    releaseFolderOpenLock();
+  };
+  app.once("browser-window-focus", releaseOnWindowFocus);
+  folderOpenReleaseTimer = setTimeout(() => {
+    releaseFolderOpenLock();
+  }, FOLDER_OPEN_LOCK_MS);
+  return true;
+}
+
+async function pathExists(targetPath: string) {
+  try {
+    await fs.access(targetPath);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function openDirectory(targetPath: string): Promise<OpenDirectoryResult> {
+  const normalizedPath = path.normalize(targetPath);
+  if (!(await pathExists(normalizedPath))) {
+    return { status: "missing", path: normalizedPath, message: "目标文件夹不存在。" };
+  }
+  if (!acquireFolderOpenLock()) {
+    return { status: "blocked", path: normalizedPath, message: "本地文件夹正在打开，请稍后再试。" };
+  }
+  const errorMessage = await shell.openPath(normalizedPath);
+  if (errorMessage) {
+    releaseFolderOpenLock();
+    return { status: "missing", path: normalizedPath, message: errorMessage };
+  }
+  return { status: "opened", path: normalizedPath };
+}
 
 const watermarkSchema = z
   .object({
@@ -297,7 +354,7 @@ const appSettingsSchema = z.object({
   autoLaunch: z.boolean()
 });
 
-const toolConfigKeySchema = z.enum(["navigation", "capture-proxy"]);
+const toolConfigKeySchema = z.enum(["navigation", "capture-proxy", "output-picker"]);
 
 const sharedDiskSchema = z.object({
   url: z.string().min(1),
@@ -334,13 +391,16 @@ export function registerIpc() {
     }
   );
 
-  ipcMain.handle("dialog:select-output-dir", async (): Promise<string | null> => {
+  ipcMain.handle("dialog:select-output-dir", async (_event, defaultPath?: string): Promise<string | null> => {
     const result = await dialog.showOpenDialog({
-      properties: ["openDirectory", "createDirectory"]
+      properties: ["openDirectory", "createDirectory"],
+      defaultPath: defaultPath || undefined
     });
 
     return result.canceled ? null : result.filePaths[0] ?? null;
   });
+
+  ipcMain.handle("file:path-exists", async (_event, targetPath: string) => pathExists(z.string().min(1).parse(targetPath)));
 
   ipcMain.handle("convert:favicon", async (_event, raw: FaviconOptions) => {
     const options = faviconSchema.parse(raw);
@@ -549,7 +609,14 @@ export function registerIpc() {
   });
 
   ipcMain.handle("shell:reveal-path", async (_event, filePath: string) => {
-    shell.showItemInFolder(filePath);
+    const normalizedPath = path.normalize(filePath);
+    if (!(await pathExists(normalizedPath))) return;
+    if (!acquireFolderOpenLock()) return;
+    shell.showItemInFolder(normalizedPath);
+  });
+
+  ipcMain.handle("shell:open-directory", async (_event, targetPath: string) => {
+    return openDirectory(z.string().min(1).parse(targetPath));
   });
 
   ipcMain.handle("shell:open-external", async (_event, url: string) => {

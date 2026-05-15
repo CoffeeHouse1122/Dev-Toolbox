@@ -22,8 +22,8 @@ let quitting = false;
 
 const DEFAULT_TITLEBAR_THEME: ThemeTitleBarPayload = {
   accentColor: "#0969da",
-  surfaceColor: "#f6f8fa",
-  textColor: "#1f2328"
+  surfaceColor: "#161b22",
+  textColor: "#e5eefb"
 };
 
 protocol.registerSchemesAsPrivileged([
@@ -181,6 +181,10 @@ ipcMain.handle("window:toggle-maximize", () => {
 
 ipcMain.handle("window:close", () => {
   mainWindow?.close();
+});
+
+ipcMain.handle("window:reload", () => {
+  mainWindow?.webContents.reload();
 });
 
 ipcMain.handle("window:get-always-on-top", () => {

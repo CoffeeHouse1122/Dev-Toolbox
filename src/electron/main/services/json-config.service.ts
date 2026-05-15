@@ -3,7 +3,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import type { ToolConfigKey } from "../../../shared/types";
 
-const allowedConfigKeys = new Set<ToolConfigKey>(["navigation", "capture-proxy"]);
+const allowedConfigKeys = new Set<ToolConfigKey>(["navigation", "capture-proxy", "output-picker"]);
 
 function configDir() {
   return path.join(app.getPath("userData"), "data", "configs");

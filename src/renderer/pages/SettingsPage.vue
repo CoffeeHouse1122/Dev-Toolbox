@@ -99,7 +99,7 @@ onMounted(async () => {
     }
     if (s.status === "downloading") {
       updateDownloading.value = true;
-    } else if (s.status !== "downloading") {
+    } else {
       updateDownloading.value = false;
     }
   });

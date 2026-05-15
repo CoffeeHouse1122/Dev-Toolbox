@@ -21,6 +21,7 @@ type NavGroup = {
 type NavConfig = {
   groups: NavGroup[];
   collapsedGroups: Record<string, boolean>;
+  favoriteToolIds: string[];
 };
 
 const navStorageKey = "dev-toolbox.nav.v1";
@@ -32,6 +33,11 @@ const navEditorMessage = ref("");
 const navConfigLoaded = ref(false);
 const alwaysOnTop = ref(false);
 const isWindowMaximized = ref(false);
+const favoriteToolIds = ref<string[]>([]);
+const draftGroups = ref<NavGroup[]>([]);
+const draftFavoriteToolIds = ref<string[]>([]);
+const isReloading = ref(false);
+const justReloaded = ref(false);
 let stopWindowStateSync: (() => void) | null = null;
 
 const defaultGroups: NavGroup[] = [
@@ -137,10 +143,27 @@ const defaultGroups: NavGroup[] = [
 
 const groups = ref<NavGroup[]>(loadNavGroups());
 const collapsedGroups = ref<Record<string, boolean>>(loadCollapsedState());
+const toolMap = computed(() => new Map(groups.value.flatMap((group) => group.tools.map((tool) => [tool.id, tool] as const))));
+const draftToolMap = computed(() => new Map(draftGroups.value.flatMap((group) => group.tools.map((tool) => [tool.id, tool] as const))));
+const favoriteTools = computed(() =>
+  Array.from(new Set(favoriteToolIds.value))
+    .map((toolId) => toolMap.value.get(toolId))
+    .filter((tool): tool is NavTool => Boolean(tool && tool.visible !== false))
+    .map((tool) => ({ ...tool }))
+);
+const favoriteEditorTools = computed(() =>
+  draftFavoriteToolIds.value
+    .map((toolId) => draftToolMap.value.get(toolId))
+    .filter((tool): tool is NavTool => Boolean(tool))
+    .map((tool) => ({ ...tool }))
+);
 const visibleGroups = computed(() =>
-  groups.value
-    .map((group) => ({ ...group, tools: group.tools.filter((tool) => tool.visible) }))
-    .filter((group) => group.tools.length > 0)
+  [
+    { id: "favorites", label: "置顶", tools: favoriteTools.value },
+    ...groups.value
+      .map((group) => ({ ...group, tools: group.tools.filter((tool) => tool.visible) }))
+      .filter((group) => group.tools.length > 0)
+  ]
 );
 
 function toggleGroupCollapse(id: string) {
@@ -159,6 +182,11 @@ function loadCollapsedState(): Record<string, boolean> {
 
 function cloneGroups(input: NavGroup[]) {
   return JSON.parse(JSON.stringify(input)) as NavGroup[];
+}
+
+function normalizeFavoriteToolIds(input: string[] | undefined) {
+  const validToolIds = new Set(defaultGroups.flatMap((group) => group.tools.map((tool) => tool.id)));
+  return Array.from(new Set((input ?? []).filter((toolId) => validToolIds.has(toolId))));
 }
 
 function mergeGroups(saved: NavGroup[]) {
@@ -216,6 +244,7 @@ async function loadNavConfig() {
     if (saved?.collapsedGroups && typeof saved.collapsedGroups === "object") {
       collapsedGroups.value = saved.collapsedGroups;
     }
+    favoriteToolIds.value = normalizeFavoriteToolIds(saved?.favoriteToolIds);
     shouldSaveInitialConfig = !saved;
   } catch {
     shouldSaveInitialConfig = true;
@@ -229,20 +258,52 @@ function saveNavConfig() {
   if (!navConfigLoaded.value) return;
   void window.devToolbox.saveToolConfig("navigation", {
     groups: cloneGroups(groups.value),
-    collapsedGroups: { ...collapsedGroups.value }
+    collapsedGroups: { ...collapsedGroups.value },
+    favoriteToolIds: [...favoriteToolIds.value]
   } satisfies NavConfig);
 }
 
+function openNavEditor() {
+  draftGroups.value = cloneGroups(groups.value);
+  draftFavoriteToolIds.value = [...favoriteToolIds.value];
+  navEditorMessage.value = "";
+  dragState.value = null;
+  dropHover.value = null;
+  editingNav.value = true;
+}
+
+function cancelNavEditing() {
+  draftGroups.value = cloneGroups(groups.value);
+  draftFavoriteToolIds.value = [...favoriteToolIds.value];
+  navEditorMessage.value = "";
+  dragState.value = null;
+  dropHover.value = null;
+  editingNav.value = false;
+}
+
+function applyNavEditing() {
+  groups.value = cloneGroups(draftGroups.value);
+  favoriteToolIds.value = [...draftFavoriteToolIds.value];
+  navEditorMessage.value = "";
+  dragState.value = null;
+  dropHover.value = null;
+  editingNav.value = false;
+}
+
 function resetNav() {
-  groups.value = cloneGroups(defaultGroups);
+  draftGroups.value = cloneGroups(defaultGroups);
+  draftFavoriteToolIds.value = [];
   navEditorMessage.value = "已恢复默认导航";
 }
 
 function exportNavConfig() {
+  const exportGroups = editingNav.value ? draftGroups.value : groups.value;
+  const exportFavoriteToolIds = editingNav.value ? draftFavoriteToolIds.value : favoriteToolIds.value;
   const payload = {
     version: 1,
     exportedAt: new Date().toISOString(),
-    groups: groups.value
+    groups: exportGroups,
+    favoriteToolIds: exportFavoriteToolIds
   };
   const blob = new Blob([`${JSON.stringify(payload, null, 2)}\n`], { type: "application/json" });
   const url = URL.createObjectURL(blob);
@@ -266,33 +327,44 @@ async function importNavConfig(event: Event) {
 
   try {
     const raw = await file.text();
-    const parsed = JSON.parse(raw) as { groups?: NavGroup[] } | NavGroup[];
+    const parsed = JSON.parse(raw) as { groups?: NavGroup[]; favoriteToolIds?: string[] } | NavGroup[];
     const importedGroups = Array.isArray(parsed) ? parsed : parsed.groups;
     if (!Array.isArray(importedGroups)) throw new Error("JSON 中缺少 groups 数组");
-    groups.value = mergeGroups(importedGroups);
+    draftGroups.value = mergeGroups(importedGroups);
+    draftFavoriteToolIds.value = normalizeFavoriteToolIds(Array.isArray(parsed) ? [] : parsed.favoriteToolIds);
     navEditorMessage.value = `已导入 ${file.name}`;
   } catch (error) {
     navEditorMessage.value = error instanceof Error ? error.message : String(error);
   }
 }
 
+function isFavoriteTool(toolId: string) {
+  return favoriteToolIds.value.includes(toolId);
+}
+
+function toggleFavoriteTool(toolId: string) {
+  favoriteToolIds.value = isFavoriteTool(toolId)
+    ? favoriteToolIds.value.filter((id) => id !== toolId)
+    : [...favoriteToolIds.value, toolId];
+}
+
 function moveGroup(index: number, direction: -1 | 1) {
   const next = index + direction;
-  if (next < 0 || next >= groups.value.length) return;
-  const copy = [...groups.value];
+  if (next < 0 || next >= draftGroups.value.length) return;
+  const copy = [...draftGroups.value];
   const [item] = copy.splice(index, 1);
   copy.splice(next, 0, item);
-  groups.value = copy;
+  draftGroups.value = copy;
 }
 
 function moveTool(groupIndex: number, toolIndex: number, direction: -1 | 1) {
-  const group = groups.value[groupIndex];
+  const group = draftGroups.value[groupIndex];
   const next = toolIndex + direction;
   if (!group || next < 0 || next >= group.tools.length) return;
   const tools = [...group.tools];
   const [item] = tools.splice(toolIndex, 1);
   tools.splice(next, 0, item);
-  groups.value[groupIndex] = { ...group, tools };
+  draftGroups.value[groupIndex] = { ...group, tools };
 }
 
 // === Drag & drop reordering ===
@@ -319,7 +391,7 @@ function onGroupDragOver(event: DragEvent, index: number) {
     dropHover.value = { kind: "group", index };
   } else {
     // tool dragging onto a group means append to that group
-    dropHover.value = { kind: "tool", group: index, index: groups.value[index]?.tools.length ?? 0, pos: "before" };
+    dropHover.value = { kind: "tool", group: index, index: draftGroups.value[index]?.tools.length ?? 0, pos: "before" };
   }
 }
 
@@ -329,12 +401,12 @@ function onGroupDrop(event: DragEvent, index: number) {
   if (!state) return;
   if (state.kind === "group") {
     if (state.from === index) return;
-    const copy = [...groups.value];
+    const copy = [...draftGroups.value];
     const [item] = copy.splice(state.from, 1);
     copy.splice(index, 0, item);
-    groups.value = copy;
+    draftGroups.value = copy;
   } else {
-    moveToolAcross(state.fromGroup, state.fromIndex, index, groups.value[index]?.tools.length ?? 0);
+    moveToolAcross(state.fromGroup, state.fromIndex, index, draftGroups.value[index]?.tools.length ?? 0);
   }
   dragState.value = null;
   dropHover.value = null;
@@ -381,7 +453,7 @@ function onToolDrop(event: DragEvent, groupIndex: number, toolIndex: number) {
 
 function moveToolAcross(fromGroup: number, fromIndex: number, toGroup: number, toIndex: number) {
   if (fromGroup === toGroup && (toIndex === fromIndex || toIndex === fromIndex + 1)) return;
-  const copy = groups.value.map((group) => ({ ...group, tools: [...group.tools] }));
+  const copy = draftGroups.value.map((group) => ({ ...group, tools: [...group.tools] }));
   const source = copy[fromGroup];
   const target = copy[toGroup];
   if (!source || !target) return;
@@ -390,7 +462,7 @@ function moveToolAcross(fromGroup: number, fromIndex: number, toGroup: number, t
   if (fromGroup === toGroup && toIndex > fromIndex) insertIndex -= 1;
   insertIndex = Math.max(0, Math.min(insertIndex, target.tools.length));
   target.tools.splice(insertIndex, 0, item);
-  groups.value = copy;
+  draftGroups.value = copy;
 }
 
 function onDragEnd() {
@@ -413,7 +485,7 @@ function isGroupDropTarget(groupIndex: number) {
   if (!h) return false;
   if (h.kind === "group") return h.index === groupIndex;
   if (dragState.value?.kind === "tool" && h.kind === "tool" && h.group === groupIndex) {
-    const group = groups.value[groupIndex];
+    const group = draftGroups.value[groupIndex];
     return !group?.tools.length;
   }
   return false;
@@ -447,8 +519,30 @@ async function closeWindow() {
   await window.devToolbox.closeWindow();
 }
 
+async function reloadWindow() {
+  if (isReloading.value) return;
+  isReloading.value = true;
+  sessionStorage.setItem("dev-toolbox.reload-transition", "1");
+  window.setTimeout(() => {
+    void window.devToolbox.reloadWindow();
+  }, 180);
+}
+
 function toggleTheme() {
   theme.setMode(theme.resolvedTheme === "dark" ? "light" : "dark");
+}
+
+function moveFavoriteTool(index: number, direction: -1 | 1) {
+  const next = index + direction;
+  if (next < 0 || next >= draftFavoriteToolIds.value.length) return;
+  const copy = [...draftFavoriteToolIds.value];
+  const [item] = copy.splice(index, 1);
+  copy.splice(next, 0, item);
+  draftFavoriteToolIds.value = copy;
+}
+
+function removeFavoriteTool(toolId: string) {
+  draftFavoriteToolIds.value = draftFavoriteToolIds.value.filter((id) => id !== toolId);
 }
 
 watch(
@@ -467,7 +561,22 @@ watch(
   { deep: true }
 );
 
+watch(
+  favoriteToolIds,
+  () => {
+    saveNavConfig();
+  },
+  { deep: true }
+);
+
 onMounted(async () => {
+  if (sessionStorage.getItem("dev-toolbox.reload-transition") === "1") {
+    sessionStorage.removeItem("dev-toolbox.reload-transition");
+    justReloaded.value = true;
+    window.setTimeout(() => {
+      justReloaded.value = false;
+    }, 320);
+  }
   await loadNavConfig();
   await syncWindowState();
   stopWindowStateSync = window.devToolbox.onWindowStateChange((state) => {
@@ -486,10 +595,13 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="app-shell">
+  <div class="app-shell" :class="{ 'is-reloading': isReloading, 'just-reloaded': justReloaded }">
     <div class="window-drag-strip">
       <div class="titlebar-drag-area" aria-hidden="true" @dblclick="toggleMaximizeWindow"></div>
       <div class="titlebar-control-group">
+        <button type="button" class="titlebar-window-button" title="刷新页面" aria-label="刷新页面" @click="reloadWindow">
+          <i class="ri-refresh-line" :class="{ 'is-spinning': isReloading }" aria-hidden="true"></i>
+        </button>
         <button
           type="button"
           class="titlebar-window-button"
@@ -537,13 +649,13 @@ onBeforeUnmount(() => {
       </div>
 
       <div class="sidebar-actions">
-        <button type="button" class="secondary-button" @click="editingNav = true">
+        <button type="button" class="secondary-button" @click="openNavEditor">
           <i class="ri-list-settings-line" aria-hidden="true"></i>
           编辑导航
         </button>
       </div>
 
-      <div class="sidebar-body">
+      <div class="sidebar-body dt-simplebar">
         <nav class="nav-list grouped-nav" aria-label="工具">
           <section v-for="group in visibleGroups" :key="group.id" class="nav-group" :class="{ collapsed: collapsedGroups[group.id] }">
             <button type="button" class="nav-group-head" @click="toggleGroupCollapse(group.id)">
@@ -552,10 +664,23 @@ onBeforeUnmount(() => {
               <span class="nav-group-count">{{ group.tools.length }}</span>
             </button>
             <div v-show="!collapsedGroups[group.id]" class="nav-group-items">
-              <RouterLink v-for="tool in group.tools" :key="tool.to" :to="tool.to" class="nav-item">
-                <i class="nav-icon" :class="tool.icon" aria-hidden="true"></i>
-                <span>{{ tool.label }}</span>
-              </RouterLink>
+              <p v-if="group.id === 'favorites' && !group.tools.length" class="nav-group-empty">点击工具右侧图钉加入置顶</p>
+              <div v-for="tool in group.tools" :key="`${group.id}:${tool.id}`" class="nav-item-row">
+                <RouterLink :to="tool.to" class="nav-item">
+                  <i class="nav-icon" :class="tool.icon" aria-hidden="true"></i>
+                  <span>{{ tool.label }}</span>
+                </RouterLink>
+                <button
+                  type="button"
+                  class="nav-item-pin"
+                  :title="isFavoriteTool(tool.id) ? '取消置顶' : '加入置顶'"
+                  :aria-label="isFavoriteTool(tool.id) ? '取消置顶' : '加入置顶'"
+                  :aria-pressed="isFavoriteTool(tool.id)"
+                  @click="toggleFavoriteTool(tool.id)"
+                >
+                  <i :class="isFavoriteTool(tool.id) ? 'ri-pushpin-2-fill' : 'ri-pushpin-line'" aria-hidden="true"></i>
+                </button>
+              </div>
             </div>
           </section>
         </nav>
@@ -565,7 +690,7 @@ onBeforeUnmount(() => {
     <main class="workspace">
       <!-- <header class="topbar" aria-hidden="true"></header> -->
 
-      <div class="workspace-body">
+      <div class="workspace-body dt-simplebar">
         <RouterView />
       </div>
     </main>
@@ -592,15 +717,45 @@ onBeforeUnmount(() => {
                 <i class="ri-reset-left-line" aria-hidden="true"></i>
                 恢复默认
               </button>
-              <button type="button" class="icon-button" @click="editingNav = false" title="完成">
+              <button type="button" class="icon-button" @click="cancelNavEditing" title="关闭">
                 <i class="ri-close-line" aria-hidden="true"></i>
               </button>
             </div>
           </header>
           <!-- <p v-if="navEditorMessage" class="nav-editor-message">{{ navEditorMessage }}</p> -->
-          <div class="dt-modal-body nav-editor-modal-body">
+          <div class="dt-modal-body nav-editor-modal-body dt-simplebar">
+            <section class="nav-editor-group nav-editor-favorites-group">
+              <div class="nav-editor-group-head nav-editor-favorites-head">
+                <span class="group-badge">置顶</span>
+                <strong>置顶分组</strong>
+                <span class="nav-group-count">{{ favoriteEditorTools.length }}</span>
+              </div>
+              <div class="nav-editor-favorites-tools">
+                <article v-for="(tool, index) in favoriteEditorTools" :key="`favorite:${tool.id}`" class="nav-editor-favorite-card">
+                  <div class="nav-editor-favorite-meta">
+                    <span class="drag-handle static-handle" title="置顶顺序"><i class="ri-pushpin-2-line" aria-hidden="true"></i></span>
+                    <i class="tool-icon" :class="tool.icon" aria-hidden="true"></i>
+                    <span class="tool-name" :title="tool.label">{{ tool.label }}</span>
+                  </div>
+                  <div class="nav-editor-favorite-actions">
+                    <button type="button" class="icon-button" title="上移" @click="moveFavoriteTool(index, -1)">
+                      <i class="ri-arrow-up-s-line" aria-hidden="true"></i>
+                    </button>
+                    <button type="button" class="icon-button" title="下移" @click="moveFavoriteTool(index, 1)">
+                      <i class="ri-arrow-down-s-line" aria-hidden="true"></i>
+                    </button>
+                    <button type="button" class="icon-button" title="移出置顶" @click="removeFavoriteTool(tool.id)">
+                      <i class="ri-pushpin-line" aria-hidden="true"></i>
+                    </button>
+                  </div>
+                </article>
+                <p v-if="!favoriteEditorTools.length" class="empty-state" style="padding: 6px 4px; font-size: 12px;">
+                  可在左侧导航中点击图钉加入置顶
+                </p>
+              </div>
+            </section>
             <section
-              v-for="(group, groupIndex) in groups"
+              v-for="(group, groupIndex) in draftGroups"
               :key="group.id"
               class="nav-editor-group"
               :class="{ 'drop-target': isGroupDropTarget(groupIndex) }"
@@ -660,7 +815,11 @@ onBeforeUnmount(() => {
             </section>
           </div>
           <footer class="dt-modal-foot">
-            <button type="button" class="primary-button" @click="editingNav = false">
+            <button type="button" class="secondary-button" @click="cancelNavEditing">
+              <i class="ri-close-circle-line" aria-hidden="true"></i>
+              取消
+            </button>
+            <button type="button" class="primary-button" @click="applyNavEditing">
               <i class="ri-check-line" aria-hidden="true"></i>
               完成
             </button>

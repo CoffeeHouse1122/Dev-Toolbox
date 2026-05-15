@@ -41,7 +41,9 @@ function toPlain<T>(value: T): T {
 const api: DevToolboxApi = {
   selectFiles: (filters?: DialogFileFilter[], multiSelections = true) =>
     ipcRenderer.invoke("dialog:select-files", filters ? toPlain(filters) : undefined, multiSelections),
-  selectOutputDir: () => ipcRenderer.invoke("dialog:select-output-dir"),
+  selectOutputDir: (defaultPath?: string) => ipcRenderer.invoke("dialog:select-output-dir", defaultPath),
+  pathExists: (targetPath: string) => ipcRenderer.invoke("file:path-exists", targetPath),
+  openDirectory: (targetPath: string) => ipcRenderer.invoke("shell:open-directory", targetPath),
   convertFavicon: (options: FaviconOptions) => ipcRenderer.invoke("convert:favicon", toPlain(options)),
   convertWebp: (options: WebpOptions) => ipcRenderer.invoke("convert:webp", toPlain(options)),
   compressImages: (options: ImageCompressOptions) => ipcRenderer.invoke("convert:image-compress", toPlain(options)),
@@ -124,6 +126,7 @@ const api: DevToolboxApi = {
   minimizeWindow: () => ipcRenderer.invoke("window:minimize"),
   toggleMaximizeWindow: () => ipcRenderer.invoke("window:toggle-maximize"),
   closeWindow: () => ipcRenderer.invoke("window:close"),
+  reloadWindow: () => ipcRenderer.invoke("window:reload"),
   onWindowStateChange: (handler: (state: WindowFrameState) => void) => {
     const listener = (_event: unknown, state: WindowFrameState) => handler(state);
     ipcRenderer.on("window:state-changed", listener);

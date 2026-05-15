@@ -80,6 +80,7 @@ export interface ImageCompressOptions {
   outputDir: string;
   quality: number;
   keepMetadata: boolean;
+  keepOriginalName: boolean;
 }
 
 export interface ImageResizeOptions {
@@ -328,7 +329,7 @@ export interface AppSettings {
   autoLaunch: boolean;
 }
 
-export type ToolConfigKey = "navigation" | "capture-proxy";
+export type ToolConfigKey = "navigation" | "capture-proxy" | "output-picker";
 
 export interface PortDiagnostic {
   label: string;
@@ -373,6 +374,12 @@ export interface WindowFrameState {
   isMaximized: boolean;
   isMinimized: boolean;
   isAlwaysOnTop: boolean;
+}
+
+export interface OpenDirectoryResult {
+  status: "opened" | "blocked" | "missing";
+  path: string;
+  message?: string;
 }
 
 export interface StickyNote {
@@ -430,7 +437,9 @@ export interface CaptureProxyRecord {
 
 export interface DevToolboxApi {
   selectFiles(filters?: DialogFileFilter[], multiSelections?: boolean): Promise<string[]>;
-  selectOutputDir(): Promise<string | null>;
+  selectOutputDir(defaultPath?: string): Promise<string | null>;
+  pathExists(targetPath: string): Promise<boolean>;
+  openDirectory(targetPath: string): Promise<OpenDirectoryResult>;
   convertFavicon(options: FaviconOptions): Promise<ConversionResult>;
   convertWebp(options: WebpOptions): Promise<ConversionResult>;
   compressImages(options: ImageCompressOptions): Promise<ConversionResult>;
@@ -504,6 +513,7 @@ export interface DevToolboxApi {
   minimizeWindow(): Promise<WindowFrameState>;
   toggleMaximizeWindow(): Promise<WindowFrameState>;
   closeWindow(): Promise<void>;
+  reloadWindow(): Promise<void>;
   onWindowStateChange(handler: (state: WindowFrameState) => void): () => void;
   getAlwaysOnTop(): Promise<boolean>;
   setAlwaysOnTop(enabled: boolean): Promise<boolean>;
