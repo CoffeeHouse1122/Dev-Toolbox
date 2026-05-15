@@ -479,7 +479,7 @@ onMounted(async () => {
     </aside>
 
     <main class="workspace">
-      <header class="topbar" aria-hidden="true"></header>
+      <!-- <header class="topbar" aria-hidden="true"></header> -->
 
       <div class="workspace-body">
         <RouterView />
