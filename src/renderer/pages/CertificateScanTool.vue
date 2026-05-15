@@ -229,7 +229,6 @@ watch(
             添加到列表
           </button>
         </div>
-        <p class="empty-state">添加时需要同时填写项目名和域名，添加后会直接出现在下方扫描结果列表中。</p>
       </section>
 
       <section class="tool-main certificate-panel certificate-overview-panel">

@@ -153,13 +153,13 @@ onBeforeUnmount(() => {
           </div>
           <div class="clip-actions">
             <button type="button" class="icon-button" :title="entry.pinned ? '取消固定' : '固定'" @click="togglePin(entry)">
-              <i :class="entry.pinned ? 'ri-pushpin-fill' : 'ri-pushpin-line'" aria-hidden="true"></i>
+              <i :class="entry.pinned ? 'ri-pushpin-2-fill' : 'ri-pushpin-line'" aria-hidden="true"></i>
             </button>
             <button type="button" class="icon-button" title="写回剪贴板" @click="writeBack(entry)">
               <i class="ri-clipboard-line" aria-hidden="true"></i>
             </button>
             <button type="button" class="icon-button" title="删除" @click="removeEntry(entry.id)">
-              <i class="ri-close-line" aria-hidden="true"></i>
+              <i class="ri-delete-bin-line" aria-hidden="true"></i>
             </button>
           </div>
         </article>

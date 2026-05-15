@@ -208,30 +208,11 @@ async function copyImage() {
     </div>
 
     <div class="code-shot-layout">
-      <div class="tool-main" style="padding: 0; box-shadow: none; border: 0; background: transparent;">
-        <div class="code-shot-stage" ref="stage" :style="{ background: theme.bg }">
-          <div
-            ref="frame"
-            class="code-shot-frame"
-            :class="{ padded: !showWindow }"
-            :style="{ background: theme.surface, color: theme.text, fontFamily: fontFamily, fontSize: `${fontSize}px`, padding: showWindow ? '0' : `${padding}px` }"
-          >
-            <div v-if="showWindow" class="code-shot-window">
-              <div class="code-shot-dots">
-                <span class="code-shot-dot" style="background: #ff5f56;"></span>
-                <span class="code-shot-dot" style="background: #ffbd2e;"></span>
-                <span class="code-shot-dot" style="background: #27c93f;"></span>
-              </div>
-              <span class="code-shot-title">{{ fileName }}</span>
-            </div>
-            <pre class="code-shot-body" :style="{ paddingLeft: showLineNumbers ? '14px' : '22px' }"><code><template v-for="(line, i) in tokens" :key="i"><span v-if="showLineNumbers" :style="{ color: theme.line, display: 'inline-block', width: '2.5em', textAlign: 'right', marginRight: '14px', userSelect: 'none' }">{{ i + 1 }}</span><span v-html="renderLineHtml(line)"></span>
-</template></code></pre>
-          </div>
-        </div>
-        <p v-if="status" class="empty-state" style="margin-top: 8px;">{{ status }}</p>
-      </div>
-
       <aside class="code-shot-controls">
+        <label class="field">
+          <span>代码</span>
+          <textarea v-model="code" class="tool-textarea markdown-editor" spellcheck="false"></textarea>
+        </label>
         <label class="field">
           <span>主题</span>
           <div class="segmented" style="flex-wrap: wrap;">
@@ -278,11 +259,32 @@ async function copyImage() {
           <input v-model="showLineNumbers" type="checkbox" />
           <span>显示行号</span>
         </label>
-        <label class="field">
-          <span>代码</span>
-          <textarea v-model="code" class="tool-textarea markdown-editor" spellcheck="false"></textarea>
-        </label>
+   
       </aside>
+      <div class="tool-main" style="padding: 0; box-shadow: none; border: 0; background: transparent;">
+        <div class="code-shot-stage" ref="stage" :style="{ background: theme.bg }">
+          <div
+            ref="frame"
+            class="code-shot-frame"
+            :class="{ padded: !showWindow }"
+            :style="{ background: theme.surface, color: theme.text, fontFamily: fontFamily, fontSize: `${fontSize}px`, padding: showWindow ? '0' : `${padding}px` }"
+          >
+            <div v-if="showWindow" class="code-shot-window">
+              <div class="code-shot-dots">
+                <span class="code-shot-dot" style="background: #ff5f56;"></span>
+                <span class="code-shot-dot" style="background: #ffbd2e;"></span>
+                <span class="code-shot-dot" style="background: #27c93f;"></span>
+              </div>
+              <span class="code-shot-title">{{ fileName }}</span>
+            </div>
+            <pre class="code-shot-body" :style="{ paddingLeft: showLineNumbers ? '14px' : '22px' }"><code><template v-for="(line, i) in tokens" :key="i"><span v-if="showLineNumbers" :style="{ color: theme.line, display: 'inline-block', width: '2.5em', textAlign: 'right', marginRight: '14px', userSelect: 'none' }">{{ i + 1 }}</span><span v-html="renderLineHtml(line)"></span>
+</template></code></pre>
+          </div>
+        </div>
+        <p v-if="status" class="empty-state" style="margin-top: 8px;">{{ status }}</p>
+      </div>
+
+
     </div>
   </section>
 </template>

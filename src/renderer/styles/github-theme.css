@@ -2803,7 +2803,7 @@ input[type="range"]:focus {
 /* ============ Code Screenshot tool ============ */
 .code-shot-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 320px;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 18px;
   align-items: start;
 }
