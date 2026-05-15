@@ -2,7 +2,8 @@ import { defineConfig } from "vite";
 import vue from "@vitejs/plugin-vue";
 import path from "node:path";
 
-export default defineConfig({
+export default defineConfig(({ command }) => ({
+  base: command === "build" ? "./" : "/",
   root: ".",
   publicDir: "build",
   plugins: [vue()],
@@ -19,5 +20,5 @@ export default defineConfig({
   server: {
     strictPort: true
   }
-});
+}));
 
