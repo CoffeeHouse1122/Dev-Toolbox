@@ -28,6 +28,7 @@ import type {
   VideoMuteOptions,
   SequenceAnimationOptions,
   ThemeTitleBarPayload,
+  WindowFrameState,
   ToolConfigKey,
   WebpOptions,
   UpdateStatus
@@ -119,6 +120,15 @@ const api: DevToolboxApi = {
     return () => ipcRenderer.off("update:status", listener);
   },
   setThemeBackground: (payload: ThemeTitleBarPayload) => ipcRenderer.send("theme:background", toPlain(payload)),
+  getWindowState: () => ipcRenderer.invoke("window:get-state"),
+  minimizeWindow: () => ipcRenderer.invoke("window:minimize"),
+  toggleMaximizeWindow: () => ipcRenderer.invoke("window:toggle-maximize"),
+  closeWindow: () => ipcRenderer.invoke("window:close"),
+  onWindowStateChange: (handler: (state: WindowFrameState) => void) => {
+    const listener = (_event: unknown, state: WindowFrameState) => handler(state);
+    ipcRenderer.on("window:state-changed", listener);
+    return () => ipcRenderer.off("window:state-changed", listener);
+  },
   getAlwaysOnTop: () => ipcRenderer.invoke("window:get-always-on-top"),
   setAlwaysOnTop: (enabled: boolean) => ipcRenderer.invoke("window:set-always-on-top", enabled),
   loadStickyNotes: () => ipcRenderer.invoke("notes:load"),

@@ -5,7 +5,7 @@ import { registerIpc } from "./ipc";
 import { loadAppSettings, getCachedSettings } from "./services/settings.service";
 import { getPreloadEntryPath, getRendererIndexPath, getRuntimeIconPath } from "./utils/app-paths";
 import { initAutoUpdater, checkForUpdates, downloadUpdate, installUpdate } from "./services/autoUpdater.service";
-import type { ThemeTitleBarPayload } from "../../shared/types";
+import type { ThemeTitleBarPayload, WindowFrameState } from "../../shared/types";
 import fs from "node:fs";
 
 const isDev = Boolean(process.env.VITE_DEV_SERVER_URL);
@@ -79,6 +79,19 @@ function ensureTray() {
   return tray;
 }
 
+function getWindowState(): WindowFrameState {
+  return {
+    isMaximized: Boolean(mainWindow?.isMaximized()),
+    isMinimized: Boolean(mainWindow?.isMinimized()),
+    isAlwaysOnTop: Boolean(mainWindow?.isAlwaysOnTop())
+  };
+}
+
+function emitWindowState() {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  mainWindow.webContents.send("window:state-changed", getWindowState());
+}
+
 function createWindow() {
   const iconPath = getRuntimeIconPath();
   const win = new BrowserWindow({
@@ -87,13 +100,8 @@ function createWindow() {
     minWidth: 1280,
     minHeight: 820,
     title: "Dev Toolbox",
+    frame: false,
     backgroundColor: DEFAULT_TITLEBAR_THEME.surfaceColor,
-    titleBarStyle: "hidden",
-    titleBarOverlay: {
-      color: DEFAULT_TITLEBAR_THEME.surfaceColor,
-      symbolColor: DEFAULT_TITLEBAR_THEME.textColor,
-      height: 36
-    },
     autoHideMenuBar: true,
     icon: iconPath,
     webPreferences: {
@@ -108,16 +116,6 @@ function createWindow() {
 
   win.setMenuBarVisibility(false);
   win.removeMenu();
-
-  try {
-    win.setTitleBarOverlay({
-      color: DEFAULT_TITLEBAR_THEME.surfaceColor,
-      symbolColor: DEFAULT_TITLEBAR_THEME.textColor,
-      height: 36
-    });
-  } catch {
-    /* non-Windows */
-  }
 
   if (isDev && process.env.VITE_DEV_SERVER_URL) {
     void win.loadURL(process.env.VITE_DEV_SERVER_URL);
@@ -139,6 +137,12 @@ function createWindow() {
   win.on("closed", () => {
     if (mainWindow === win) mainWindow = null;
   });
+
+  win.on("maximize", emitWindowState);
+  win.on("unmaximize", emitWindowState);
+  win.on("minimize", emitWindowState);
+  win.on("restore", emitWindowState);
+  win.webContents.on("did-finish-load", emitWindowState);
 }
 
 app.on("second-instance", () => {
@@ -156,12 +160,36 @@ ipcMain.handle("app:show", () => {
   showMainWindow();
 });
 
+ipcMain.handle("window:get-state", () => {
+  return getWindowState();
+});
+
+ipcMain.handle("window:minimize", () => {
+  mainWindow?.minimize();
+  return getWindowState();
+});
+
+ipcMain.handle("window:toggle-maximize", () => {
+  if (!mainWindow) return getWindowState();
+  if (mainWindow.isMaximized()) {
+    mainWindow.unmaximize();
+  } else {
+    mainWindow.maximize();
+  }
+  return getWindowState();
+});
+
+ipcMain.handle("window:close", () => {
+  mainWindow?.close();
+});
+
 ipcMain.handle("window:get-always-on-top", () => {
   return Boolean(mainWindow?.isAlwaysOnTop());
 });
 
 ipcMain.handle("window:set-always-on-top", (_event, enabled: boolean) => {
   mainWindow?.setAlwaysOnTop(Boolean(enabled));
+  emitWindowState();
   return Boolean(mainWindow?.isAlwaysOnTop());
 });
 
@@ -194,14 +222,8 @@ ipcMain.handle("update:current-version", () => {
 // 渲染进程通知主题变化 → 更新标题栏颜色
 ipcMain.on("theme:background", (_event, payload: ThemeTitleBarPayload) => {
   const surfaceColor = payload?.surfaceColor || DEFAULT_TITLEBAR_THEME.surfaceColor;
-  const textColor = payload?.textColor || DEFAULT_TITLEBAR_THEME.textColor;
 
   mainWindow?.setBackgroundColor(surfaceColor);
-  try {
-    mainWindow?.setTitleBarOverlay({ color: surfaceColor, symbolColor: textColor, height: 36 });
-  } catch {
-    /* older Electron or non-Windows */
-  }
 });
 
 app.whenReady().then(async () => {

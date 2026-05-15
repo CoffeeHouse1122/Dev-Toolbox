@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { RouterLink, RouterView } from "vue-router";
 import { useThemeStore } from "../stores/theme";
 
@@ -31,6 +31,8 @@ const navImportInput = ref<HTMLInputElement | null>(null);
 const navEditorMessage = ref("");
 const navConfigLoaded = ref(false);
 const alwaysOnTop = ref(false);
+const isWindowMaximized = ref(false);
+let stopWindowStateSync: (() => void) | null = null;
 
 const defaultGroups: NavGroup[] = [
   {
@@ -421,8 +423,32 @@ async function syncAlwaysOnTop() {
   alwaysOnTop.value = await window.devToolbox.getAlwaysOnTop();
 }
 
+async function syncWindowState() {
+  const state = await window.devToolbox.getWindowState();
+  alwaysOnTop.value = state.isAlwaysOnTop;
+  isWindowMaximized.value = state.isMaximized;
+}
+
 async function toggleAlwaysOnTop() {
   alwaysOnTop.value = await window.devToolbox.setAlwaysOnTop(!alwaysOnTop.value);
+}
+
+async function minimizeWindow() {
+  const state = await window.devToolbox.minimizeWindow();
+  isWindowMaximized.value = state.isMaximized;
+}
+
+async function toggleMaximizeWindow() {
+  const state = await window.devToolbox.toggleMaximizeWindow();
+  isWindowMaximized.value = state.isMaximized;
+}
+
+async function closeWindow() {
+  await window.devToolbox.closeWindow();
+}
+
+function toggleTheme() {
+  theme.setMode(theme.resolvedTheme === "dark" ? "light" : "dark");
 }
 
 watch(
@@ -443,9 +469,18 @@ watch(
 
 onMounted(async () => {
   await loadNavConfig();
-  await syncAlwaysOnTop();
+  await syncWindowState();
+  stopWindowStateSync = window.devToolbox.onWindowStateChange((state) => {
+    alwaysOnTop.value = state.isAlwaysOnTop;
+    isWindowMaximized.value = state.isMaximized;
+  });
   theme.sync();
   window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", theme.sync);
+});
+
+onBeforeUnmount(() => {
+  stopWindowStateSync?.();
+  stopWindowStateSync = null;
 });
 
 </script>
@@ -453,16 +488,44 @@ onMounted(async () => {
 <template>
   <div class="app-shell">
     <div class="window-drag-strip">
-      <button
-        type="button"
-        class="titlebar-window-button titlebar-pin-button"
-        :title="alwaysOnTop ? '取消窗口置顶' : '窗口置顶'"
-        :aria-label="alwaysOnTop ? '取消窗口置顶' : '窗口置顶'"
-        :aria-pressed="alwaysOnTop"
-        @click="toggleAlwaysOnTop"
-      >
-        <i :class="alwaysOnTop ? 'ri-pushpin-2-fill' : 'ri-pushpin-line'" aria-hidden="true"></i>
-      </button>
+      <div class="titlebar-drag-area" aria-hidden="true" @dblclick="toggleMaximizeWindow"></div>
+      <div class="titlebar-control-group">
+        <button
+          type="button"
+          class="titlebar-window-button"
+          :title="theme.resolvedTheme === 'dark' ? '切换到浅色主题' : '切换到深色主题'"
+          :aria-label="theme.resolvedTheme === 'dark' ? '切换到浅色主题' : '切换到深色主题'"
+          @click="toggleTheme"
+        >
+          <i :class="theme.resolvedTheme === 'dark' ? 'ri-moon-line' : 'ri-sun-line'" aria-hidden="true"></i>
+        </button>
+        <button
+          type="button"
+          class="titlebar-window-button titlebar-pin-button"
+          :title="alwaysOnTop ? '取消窗口置顶' : '窗口置顶'"
+          :aria-label="alwaysOnTop ? '取消窗口置顶' : '窗口置顶'"
+          :aria-pressed="alwaysOnTop"
+          @click="toggleAlwaysOnTop"
+        >
+          <i :class="alwaysOnTop ? 'ri-pushpin-2-fill' : 'ri-pushpin-line'" aria-hidden="true"></i>
+        </button>
+        <button type="button" class="titlebar-window-button" title="最小化窗口" aria-label="最小化窗口" @click="minimizeWindow">
+          <i class="ri-subtract-line" aria-hidden="true"></i>
+        </button>
+        <button
+          type="button"
+          class="titlebar-window-button"
+          :title="isWindowMaximized ? '还原窗口' : '最大化窗口'"
+          :aria-label="isWindowMaximized ? '还原窗口' : '最大化窗口'"
+          :aria-pressed="isWindowMaximized"
+          @click="toggleMaximizeWindow"
+        >
+          <i :class="isWindowMaximized ? 'ri-checkbox-multiple-blank-line' : 'ri-checkbox-blank-line'" aria-hidden="true"></i>
+        </button>
+        <button type="button" class="titlebar-window-button titlebar-close-button" title="关闭窗口" aria-label="关闭窗口" @click="closeWindow">
+          <i class="ri-close-line" aria-hidden="true"></i>
+        </button>
+      </div>
     </div>
     <aside class="sidebar">
       <div class="brand">

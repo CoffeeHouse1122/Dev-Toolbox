@@ -22,7 +22,7 @@ function readTitleBarTheme(): ThemeTitleBarPayload {
 
 export const useThemeStore = defineStore("theme", {
   state: () => ({
-    mode: (localStorage.getItem("theme-mode") as ThemeMode | null) ?? "system"
+    mode: (localStorage.getItem("theme-mode") as ThemeMode | null) ?? "dark"
   }),
   getters: {
     resolvedTheme(state) {

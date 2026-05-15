@@ -369,6 +369,12 @@ export interface ThemeTitleBarPayload {
   textColor: string;
 }
 
+export interface WindowFrameState {
+  isMaximized: boolean;
+  isMinimized: boolean;
+  isAlwaysOnTop: boolean;
+}
+
 export interface StickyNote {
   id: string;
   fileName: string;
@@ -494,6 +500,11 @@ export interface DevToolboxApi {
   onUpdateStatus(handler: (status: UpdateStatus) => void): () => void;
   /** 通知主进程更新标题栏背景色 */
   setThemeBackground(payload: ThemeTitleBarPayload): void;
+  getWindowState(): Promise<WindowFrameState>;
+  minimizeWindow(): Promise<WindowFrameState>;
+  toggleMaximizeWindow(): Promise<WindowFrameState>;
+  closeWindow(): Promise<void>;
+  onWindowStateChange(handler: (state: WindowFrameState) => void): () => void;
   getAlwaysOnTop(): Promise<boolean>;
   setAlwaysOnTop(enabled: boolean): Promise<boolean>;
   loadStickyNotes(): Promise<StickyNotesState>;
