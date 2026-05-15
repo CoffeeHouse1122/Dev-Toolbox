@@ -30,6 +30,7 @@ const editingNav = ref(false);
 const navImportInput = ref<HTMLInputElement | null>(null);
 const navEditorMessage = ref("");
 const navConfigLoaded = ref(false);
+const alwaysOnTop = ref(false);
 
 const defaultGroups: NavGroup[] = [
   {
@@ -416,6 +417,14 @@ function isGroupDropTarget(groupIndex: number) {
   return false;
 }
 
+async function syncAlwaysOnTop() {
+  alwaysOnTop.value = await window.devToolbox.getAlwaysOnTop();
+}
+
+async function toggleAlwaysOnTop() {
+  alwaysOnTop.value = await window.devToolbox.setAlwaysOnTop(!alwaysOnTop.value);
+}
+
 watch(
   groups,
   () => {
@@ -434,6 +443,7 @@ watch(
 
 onMounted(async () => {
   await loadNavConfig();
+  await syncAlwaysOnTop();
   theme.sync();
   window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", theme.sync);
 });
@@ -442,7 +452,18 @@ onMounted(async () => {
 
 <template>
   <div class="app-shell">
-    <div class="window-drag-strip" aria-hidden="true"></div>
+    <div class="window-drag-strip">
+      <button
+        type="button"
+        class="titlebar-window-button titlebar-pin-button"
+        :title="alwaysOnTop ? '取消窗口置顶' : '窗口置顶'"
+        :aria-label="alwaysOnTop ? '取消窗口置顶' : '窗口置顶'"
+        :aria-pressed="alwaysOnTop"
+        @click="toggleAlwaysOnTop"
+      >
+        <i :class="alwaysOnTop ? 'ri-pushpin-2-fill' : 'ri-pushpin-line'" aria-hidden="true"></i>
+      </button>
+    </div>
     <aside class="sidebar">
       <div class="brand">
         <div class="brand-mark"><img src="/icons/favicon-128x128.png" alt="Dev Toolbox" width="30" height="30" /></div>

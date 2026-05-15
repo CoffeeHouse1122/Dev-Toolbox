@@ -114,13 +114,46 @@ button {
   position: fixed;
   top: 0;
   left: 0;
-  /* right: 138px; */
   right: 0;
   z-index: 900;
+  display: flex;
+  justify-content: flex-end;
   height: var(--titlebar-height);
   border-bottom: 1px solid var(--border);
   background: var(--surface);
   -webkit-app-region: drag;
+}
+
+.titlebar-window-button {
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 100%;
+  margin-right: 138px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--text);
+  font-size: 18px;
+  -webkit-app-region: no-drag;
+}
+
+.titlebar-window-button:hover {
+  background: var(--surface-subtle);
+}
+
+.titlebar-window-button:active {
+  background: color-mix(in srgb, var(--border) 60%, transparent);
+}
+
+.titlebar-window-button:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 58%, transparent);
+  outline-offset: -2px;
+}
+
+.titlebar-pin-button i {
+  pointer-events: none;
 }
 
 .sidebar {
@@ -329,6 +362,7 @@ button {
   scrollbar-gutter: stable;
   padding-right: 10px;
   padding-top: 40px;
+  padding-bottom: 40px;
 }
 
 .workspace-body::-webkit-scrollbar {
@@ -586,7 +620,7 @@ button {
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--surface);
-  box-shadow: var(--shadow);
+  /* box-shadow: var(--shadow); */
 }
 
 .tool-main {
@@ -1161,7 +1195,7 @@ body {
 
 .workspace {
   /* padding: 60px 24px 28px; */
-  padding: 0px 24px 28px;
+  padding: 0px 24px;
 }
 
 .topbar {

@@ -15,7 +15,6 @@ const activeId = ref("");
 const draftContent = ref("");
 const busy = ref(false);
 const saveState = ref("未保存");
-const alwaysOnTop = ref(false);
 const editorRef = ref<HTMLElement | null>(null);
 const previewViewportRef = ref<HTMLElement | null>(null);
 const previewImage = ref("");
@@ -356,10 +355,6 @@ async function handlePaste(event: ClipboardEvent) {
   syncEditorContent();
 }
 
-async function toggleAlwaysOnTop() {
-  alwaysOnTop.value = await window.devToolbox.setAlwaysOnTop(!alwaysOnTop.value);
-}
-
 function formatTime(value: number) {
   const date = new Date(value);
   const pad = (input: number) => String(input).padStart(2, "0");
@@ -478,7 +473,6 @@ async function exportActiveAsImage() {
 }
 
 onMounted(async () => {
-  alwaysOnTop.value = await window.devToolbox.getAlwaysOnTop();
   await loadNotes();
 });
 
@@ -500,10 +494,6 @@ onBeforeUnmount(() => {
             <button type="button" class="primary-button" @click="createNote">
               <i class="ri-add-line" aria-hidden="true"></i>
               新建
-            </button>
-            <button type="button" class="secondary-button" :class="{ selected: alwaysOnTop }" @click="toggleAlwaysOnTop">
-              <i :class="alwaysOnTop ? 'ri-pushpin-fill' : 'ri-pushpin-line'" aria-hidden="true"></i>
-              置顶
             </button>
             <button type="button" class="secondary-button" @click="chooseDirectory">
               <i class="ri-folder-open-line" aria-hidden="true"></i>
@@ -535,7 +525,7 @@ onBeforeUnmount(() => {
                 <small>{{ formatTime(note.updatedAt) }}</small>
               </div>
               <button type="button" class="icon-button" :title="note.pinned ? '取消置顶' : '置顶便签'" @click.stop="toggleNotePinned(note)">
-                <i :class="note.pinned ? 'ri-pushpin-fill' : 'ri-pushpin-line'" aria-hidden="true"></i>
+                <i :class="note.pinned ? 'ri-pushpin-2-fill' : 'ri-pushpin-line'" aria-hidden="true"></i>
               </button>
               <button type="button" class="icon-button" title="删除便签" @click.stop="requestDeleteNote(note)">
                 <i class="ri-delete-bin-line" aria-hidden="true"></i>
