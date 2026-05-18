@@ -61,14 +61,16 @@ function outputName(options: SequenceAnimationOptions) {
 async function prepareFrames(inputPaths: string[], tempDir: string, targetWidth?: number) {
   const first = inputPaths[0];
   if (!first) throw new Error("没有输入帧。");
-  const meta = await sharp(first).metadata();
+  const firstBuffer = await fs.readFile(first);
+  const meta = await sharp(firstBuffer, { limitInputPixels: false }).metadata();
   if (!meta.width || !meta.height) throw new Error("无法读取首帧尺寸。");
   const baseW = targetWidth || meta.width;
   const baseH = Math.max(1, Math.round((baseW / meta.width) * meta.height));
 
   for (let i = 0; i < inputPaths.length; i += 1) {
     const target = path.join(tempDir, `frame_${String(i + 1).padStart(5, "0")}.png`);
-    await sharp(inputPaths[i])
+    const inputBuffer = i === 0 ? firstBuffer : await fs.readFile(inputPaths[i]);
+    await sharp(inputBuffer, { limitInputPixels: false })
       .resize({
         width: baseW,
         height: baseH,

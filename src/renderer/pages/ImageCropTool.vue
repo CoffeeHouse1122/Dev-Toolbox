@@ -16,6 +16,7 @@ const quality = ref(92);
 const busy = ref(false);
 const result = ref<ConversionResult | null>(null);
 const stage = ref<HTMLElement | null>(null);
+const imageUrl = ref("");
 const naturalWidth = ref(0);
 const naturalHeight = ref(0);
 const selection = reactive({ x: 10, y: 10, w: 80, h: 80 });
@@ -35,7 +36,6 @@ const formatOptions = [
 ];
 const handles: ResizeHandle[] = ["nw", "n", "ne", "e", "se", "s", "sw", "w"];
 
-const imageUrl = computed(() => (input.value[0] ? `devtoolbox-file://preview/${encodeURIComponent(input.value[0])}` : ""));
 const canRun = computed(() => input.value[0] && outputDir.value && cropRect.value.width > 0 && cropRect.value.height > 0 && !busy.value);
 const selectionStyle = computed(() => ({
   left: `${selection.x}%`,
@@ -50,13 +50,25 @@ const cropRect = computed(() => ({
   height: Math.max(1, Math.round((naturalHeight.value * selection.h) / 100))
 }));
 
+let previewRequestId = 0;
+
 watch(
   () => input.value[0],
-  () => {
+  async (inputPath) => {
+    const requestId = ++previewRequestId;
+    imageUrl.value = "";
     result.value = null;
     naturalWidth.value = 0;
     naturalHeight.value = 0;
     Object.assign(selection, { x: 10, y: 10, w: 80, h: 80 });
+
+    if (!inputPath) return;
+    try {
+      const image = await window.devToolbox.imageToBase64(inputPath);
+      if (requestId === previewRequestId) imageUrl.value = image.dataUrl;
+    } catch {
+      if (requestId === previewRequestId) imageUrl.value = "";
+    }
   }
 );
 

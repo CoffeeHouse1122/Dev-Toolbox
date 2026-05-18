@@ -2,7 +2,7 @@
   "appName": "Dev Toolbox",
   "title": "Dev Toolbox 开发工具箱",
   "heroDescription": "本地优先的前端资源转换桌面工具箱，支持图片、字体、音视频、CSS、文本等常见开发资产的格式转换与处理。页面会根据更新清单自动展示当前版本号、下载入口和更新日志。",
-  "latestVersion": "0.1.0",
+  "latestVersion": "0.1.1",
   "system": "Windows 10 / 11",
   "packageType": "NSIS 安装程序",
   "recommendedEnvironment": "4GB 内存以上",
@@ -10,7 +10,7 @@
   "downloads": [
     {
       "label": "下载 Windows x64",
-      "url": "./release/Dev Toolbox-0.1.0-x64.exe",
+      "url": "./release/Dev Toolbox-0.1.1-x64.exe",
       "note": "适用于 64 位 Windows 桌面环境",
       "primary": true
     }
@@ -36,6 +36,23 @@
   ],
   "releaseNotes": [
     {
+      "version": "0.1.1",
+      "publishedAt": "2026-05-18",
+      "summary": "修复已知问题并优化部分工具的性能，提升用户体验。",
+      "changes": [
+        "启动即显示托盘图标",
+        "图片拖入后源文件被占用问题已修复"
+      ],
+      "downloads": [
+        {
+          "label": "下载 Windows x64",
+          "url": "./release/Dev Toolbox-0.1.1-x64.exe",
+          "note": "适用于 64 位 Windows 桌面环境",
+          "primary": true
+        }
+      ]
+    },
+        {
       "version": "0.1.0",
       "publishedAt": "2026-05-15",
       "summary": "首个公开发布版本，覆盖图片、字体、音视频、CSS、文本、网络、加解密等 46 项前端开发工具。",

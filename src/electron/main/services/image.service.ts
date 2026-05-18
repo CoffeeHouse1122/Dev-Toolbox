@@ -35,13 +35,14 @@ export async function createFaviconPackage(
     await ensureDir(options.outputDir);
     const tempDir = path.join(options.outputDir, `.favicon-temp-${id}`);
     await ensureDir(tempDir);
+    const inputBuffer = await readImageInput(options.inputPath);
 
     const sizes = [...new Set(options.sizes)].sort((a, b) => a - b);
     const pngFiles: Array<{ size: number; filePath: string }> = [];
 
     for (const size of sizes) {
       const output = path.join(tempDir, `favicon-${size}.png`);
-      await sharp(options.inputPath)
+      await sharp(inputBuffer, { limitInputPixels: false })
         .resize(size, size, { fit: "cover", position: "center" })
         .png({ compressionLevel: 9 })
         .toFile(output);
@@ -57,7 +58,7 @@ export async function createFaviconPackage(
     const icoEntries = pngFiles.filter((item) => item.size <= 256);
     if (!icoEntries.length) {
       const fallbackOutput = path.join(tempDir, "favicon-256.png");
-      await sharp(options.inputPath)
+      await sharp(inputBuffer, { limitInputPixels: false })
         .resize(256, 256, { fit: "cover", position: "center" })
         .png({ compressionLevel: 9 })
         .toFile(fallbackOutput);
@@ -118,11 +119,12 @@ export async function convertImages(options: WebpOptions, history: HistoryServic
     await ensureDir(options.outputDir);
 
     for (const inputPath of options.inputPaths) {
+      const inputBuffer = await readImageInput(inputPath);
       const base = safeBaseName(inputPath);
       const extension = options.outputFormat === "jpeg" ? "jpg" : options.outputFormat;
       const output = path.join(options.outputDir, `${base}.${extension}`);
 
-      let pipeline = sharp(inputPath, { limitInputPixels: false }).rotate();
+      let pipeline = sharp(inputBuffer, { limitInputPixels: false }).rotate();
       if (options.maxWidth || options.maxHeight) {
         pipeline = pipeline.resize({
           width: options.maxWidth,
@@ -167,6 +169,10 @@ type RasterFormat = "png" | "jpeg" | "webp" | "avif" | "tiff";
 
 const rasterFormats = new Set(["png", "jpg", "jpeg", "webp", "avif", "tif", "tiff"]);
 
+async function readImageInput(inputPath: string) {
+  return fs.readFile(inputPath);
+}
+
 function clampNumber(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
 }
@@ -206,7 +212,8 @@ function lineMeasure(line: string, fontSize: number) {
 
 async function patternToDataUri(patternPath: string | undefined, size: number) {
   if (!patternPath) return "";
-  const buffer = await sharp(patternPath, { limitInputPixels: false })
+  const patternBuffer = await readImageInput(patternPath);
+  const buffer = await sharp(patternBuffer, { limitInputPixels: false })
     .resize({ width: Math.round(size), height: Math.round(size), fit: "inside", withoutEnlargement: false })
     .png()
     .toBuffer();
@@ -287,10 +294,10 @@ function formatImageOutput(pipeline: sharp.Sharp, format: RasterFormat, quality:
   return pipeline.tiff({ quality, compression: "lzw" });
 }
 
-async function writeByInputFormat(inputPath: string, outputPath: string, quality: number, keepMetadata = false) {
-  const metadata = await sharp(inputPath).metadata();
+async function writeByInputFormat(inputPath: string, inputBuffer: Buffer, outputPath: string, quality: number, keepMetadata = false) {
+  const metadata = await sharp(inputBuffer, { limitInputPixels: false }).metadata();
   const format = metadata.format ?? path.extname(inputPath).slice(1).toLowerCase();
-  let pipeline = sharp(inputPath, { limitInputPixels: false }).rotate();
+  let pipeline = sharp(inputBuffer, { limitInputPixels: false }).rotate();
 
   if (keepMetadata) {
     pipeline = pipeline.withMetadata();
@@ -347,14 +354,15 @@ export async function compressImages(options: ImageCompressOptions, history: His
     await ensureDir(options.outputDir);
 
     for (const inputPath of options.inputPaths) {
-      const metadata = await sharp(inputPath).metadata();
+      const inputBuffer = await readImageInput(inputPath);
+      const metadata = await sharp(inputBuffer, { limitInputPixels: false }).metadata();
       const detectedFormat = metadata.format ?? (path.extname(inputPath).slice(1).toLowerCase() || "webp");
       const ext = outputExtension(detectedFormat);
       const fileName = options.keepOriginalName
         ? `${safeBaseName(inputPath)}.${ext}`
         : `${safeBaseName(inputPath)}-compressed.${ext}`;
       const output = await uniqueOutputPath(options.outputDir, fileName);
-      await writeByInputFormat(inputPath, output, options.quality, options.keepMetadata);
+      await writeByInputFormat(inputPath, inputBuffer, output, options.quality, options.keepMetadata);
       files.push(output);
       try {
         const [src, dst] = await Promise.all([fs.stat(inputPath), fs.stat(output)]);
@@ -393,7 +401,8 @@ export async function resizeImages(options: ImageResizeOptions, history: History
     await ensureDir(options.outputDir);
 
     for (const inputPath of options.inputPaths) {
-      const metadata = await sharp(inputPath).metadata();
+      const inputBuffer = await readImageInput(inputPath);
+      const metadata = await sharp(inputBuffer, { limitInputPixels: false }).metadata();
       const detectedFormat = metadata.format ?? (path.extname(inputPath).slice(1).toLowerCase() || "png");
       const ext = outputExtension(detectedFormat);
       const baseWidth = metadata.width ?? options.width;
@@ -402,7 +411,7 @@ export async function resizeImages(options: ImageResizeOptions, history: History
       const height = options.mode === "scale" && baseHeight ? Math.max(1, Math.round(baseHeight * ((options.scale ?? 100) / 100))) : options.height;
       const output = path.join(options.outputDir, `${safeBaseName(inputPath)}-resized.${ext}`);
 
-      await sharp(inputPath, { limitInputPixels: false })
+      await sharp(inputBuffer, { limitInputPixels: false })
         .rotate()
         .resize({ width, height, fit: "inside", withoutEnlargement: false })
         .toFile(output);
@@ -435,7 +444,8 @@ export async function cropImage(options: ImageCropOptions, history: HistoryServi
 
   try {
     await ensureDir(options.outputDir);
-    const metadata = await sharp(options.inputPath, { limitInputPixels: false }).metadata();
+    const inputBuffer = await readImageInput(options.inputPath);
+    const metadata = await sharp(inputBuffer, { limitInputPixels: false }).metadata();
     const imageWidth = metadata.width ?? 0;
     const imageHeight = metadata.height ?? 0;
     if (!imageWidth || !imageHeight) {
@@ -449,7 +459,7 @@ export async function cropImage(options: ImageCropOptions, history: HistoryServi
     const ext = outputExtension(options.outputFormat);
     const output = path.join(options.outputDir, `${safeBaseName(options.inputPath)}-cropped.${ext}`);
 
-    let pipeline = sharp(options.inputPath, { limitInputPixels: false }).extract({ left, top, width, height });
+    let pipeline = sharp(inputBuffer, { limitInputPixels: false }).extract({ left, top, width, height });
     if (options.outputFormat === "webp") {
       pipeline = pipeline.webp({ quality: options.quality });
     } else if (options.outputFormat === "png") {
@@ -516,7 +526,8 @@ export async function applyWatermark(options: WatermarkOptions, history: History
         throw new Error(`不支持的文件格式：${path.basename(inputPath)}`);
       }
 
-      const sourceBuffer = await sharp(inputPath, { limitInputPixels: false }).rotate().toBuffer();
+      const inputBuffer = await readImageInput(inputPath);
+      const sourceBuffer = await sharp(inputBuffer, { limitInputPixels: false }).rotate().toBuffer();
       const metadata = await sharp(sourceBuffer).metadata();
       const width = metadata.width ?? 0;
       const height = metadata.height ?? 0;

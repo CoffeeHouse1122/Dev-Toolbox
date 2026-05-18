@@ -1,4 +1,5 @@
 import path from "node:path";
+import fs from "node:fs/promises";
 import sharp from "sharp";
 import type { ConversionResult, SpriteOptions } from "../../../shared/types";
 import type { HistoryService } from "./history.service";
@@ -21,9 +22,11 @@ export async function generateSprite(options: SpriteOptions, history: HistorySer
     await ensureDir(options.outputDir);
     const images = await Promise.all(
       options.inputPaths.map(async (inputPath) => {
-        const metadata = await sharp(inputPath).metadata();
+        const inputBuffer = await fs.readFile(inputPath);
+        const metadata = await sharp(inputBuffer, { limitInputPixels: false }).metadata();
         return {
           inputPath,
+          inputBuffer,
           name: safeBaseName(inputPath),
           width: metadata.width ?? 1,
           height: metadata.height ?? 1
@@ -46,7 +49,7 @@ export async function generateSprite(options: SpriteOptions, history: HistorySer
         const left = column * (cellWidth + padding);
         const top = row * (cellHeight + padding);
         return {
-          input: await sharp(item.inputPath).png().toBuffer(),
+          input: await sharp(item.inputBuffer, { limitInputPixels: false }).png().toBuffer(),
           left,
           top
         };

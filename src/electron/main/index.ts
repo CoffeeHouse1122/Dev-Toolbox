@@ -234,6 +234,7 @@ app.whenReady().then(async () => {
   await loadAppSettings();
   registerPreviewProtocol();
   registerIpc();
+  ensureTray();
   createWindow();
 
   // 初始化自动更新（仅在打包后的生产环境生效）

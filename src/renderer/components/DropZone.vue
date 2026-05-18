@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, ref, watch } from "vue";
 import type { DialogFileFilter } from "../../shared/types";
 
 const props = defineProps<{
@@ -15,6 +15,8 @@ const emit = defineEmits<{
 }>();
 
 const isDragging = ref(false);
+const previewUrl = ref("");
+let previewRequestId = 0;
 
 const fileNames = computed(() => props.modelValue.map((item) => item.split(/[\\/]/).pop()).join(", "));
 const selectionLabel = computed(() => {
@@ -22,12 +24,26 @@ const selectionLabel = computed(() => {
   if (props.modelValue.length === 1) return fileNames.value;
   return `已选择 ${props.modelValue.length} 个文件`;
 });
-const previewUrl = computed(() => {
-  const first = props.modelValue[0];
-  if (!first || !props.preview) return "";
-  const url = `devtoolbox-file://preview/${encodeURIComponent(first)}`;
-  return props.preview === "video" ? `${url}#t=0.1` : url;
-});
+watch(
+  () => [props.modelValue[0], props.preview] as const,
+  async ([first, preview]) => {
+    const requestId = ++previewRequestId;
+    previewUrl.value = "";
+    if (!first || !preview) return;
+    if (preview === "video") {
+      previewUrl.value = `devtoolbox-file://preview/${encodeURIComponent(first)}#t=0.1`;
+      return;
+    }
+
+    try {
+      const image = await window.devToolbox.imageToBase64(first);
+      if (requestId === previewRequestId) previewUrl.value = image.dataUrl;
+    } catch {
+      if (requestId === previewRequestId) previewUrl.value = "";
+    }
+  },
+  { immediate: true }
+);
 
 async function pickFiles() {
   const paths = await window.devToolbox.selectFiles(props.filters, props.multiple ?? true);

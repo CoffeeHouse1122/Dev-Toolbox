@@ -1,4 +1,5 @@
 import path from "node:path";
+import fs from "node:fs/promises";
 import { encode } from "blurhash";
 import sharp from "sharp";
 import type { ConversionResult, ImagePlaceholderOptions } from "../../../shared/types";
@@ -6,24 +7,25 @@ import type { HistoryService } from "./history.service";
 import { ensureDir, safeBaseName, uniqueId, writeTextFile } from "./file-utils";
 
 async function placeholderFor(inputPath: string, tinyWidth: number, componentX: number, componentY: number) {
-  const image = sharp(inputPath, { limitInputPixels: false }).rotate();
+  const inputBuffer = await fs.readFile(inputPath);
+  const image = sharp(inputBuffer, { limitInputPixels: false }).rotate();
   const metadata = await image.metadata();
   const width = metadata.width ?? 1;
   const height = metadata.height ?? 1;
   const ratio = height / width;
   const tinyHeight = Math.max(1, Math.round(tinyWidth * ratio));
 
-  const dominant = await sharp(inputPath, { limitInputPixels: false }).stats();
+  const dominant = await sharp(inputBuffer, { limitInputPixels: false }).stats();
   const dominantColor = dominant.dominant
     ? `#${[dominant.dominant.r, dominant.dominant.g, dominant.dominant.b].map((item) => item.toString(16).padStart(2, "0")).join("")}`
     : "#f6f8fa";
-  const tinyBuffer = await sharp(inputPath, { limitInputPixels: false })
+  const tinyBuffer = await sharp(inputBuffer, { limitInputPixels: false })
     .rotate()
     .resize({ width: tinyWidth, withoutEnlargement: true })
     .jpeg({ quality: 42, mozjpeg: true })
     .toBuffer();
 
-  const raw = await sharp(inputPath, { limitInputPixels: false })
+  const raw = await sharp(inputBuffer, { limitInputPixels: false })
     .rotate()
     .resize({ width: 32, withoutEnlargement: true })
     .ensureAlpha()
