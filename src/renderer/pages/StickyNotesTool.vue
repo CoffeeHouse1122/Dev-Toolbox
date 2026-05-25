@@ -8,6 +8,15 @@ type ExportBlock =
   | { type: "image"; src: string };
 
 const imageTokenPattern = /!\[[^\]]*\]\((data:image\/[^)]+)\)/g;
+const richNoteMarker = "<!-- dev-toolbox-note-html:v1 -->";
+const editorPositionStorageKey = "dev-toolbox.sticky-notes.position.v1";
+const urlPattern = /((?:https?:\/\/|www\.)[^\s<>"']+|mailto:[^\s<>"']+)/gi;
+
+type EditorPositionState = {
+  activeId: string;
+  caretOffset: number;
+  scrollTop: number;
+};
 
 const directory = ref("");
 const notes = ref<StickyNote[]>([]);
@@ -15,6 +24,8 @@ const activeId = ref("");
 const draftContent = ref("");
 const busy = ref(false);
 const saveState = ref("未保存");
+const fontSize = ref(16);
+const fontColor = ref("#1f2328");
 const editorRef = ref<HTMLElement | null>(null);
 const previewViewportRef = ref<HTMLElement | null>(null);
 const previewImage = ref("");
@@ -53,6 +64,26 @@ function imageToken(src: string) {
   return `![粘贴图片](${src})`;
 }
 
+function normalizeLinkHref(value: string) {
+  if (/^www\./i.test(value)) return `https://${value}`;
+  return value;
+}
+
+function linkifyPlainText(value: string) {
+  urlPattern.lastIndex = 0;
+  let html = "";
+  let cursor = 0;
+  let match: RegExpExecArray | null;
+  while ((match = urlPattern.exec(value))) {
+    const text = match[0];
+    html += escapeHtml(value.slice(cursor, match.index));
+    html += `<a href="${escapeHtml(normalizeLinkHref(text))}" data-note-link="${escapeHtml(normalizeLinkHref(text))}">${escapeHtml(text)}</a>`;
+    cursor = match.index + text.length;
+  }
+  html += escapeHtml(value.slice(cursor));
+  return html;
+}
+
 function noteTextToEditorHtml(content: string) {
   const lines = content.split(/\r?\n/);
   return lines
@@ -62,44 +93,141 @@ function noteTextToEditorHtml(content: string) {
       let cursor = 0;
       let match: RegExpExecArray | null;
       while ((match = imageTokenPattern.exec(line))) {
-        html += escapeHtml(line.slice(cursor, match.index));
+        html += linkifyPlainText(line.slice(cursor, match.index));
         html += `<img src="${match[1]}" data-note-src="${match[1]}" alt="粘贴图片" class="note-inline-image">`;
         cursor = match.index + match[0].length;
       }
-      html += escapeHtml(line.slice(cursor));
+      html += linkifyPlainText(line.slice(cursor));
       return html;
     })
     .join("<br>");
 }
 
-function editorDomToText(root: HTMLElement) {
-  const walk = (node: Node): string => {
-    if (node.nodeType === Node.TEXT_NODE) return node.textContent || "";
-    if (!(node instanceof HTMLElement)) return "";
-    const tagName = node.tagName.toLowerCase();
-    if (tagName === "br") return "\n";
-    if (tagName === "img") return imageToken(node.dataset.noteSrc || node.getAttribute("src") || "");
+function contentToEditorHtml(content: string) {
+  return content.startsWith(richNoteMarker) ? content.slice(richNoteMarker.length) : noteTextToEditorHtml(content);
+}
 
-    const childText = Array.from(node.childNodes).map(walk).join("");
-    if (["div", "p", "section", "article"].includes(tagName) && childText && !childText.endsWith("\n")) {
-      return `${childText}\n`;
-    }
-    return childText;
-  };
-
-  return Array.from(root.childNodes)
-    .map(walk)
-    .join("")
-    .replace(/\n{4,}/g, "\n\n\n")
-    .replace(/\n+$/, (value) => (value.length > 1 ? "\n" : value));
+function editorDomToStoredContent(root: HTMLElement) {
+  return `${richNoteMarker}${root.innerHTML}`;
 }
 
 function contentToPlainText(content: string) {
-  return content.replace(imageTokenPattern, "[图片]");
+  if (!content.startsWith(richNoteMarker)) return content.replace(imageTokenPattern, "[图片]");
+  const container = document.createElement("div");
+  container.innerHTML = content.slice(richNoteMarker.length);
+  return container.innerText.replace(/\u200b/g, "").trim();
 }
 
 function fileBaseName(note: StickyNote) {
   return note.title.replace(/[<>:"/\\|?*\x00-\x1F]/g, " ").replace(/\s+/g, " ").trim().slice(0, 36) || "便签";
+}
+
+function loadEditorPosition(): EditorPositionState | null {
+  try {
+    const raw = localStorage.getItem(editorPositionStorageKey);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<EditorPositionState>;
+    return {
+      activeId: String(parsed.activeId || ""),
+      caretOffset: Number(parsed.caretOffset || 0),
+      scrollTop: Number(parsed.scrollTop || 0)
+    };
+  } catch {
+    return null;
+  }
+}
+
+function textLengthForNode(node: Node) {
+  if (node.nodeType === Node.TEXT_NODE) return node.textContent?.length ?? 0;
+  if (node instanceof HTMLBRElement) return 1;
+  if (node instanceof HTMLImageElement) return 1;
+  return 0;
+}
+
+function getCaretOffset(root: HTMLElement) {
+  const selection = window.getSelection();
+  if (!selection || selection.rangeCount === 0) return 0;
+  const range = selection.getRangeAt(0);
+  if (!root.contains(range.startContainer)) return 0;
+  let offset = 0;
+  let found = false;
+
+  const walk = (node: Node) => {
+    if (found) return;
+    if (node === range.startContainer) {
+      offset += range.startOffset;
+      found = true;
+      return;
+    }
+    if (node.nodeType === Node.TEXT_NODE || node instanceof HTMLBRElement || node instanceof HTMLImageElement) {
+      offset += textLengthForNode(node);
+      return;
+    }
+    for (const child of Array.from(node.childNodes)) walk(child);
+  };
+
+  walk(root);
+  return offset;
+}
+
+function storeEditorPosition() {
+  if (!activeId.value) return;
+  const payload: EditorPositionState = {
+    activeId: activeId.value,
+    caretOffset: editorRef.value ? getCaretOffset(editorRef.value) : 0,
+    scrollTop: editorRef.value?.scrollTop ?? 0
+  };
+  localStorage.setItem(editorPositionStorageKey, JSON.stringify(payload));
+}
+
+function restoreEditorPosition(noteId: string) {
+  const saved = loadEditorPosition();
+  const root = editorRef.value;
+  if (!saved || saved.activeId !== noteId || !root) return;
+
+  requestAnimationFrame(() => {
+    const selection = window.getSelection();
+    if (!selection) return;
+    const range = document.createRange();
+    let remaining = saved.caretOffset;
+    let placed = false;
+
+    const walk = (node: Node) => {
+      if (placed) return;
+      if (node.nodeType === Node.TEXT_NODE) {
+        const length = node.textContent?.length ?? 0;
+        if (remaining <= length) {
+          range.setStart(node, Math.max(0, remaining));
+          range.collapse(true);
+          placed = true;
+          return;
+        }
+        remaining -= length;
+        return;
+      }
+      if (node instanceof HTMLBRElement || node instanceof HTMLImageElement) {
+        if (remaining <= 1) {
+          range.setStartAfter(node);
+          range.collapse(true);
+          placed = true;
+          return;
+        }
+        remaining -= 1;
+        return;
+      }
+      for (const child of Array.from(node.childNodes)) walk(child);
+    };
+
+    walk(root);
+    if (!placed) {
+      range.selectNodeContents(root);
+      range.collapse(false);
+    }
+    selection.removeAllRanges();
+    selection.addRange(range);
+    root.scrollTop = saved.scrollTop;
+    root.focus();
+  });
 }
 
 async function saveNoteContent(id: string, content: string) {
@@ -116,6 +244,7 @@ async function saveNoteContent(id: string, content: string) {
     activeId.value = saved.id;
     draftContent.value = saved.content;
     saveState.value = "已保存";
+    storeEditorPosition();
   }
   return saved;
 }
@@ -134,25 +263,31 @@ async function loadNotes() {
   busy.value = true;
   try {
     const state = await window.devToolbox.loadStickyNotes();
+    const savedPosition = loadEditorPosition();
     directory.value = state.directory;
     notes.value = sortNotes(state.notes);
-    if (!activeId.value && state.notes[0]) await selectNote(state.notes[0]);
+    if (!activeId.value && state.notes[0]) {
+      const preferredNote = state.notes.find((note) => note.id === savedPosition?.activeId) ?? state.notes[0];
+      await selectNote(preferredNote, true);
+    }
     if (activeId.value && !state.notes.some((note) => note.id === activeId.value)) {
-      await selectNote(state.notes[0] ?? null);
+      await selectNote(state.notes[0] ?? null, true);
     }
   } finally {
     busy.value = false;
   }
 }
 
-async function selectNote(note: StickyNote | null) {
+async function selectNote(note: StickyNote | null, restorePosition = false) {
   await flushPendingSave();
   suppressSave = true;
   activeId.value = note?.id ?? "";
   draftContent.value = note?.content ?? "";
   saveState.value = note ? "已保存" : "未选择";
   await nextTick();
-  if (editorRef.value) editorRef.value.innerHTML = note ? noteTextToEditorHtml(note.content) : "";
+  if (editorRef.value) editorRef.value.innerHTML = note ? contentToEditorHtml(note.content) : "";
+  if (note && restorePosition) restoreEditorPosition(note.id);
+  else storeEditorPosition();
   queueMicrotask(() => {
     suppressSave = false;
   });
@@ -217,7 +352,8 @@ function scheduleSave() {
 
 function syncEditorContent() {
   if (!editorRef.value) return;
-  draftContent.value = editorDomToText(editorRef.value);
+  draftContent.value = editorDomToStoredContent(editorRef.value);
+  storeEditorPosition();
   scheduleSave();
 }
 
@@ -305,9 +441,46 @@ function endPreviewDrag(event: PointerEvent) {
 
 function handleEditorClick(event: MouseEvent) {
   const target = event.target;
+  if (target instanceof Element) {
+    const link = target.closest<HTMLAnchorElement>("a[data-note-link]");
+    if (link?.href) {
+      event.preventDefault();
+      void window.devToolbox.openExternal(link.href);
+      return;
+    }
+  }
   if (target instanceof HTMLImageElement) {
     openPreviewImage(target.dataset.noteSrc || target.currentSrc || target.src);
   }
+}
+
+function applyBold() {
+  editorRef.value?.focus();
+  document.execCommand("bold");
+  syncEditorContent();
+}
+
+function applyForeColor() {
+  editorRef.value?.focus();
+  document.execCommand("foreColor", false, fontColor.value);
+  syncEditorContent();
+}
+
+function applyFontSize() {
+  const root = editorRef.value;
+  const selection = window.getSelection();
+  if (!root || !selection || selection.rangeCount === 0) return;
+  const range = selection.getRangeAt(0);
+  if (!root.contains(range.commonAncestorContainer) || range.collapsed) return;
+  const span = document.createElement("span");
+  span.style.fontSize = `${fontSize.value}px`;
+  span.appendChild(range.extractContents());
+  range.insertNode(span);
+  range.selectNodeContents(span);
+  range.collapse(false);
+  selection.removeAllRanges();
+  selection.addRange(range);
+  syncEditorContent();
 }
 
 function insertHtmlAtCursor(html: string) {
@@ -344,7 +517,7 @@ async function handlePaste(event: ClipboardEvent) {
 
   event.preventDefault();
   if (!imageItems.length) {
-    insertHtmlAtCursor(escapeHtml(plainText).replace(/\r?\n/g, "<br>"));
+    insertHtmlAtCursor(linkifyPlainText(plainText).replace(/\r?\n/g, "<br>"));
     syncEditorContent();
     return;
   }
@@ -392,23 +565,58 @@ function loadImage(src: string) {
 }
 
 function parseExportBlocks(content: string): ExportBlock[] {
+  if (content.startsWith(richNoteMarker)) {
+    const container = document.createElement("div");
+    container.innerHTML = content.slice(richNoteMarker.length);
+    const blocks: ExportBlock[] = [];
+    const pushText = (value: string) => {
+      for (const line of value.replace(/\u200b/g, "").split(/\r?\n/)) {
+        blocks.push(line.trim() ? { type: "text", value: line.replace(/\s+$/, "") } : { type: "blank" });
+      }
+    };
+    const walk = (node: Node) => {
+      if (node.nodeType === Node.TEXT_NODE) {
+        pushText(node.textContent || "");
+        return;
+      }
+      if (!(node instanceof HTMLElement)) return;
+      if (node instanceof HTMLImageElement) {
+        blocks.push({ type: "image", src: node.dataset.noteSrc || node.currentSrc || node.src });
+        return;
+      }
+      if (node instanceof HTMLBRElement) {
+        blocks.push({ type: "blank" });
+        return;
+      }
+      for (const child of Array.from(node.childNodes)) walk(child);
+      if (["div", "p", "section", "article", "li"].includes(node.tagName.toLowerCase())) blocks.push({ type: "blank" });
+    };
+    for (const child of Array.from(container.childNodes)) walk(child);
+    return blocks.filter((block, index, list) => !(block.type === "blank" && list[index - 1]?.type === "blank"));
+  }
+
   const lines = (content || "").split(/\r?\n/);
-  return lines.flatMap((line) => {
-    if (!line) return [{ type: "blank" } satisfies ExportBlock];
+  const parsedBlocks: ExportBlock[] = [];
+  for (const line of lines) {
+    if (!line) {
+      parsedBlocks.push({ type: "blank" });
+      continue;
+    }
     const blocks: ExportBlock[] = [];
     imageTokenPattern.lastIndex = 0;
     let cursor = 0;
     let match: RegExpExecArray | null;
     while ((match = imageTokenPattern.exec(line))) {
-      const text = line.slice(cursor, match.index).trimEnd();
+      const text = line.slice(cursor, match.index).replace(/\s+$/, "");
       if (text) blocks.push({ type: "text", value: text });
       blocks.push({ type: "image", src: match[1] });
       cursor = match.index + match[0].length;
     }
-    const rest = line.slice(cursor).trimEnd();
+    const rest = line.slice(cursor).replace(/\s+$/, "");
     if (rest) blocks.push({ type: "text", value: rest });
-    return blocks.length ? blocks : [{ type: "blank" }];
-  });
+    parsedBlocks.push(...(blocks.length ? blocks : [{ type: "blank" } satisfies ExportBlock]));
+  }
+  return parsedBlocks;
 }
 
 async function exportActiveAsImage() {
@@ -553,6 +761,19 @@ onBeforeUnmount(() => {
             </button>
           </div>
         </div>
+        <div class="note-format-toolbar" :class="{ disabled: !activeNote }" aria-label="便签格式工具栏">
+          <button type="button" class="icon-button" title="粗体" :disabled="!activeNote" @click="applyBold">
+            <i class="ri-bold" aria-hidden="true"></i>
+          </button>
+          <label class="note-format-field" title="字号">
+            <i class="ri-font-size" aria-hidden="true"></i>
+            <input v-model.number="fontSize" type="number" min="10" max="48" step="1" :disabled="!activeNote" @change="applyFontSize" />
+          </label>
+          <label class="note-color-field" title="文字色值">
+            <i class="ri-palette-line" aria-hidden="true"></i>
+            <input v-model="fontColor" type="color" :disabled="!activeNote" @input="applyForeColor" />
+          </label>
+        </div>
         <div
           ref="editorRef"
           class="note-editor"
@@ -562,6 +783,10 @@ onBeforeUnmount(() => {
           data-placeholder="选择或新建一个便签后开始输入。可直接粘贴图片。"
           @click="handleEditorClick"
           @input="syncEditorContent"
+          @keyup="storeEditorPosition"
+          @mouseup="storeEditorPosition"
+          @scroll="storeEditorPosition"
+          @blur="storeEditorPosition"
           @paste="handlePaste"
         ></div>
       </section>
@@ -809,7 +1034,7 @@ onBeforeUnmount(() => {
 
 .note-editor-panel {
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-rows: auto auto minmax(0, 1fr);
   height: 100%;
   min-height: 0;
   overflow: hidden;
@@ -850,6 +1075,54 @@ onBeforeUnmount(() => {
   padding: 4px 10px;
   line-height: 22px;
   text-align: center;
+}
+
+.note-format-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-subtle);
+}
+
+.note-format-toolbar.disabled {
+  opacity: 0.62;
+}
+
+.note-format-field,
+.note-color-field {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr);
+  align-items: center;
+  gap: 6px;
+  width: 104px;
+  min-height: 34px;
+  padding: 0 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--muted);
+}
+
+.note-format-field input,
+.note-color-field input {
+  min-height: 28px;
+  padding: 0;
+  border: 0;
+  box-shadow: none;
+}
+
+.note-color-field {
+  width: 76px;
+}
+
+.note-color-field input {
+  height: 24px;
+  cursor: pointer;
 }
 
 .note-editor {
@@ -898,6 +1171,13 @@ onBeforeUnmount(() => {
   border-radius: 8px;
   background: var(--surface-subtle);
   cursor: zoom-in;
+}
+
+.note-editor :deep(a) {
+  color: var(--accent-strong);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
 }
 
 .note-preview-mask,

@@ -4,8 +4,9 @@ import { createHistoryService } from "./services/history.service";
 import { applyWatermark, compressImages, createFaviconPackage, convertImages, cropImage, resizeImages } from "./services/image.service";
 import { convertFontsToWoff2 } from "./services/font.service";
 import { subsetFont } from "./services/font-tools.service";
-import { convertVideoAnimation, createVideoBackgroundPack, removeVideoAudio } from "./services/video.service";
-import { convertAudio } from "./services/audio.service";
+import { analyzeVideoLoop, compressVideos, convertVideoAnimation, createVideoBackgroundPack, removeVideoAudio } from "./services/video.service";
+import { compressAudio, convertAudio } from "./services/audio.service";
+import { minifyCode } from "./services/code-minify.service";
 import { convertSequenceAnimation } from "./services/sequence.service";
 import { base64ToImage, exportMarkdown, imageToBase64, renameFiles } from "./services/utility.service";
 import { generateQrCode } from "./services/qr.service";
@@ -57,6 +58,7 @@ import type {
   OpenDirectoryResult,
   DialogFileFilter,
   AssetManifestOptions,
+  AudioCompressOptions,
   AudioConvertOptions,
   CertificateScanOptions,
   CaptureProxyStartOptions,
@@ -76,8 +78,11 @@ import type {
   SequenceAnimationOptions,
   SharedDiskConfig,
   SpriteOptions,
+  CodeMinifyOptions,
   VideoBackgroundOptions,
   VideoAnimationOptions,
+  VideoCompressOptions,
+  VideoLoopAnalyzeOptions,
   VideoMuteOptions,
   WebpOptions
 } from "../../shared/types";
@@ -254,12 +259,44 @@ const videoMuteSchema = z.object({
   outputDir: z.string().min(1)
 });
 
+const videoCompressSchema = z.object({
+  inputPaths: z.array(z.string().min(1)).min(1),
+  outputDir: z.string().min(1),
+  crf: z.number().int().min(12).max(36),
+  width: z.number().int().positive().optional(),
+  preset: z.enum(["slow", "medium", "fast"]),
+  keepAudio: z.boolean(),
+  audioBitrate: z.string().optional()
+});
+
+const videoLoopAnalyzeSchema = z.object({
+  inputPath: z.string().min(1),
+  outputDir: z.string().min(1).optional(),
+  edgeSeconds: z.number().min(0.02).max(2)
+});
+
 const audioConvertSchema = z.object({
   inputPaths: z.array(z.string().min(1)).min(1),
   outputDir: z.string().min(1),
   outputFormat: z.enum(["mp3", "wav", "aac", "ogg", "flac", "m4a"]),
   bitrate: z.string().optional(),
   sampleRate: z.number().int().positive().optional()
+});
+
+const audioCompressSchema = z.object({
+  inputPaths: z.array(z.string().min(1)).min(1),
+  outputDir: z.string().min(1),
+  outputFormat: z.enum(["mp3", "aac", "ogg", "m4a"]),
+  bitrate: z.string().min(2),
+  sampleRate: z.number().int().positive().optional()
+});
+
+const codeMinifySchema = z.object({
+  inputPaths: z.array(z.string().min(1)).min(1),
+  outputDir: z.string().min(1),
+  removeConsole: z.boolean(),
+  beautify: z.boolean(),
+  target: z.enum(["defaults", "legacy"])
 });
 
 const markdownExportSchema = z.object({
@@ -462,9 +499,29 @@ export function registerIpc() {
     return removeVideoAudio(options, history);
   });
 
+  ipcMain.handle("convert:video-compress", async (_event, raw: VideoCompressOptions) => {
+    const options = videoCompressSchema.parse(raw);
+    return compressVideos(options, history);
+  });
+
+  ipcMain.handle("media:video-loop", async (_event, raw: VideoLoopAnalyzeOptions) => {
+    const options = videoLoopAnalyzeSchema.parse(raw);
+    return analyzeVideoLoop(options, history);
+  });
+
   ipcMain.handle("convert:audio", async (_event, raw: AudioConvertOptions) => {
     const options = audioConvertSchema.parse(raw);
     return convertAudio(options, history);
+  });
+
+  ipcMain.handle("convert:audio-compress", async (_event, raw: AudioCompressOptions) => {
+    const options = audioCompressSchema.parse(raw);
+    return compressAudio(options, history);
+  });
+
+  ipcMain.handle("convert:code-minify", async (_event, raw: CodeMinifyOptions) => {
+    const options = codeMinifySchema.parse(raw);
+    return minifyCode(options, history);
   });
 
   ipcMain.handle("convert:markdown-export", async (_event, raw: MarkdownExportOptions) => {

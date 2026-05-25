@@ -66,7 +66,10 @@ const defaultGroups: NavGroup[] = [
       { id: "video-animation", to: "/video-animation", label: "视频动图", icon: "ri-file-gif-line", visible: true },
       { id: "sequence-animation", to: "/sequence-animation", label: "序列帧动图", icon: "ri-film-line", visible: true },
       { id: "video-mute", to: "/video-mute", label: "视频去音频", icon: "ri-volume-mute-line", visible: true },
-      { id: "audio-convert", to: "/audio-convert", label: "音频转换", icon: "ri-music-2-line", visible: true }
+      { id: "video-compress", to: "/video-compress", label: "视频压缩", icon: "ri-video-ai-line", visible: true },
+      { id: "video-loop", to: "/video-loop", label: "视频循环播放", icon: "ri-loop-left-line", visible: true },
+      { id: "audio-convert", to: "/audio-convert", label: "音频转换", icon: "ri-music-2-line", visible: true },
+      { id: "audio-compress", to: "/audio-compress", label: "音频压缩", icon: "ri-volume-down-line", visible: true }
     ]
   },
   {
@@ -88,6 +91,7 @@ const defaultGroups: NavGroup[] = [
       { id: "diff", to: "/diff", label: "文本 Diff", icon: "ri-swap-line", visible: true },
       { id: "jwt", to: "/jwt", label: "JWT 解析", icon: "ri-key-2-line", visible: true },
       { id: "url-codec", to: "/url-codec", label: "URL 编解码", icon: "ri-links-line", visible: true },
+      { id: "code-minify", to: "/code-minify", label: "CSS / JS 压缩", icon: "ri-braces-line", visible: true },
       { id: "regex-tester", to: "/regex-tester", label: "正则测试器", icon: "ri-parentheses-line", visible: true },
       { id: "css-variables", to: "/css-variables", label: "CSS 变量", icon: "ri-css3-line", visible: true },
       { id: "css-clamp", to: "/css-clamp", label: "Clamp 字号", icon: "ri-font-size", visible: true },

@@ -7,6 +7,10 @@ export type ToolType =
   | "base64-image"
   | "video-animation"
   | "video-mute"
+  | "video-compress"
+  | "audio-compress"
+  | "code-minify"
+  | "video-loop"
   | "markdown-export"
   | "batch-rename"
   | "image-compress"
@@ -155,6 +159,38 @@ export interface VideoMuteOptions {
   outputDir: string;
 }
 
+export interface VideoCompressOptions {
+  inputPaths: string[];
+  outputDir: string;
+  crf: number;
+  width?: number;
+  preset: "slow" | "medium" | "fast";
+  keepAudio: boolean;
+  audioBitrate?: string;
+}
+
+export interface VideoLoopAnalyzeOptions {
+  inputPath: string;
+  outputDir?: string;
+  edgeSeconds: number;
+}
+
+export interface VideoLoopInfo {
+  durationSeconds: number | null;
+  bitrate: string;
+  format: string;
+  videoCodec: string;
+  audioCodec: string;
+  resolution: string;
+  fps: string;
+  firstFramePath?: string;
+  lastFramePath?: string;
+  frameDiffScore: number | null;
+  loopRisk: "low" | "medium" | "high" | "unknown";
+  summary: string;
+  raw: string;
+}
+
 export interface SequenceAnimationOptions {
   inputPaths: string[];
   outputDir: string;
@@ -170,6 +206,22 @@ export interface AudioConvertOptions {
   outputFormat: "mp3" | "wav" | "aac" | "ogg" | "flac" | "m4a";
   bitrate?: string;
   sampleRate?: number;
+}
+
+export interface AudioCompressOptions {
+  inputPaths: string[];
+  outputDir: string;
+  outputFormat: "mp3" | "aac" | "ogg" | "m4a";
+  bitrate: string;
+  sampleRate?: number;
+}
+
+export interface CodeMinifyOptions {
+  inputPaths: string[];
+  outputDir: string;
+  removeConsole: boolean;
+  beautify: boolean;
+  target: "defaults" | "legacy";
 }
 
 export interface MarkdownExportOptions {
@@ -454,7 +506,11 @@ export interface DevToolboxApi {
   convertSequenceAnimation(options: SequenceAnimationOptions): Promise<ConversionResult>;
   convertVideoAnimation(options: VideoAnimationOptions): Promise<ConversionResult>;
   removeVideoAudio(options: VideoMuteOptions): Promise<ConversionResult>;
+  compressVideos(options: VideoCompressOptions): Promise<ConversionResult>;
+  analyzeVideoLoop(options: VideoLoopAnalyzeOptions): Promise<ConversionResult & { info?: VideoLoopInfo }>;
   convertAudio(options: AudioConvertOptions): Promise<ConversionResult>;
+  compressAudio(options: AudioCompressOptions): Promise<ConversionResult>;
+  minifyCode(options: CodeMinifyOptions): Promise<ConversionResult>;
   exportMarkdown(options: MarkdownExportOptions): Promise<ConversionResult>;
   renameFiles(options: RenameOptions): Promise<ConversionResult>;
   generateQrCode(options: QrCodeOptions): Promise<ConversionResult>;

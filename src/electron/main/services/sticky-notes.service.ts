@@ -4,6 +4,7 @@ import path from "node:path";
 import type { StickyNote, StickyNotesState } from "../../../shared/types";
 
 const settingsFileName = "sticky-notes-settings.json";
+const richNoteMarker = "<!-- dev-toolbox-note-html:v1 -->";
 
 type StickyNotesSettings = {
   directory: string;
@@ -87,6 +88,7 @@ function decodeTextEntities(value: string) {
 function htmlToPlainText(content: string) {
   return decodeTextEntities(
     content
+      .replace(richNoteMarker, "")
       .replace(/<img\b[^>]*src=["']([^"']+)["'][^>]*>/gi, (_match, src: string) => `\n![粘贴图片](${src})\n`)
       .replace(/<br\s*\/?\s*>/gi, "\n")
       .replace(/<\/(p|div|section|article|li)>/gi, "\n")
@@ -95,11 +97,12 @@ function htmlToPlainText(content: string) {
 }
 
 function normalizeStoredContent(content: string) {
-  return /<[a-z][\s\S]*>/i.test(content) ? htmlToPlainText(content) : content;
+  return content;
 }
 
 function resolveTitle(fileName: string, content: string) {
-  const plain = normalizeStoredContent(content).replace(/^!\[[^\]]*\]\(data:image\/[^)]+\)\s*$/gim, " ");
+  const plain = (content.startsWith(richNoteMarker) || /<[a-z][\s\S]*>/i.test(content) ? htmlToPlainText(content) : content)
+    .replace(/^!\[[^\]]*\]\(data:image\/[^)]+\)\s*$/gim, " ");
   const firstLine = plain.split(/\r?\n/).find((line) => line.trim());
   return firstLine?.trim().slice(0, 36) || path.basename(fileName, ".txt");
 }

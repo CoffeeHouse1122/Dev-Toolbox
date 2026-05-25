@@ -1,9 +1,10 @@
+import fs from "node:fs/promises";
 import path from "node:path";
 import { spawn } from "node:child_process";
 import ffmpegPath from "ffmpeg-static";
-import type { AudioConvertOptions, ConversionResult } from "../../../shared/types";
+import type { AudioCompressOptions, AudioConvertOptions, ConversionResult } from "../../../shared/types";
 import type { HistoryService } from "./history.service";
-import { ensureDir, safeBaseName, uniqueId } from "./file-utils";
+import { ensureDir, safeBaseName, uniqueId, uniqueOutputPath } from "./file-utils";
 
 function unpackedPath(filePath: string) {
   return filePath.replace("app.asar", "app.asar.unpacked");
@@ -74,6 +75,56 @@ export async function convertAudio(options: AudioConvertOptions, history: Histor
       args.push(output);
       await runFfmpeg(args, logs);
       files.push(output);
+    }
+
+    await history.finishTask(id, "success");
+    return { id, status: "success", files, outputPath: options.outputDir, logs };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    await history.finishTask(id, "error", message);
+    return { id, status: "error", files, outputPath: options.outputDir, logs, errorMessage: message };
+  }
+}
+
+function formatSize(bytes: number) {
+  if (!Number.isFinite(bytes) || bytes <= 0) return "0 B";
+  const units = ["B", "KB", "MB", "GB"];
+  let size = bytes;
+  let index = 0;
+  while (size >= 1024 && index < units.length - 1) {
+    size /= 1024;
+    index += 1;
+  }
+  return `${size.toFixed(index === 0 ? 0 : 2)} ${units[index]}`;
+}
+
+export async function compressAudio(options: AudioCompressOptions, history: HistoryService): Promise<ConversionResult> {
+  const id = uniqueId("audio-compress");
+  const logs: string[] = [];
+  const files: string[] = [];
+
+  await history.startTask({
+    id,
+    toolType: "audio-compress",
+    sourcePath: options.inputPaths.join(";"),
+    outputPath: options.outputDir,
+    options
+  });
+
+  try {
+    await ensureDir(options.outputDir);
+
+    for (const inputPath of options.inputPaths) {
+      const output = await uniqueOutputPath(options.outputDir, `${safeBaseName(inputPath)}-compressed.${options.outputFormat}`);
+      const args = ["-y", "-i", inputPath, "-vn", ...codecArgs(options.outputFormat), "-b:a", options.bitrate];
+      if (options.sampleRate) args.push("-ar", String(options.sampleRate));
+      args.push(output);
+      await runFfmpeg(args, logs);
+      files.push(output);
+
+      const [sourceStat, outputStat] = await Promise.all([fs.stat(inputPath), fs.stat(output)]);
+      const ratio = sourceStat.size > 0 ? Math.max(0, 100 - (outputStat.size / sourceStat.size) * 100) : 0;
+      logs.push(`${path.basename(inputPath)}: ${formatSize(sourceStat.size)} -> ${formatSize(outputStat.size)} (${ratio.toFixed(1)}% smaller)`);
     }
 
     await history.finishTask(id, "success");

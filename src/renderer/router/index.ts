@@ -7,6 +7,10 @@ import Base64ImageTool from "../pages/Base64ImageTool.vue";
 import VideoAnimationTool from "../pages/VideoAnimationTool.vue";
 import SequenceAnimationTool from "../pages/SequenceAnimationTool.vue";
 import VideoMuteTool from "../pages/VideoMuteTool.vue";
+import VideoCompressTool from "../pages/VideoCompressTool.vue";
+import AudioCompressTool from "../pages/AudioCompressTool.vue";
+import CodeMinifyTool from "../pages/CodeMinifyTool.vue";
+import VideoLoopTool from "../pages/VideoLoopTool.vue";
 import MarkdownExportTool from "../pages/MarkdownExportTool.vue";
 import UrlCodecTool from "../pages/UrlCodecTool.vue";
 import TimestampTool from "../pages/TimestampTool.vue";
@@ -50,10 +54,21 @@ import StickyNotesTool from "../pages/StickyNotesTool.vue";
 import HistoryPage from "../pages/HistoryPage.vue";
 import SettingsPage from "../pages/SettingsPage.vue";
 
+const lastRouteStorageKey = "dev-toolbox.last-tool-route.v1";
+
+function getLastToolRoute() {
+  try {
+    const path = localStorage.getItem(lastRouteStorageKey);
+    return path && path !== "/" ? path : "/favicon";
+  } catch {
+    return "/favicon";
+  }
+}
+
 export const router = createRouter({
   history: createWebHashHistory(),
   routes: [
-    { path: "/", redirect: "/favicon" },
+    { path: "/", redirect: () => getLastToolRoute() },
     { path: "/favicon", component: FaviconTool },
     { path: "/webp", component: WebpTool },
     { path: "/woff2", component: FontWoff2Tool },
@@ -62,6 +77,10 @@ export const router = createRouter({
     { path: "/video-animation", component: VideoAnimationTool },
     { path: "/sequence-animation", component: SequenceAnimationTool },
     { path: "/video-mute", component: VideoMuteTool },
+    { path: "/video-compress", component: VideoCompressTool },
+    { path: "/audio-compress", component: AudioCompressTool },
+    { path: "/code-minify", component: CodeMinifyTool },
+    { path: "/video-loop", component: VideoLoopTool },
     { path: "/markdown-export", component: MarkdownExportTool },
     { path: "/url-codec", component: UrlCodecTool },
     { path: "/timestamp", component: TimestampTool },
@@ -105,4 +124,10 @@ export const router = createRouter({
     { path: "/history", component: HistoryPage },
     { path: "/settings", component: SettingsPage }
   ]
+});
+
+router.afterEach((to) => {
+  if (to.path && to.path !== "/") {
+    localStorage.setItem(lastRouteStorageKey, to.path);
+  }
 });
