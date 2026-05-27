@@ -26,7 +26,6 @@ const usageTips = [
     <div class="tool-header">
       <div>
         <h2>URL 编解码</h2>
-        <p>encodeURI、decodeURI、encodeURIComponent、decodeURIComponent</p>
       </div>
       <div class="segmented">
         <button type="button" :class="{ selected: mode === 'encode-uri' }" @click="mode = 'encode-uri'">encodeURI</button>
