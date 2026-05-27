@@ -41,7 +41,10 @@ protocol.registerSchemesAsPrivileged([
 function registerPreviewProtocol() {
   protocol.handle("devtoolbox-file", (request) => {
     const url = new URL(request.url);
-    const filePath = decodeURIComponent(url.pathname.slice(1));
+    const queryPath = url.searchParams.get("path");
+    const legacyPath = url.pathname ? decodeURIComponent(url.pathname.slice(1)) : "";
+    const filePath = queryPath || legacyPath;
+    if (!filePath) throw new Error("Preview file path is empty.");
     return net.fetch(pathToFileURL(filePath).toString());
   });
 }

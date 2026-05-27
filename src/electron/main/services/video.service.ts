@@ -6,6 +6,7 @@ import ffmpegPath from "ffmpeg-static";
 import sharp from "sharp";
 import type {
   ConversionResult,
+  MediaInfo,
   VideoAnimationOptions,
   VideoBackgroundOptions,
   VideoCompressOptions,
@@ -400,7 +401,7 @@ function parseDuration(raw: string) {
   return Number(match[1]) * 3600 + Number(match[2]) * 60 + Number(match[3]);
 }
 
-function parseMediaInfo(raw: string, frameDiffScore: number | null, frameFiles: { first?: string; last?: string }): VideoLoopInfo {
+function parseMediaInfo(raw: string): MediaInfo {
   const durationSeconds = parseDuration(raw);
   const format = raw.match(/Input #0,\s*([^,\n]+)/)?.[1]?.trim() || "未知";
   const bitrate = raw.match(/bitrate:\s*([^\n,]+)/i)?.[1]?.trim() || "未知";
@@ -410,13 +411,6 @@ function parseMediaInfo(raw: string, frameDiffScore: number | null, frameFiles: 
   const audioCodec = audioLine.split(",")[0]?.trim() || "无音频";
   const resolution = videoLine.match(/(\d{2,5}x\d{2,5})/)?.[1] || "未知";
   const fps = videoLine.match(/([\d.]+)\s*fps/)?.[1] || videoLine.match(/([\d.]+)\s*tbr/)?.[1] || "未知";
-  const loopRisk = frameDiffScore == null ? "unknown" : frameDiffScore <= 8 ? "low" : frameDiffScore <= 22 ? "medium" : "high";
-  const summaryMap = {
-    low: "首尾帧差异较小，作为背景视频循环时大概率平滑。",
-    medium: "首尾帧存在可见差异，循环点可能有轻微跳动。",
-    high: "首尾帧差异明显，背景循环播放时很可能出现跳帧感。",
-    unknown: "未能完成首尾帧差异分析，请检查视频是否可读取。"
-  } satisfies Record<VideoLoopInfo["loopRisk"], string>;
 
   return {
     durationSeconds,
@@ -426,12 +420,28 @@ function parseMediaInfo(raw: string, frameDiffScore: number | null, frameFiles: 
     audioCodec,
     resolution,
     fps,
-    firstFramePath: frameFiles.first,
-    lastFramePath: frameFiles.last,
+    sampleRate: audioLine.match(/(\d+)\s*Hz/i)?.[1] || "未知",
+    channels: audioLine.match(/,\s*([^,]*?(?:stereo|mono|\d+\.\d+))\s*,/i)?.[1]?.trim() || "未知",
+    raw
+  };
+}
+
+function buildLoopInfo(mediaInfo: MediaInfo, frameDiffScore: number | null, frameDataUrls: { first?: string; last?: string }): VideoLoopInfo {
+  const loopRisk = frameDiffScore == null ? "unknown" : frameDiffScore <= 8 ? "low" : frameDiffScore <= 22 ? "medium" : "high";
+  const summaryMap = {
+    low: "首尾帧差异较小，作为背景视频循环时大概率平滑。",
+    medium: "首尾帧存在可见差异，循环点可能有轻微跳动。",
+    high: "首尾帧差异明显，背景循环播放时很可能出现跳帧感。",
+    unknown: "未能完成首尾帧差异分析，请检查视频是否可读取。"
+  } satisfies Record<VideoLoopInfo["loopRisk"], string>;
+
+  return {
+    ...mediaInfo,
+    firstFrameDataUrl: frameDataUrls.first,
+    lastFrameDataUrl: frameDataUrls.last,
     frameDiffScore,
     loopRisk,
-    summary: summaryMap[loopRisk],
-    raw
+    summary: summaryMap[loopRisk]
   };
 }
 
@@ -449,6 +459,16 @@ async function compareFrames(firstFrame: string, lastFrame: string) {
   return Number(((diff / length / 255) * 100).toFixed(2));
 }
 
+async function assertFrameFile(filePath: string, label: string) {
+  try {
+    const stat = await fs.stat(filePath);
+    if (stat.size > 0) return;
+  } catch {
+    // fall through to the readable error below
+  }
+  throw new Error(`${label}抽帧失败，请确认视频可读取且包含有效画面。`);
+}
+
 export async function analyzeVideoLoop(
   options: VideoLoopAnalyzeOptions,
   history: HistoryService
@@ -456,7 +476,8 @@ export async function analyzeVideoLoop(
   const id = uniqueId("video-loop");
   const logs: string[] = [];
   const files: string[] = [];
-  const outputPath = options.outputDir || path.dirname(options.inputPath);
+  const outputPath = path.dirname(options.inputPath);
+  let tempDir = "";
 
   await history.startTask({
     id,
@@ -469,27 +490,45 @@ export async function analyzeVideoLoop(
   try {
     const infoProbe = await runFfmpegCapture(["-hide_banner", "-i", options.inputPath], logs);
     const rawInfo = `${infoProbe.stdout}${infoProbe.stderr}`;
-    const tempDir = options.outputDir || await fs.mkdtemp(path.join(os.tmpdir(), "dev-toolbox-loop-"));
+    const mediaInfo = parseMediaInfo(rawInfo);
+    tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "dev-toolbox-loop-"));
     await ensureDir(tempDir);
     const baseName = safeBaseName(options.inputPath);
-    const firstFrame = await uniqueOutputPath(tempDir, `${baseName}-loop-first.png`);
-    const lastFrame = await uniqueOutputPath(tempDir, `${baseName}-loop-last.png`);
+    const firstFrame = path.join(tempDir, `${baseName}-loop-first.png`);
+    const lastFrame = path.join(tempDir, `${baseName}-loop-last.png`);
     const edge = Math.max(0.02, options.edgeSeconds || 0.08);
+    const duration = mediaInfo.durationSeconds && Number.isFinite(mediaInfo.durationSeconds) ? mediaInfo.durationSeconds : 0;
+    const firstTimestamp = duration > 0 ? Math.min(edge, Math.max(0, duration - 0.02)) : edge;
+    const lastTimestamp = duration > 0 ? Math.max(0, duration - edge) : edge;
 
-    await runFfmpeg(["-y", "-ss", String(edge), "-i", options.inputPath, "-frames:v", "1", firstFrame], logs);
-    await runFfmpeg(["-y", "-sseof", `-${edge}`, "-i", options.inputPath, "-frames:v", "1", lastFrame], logs);
-    if (options.outputDir) files.push(firstFrame, lastFrame);
+    await runFfmpeg(["-y", "-ss", String(firstTimestamp), "-i", options.inputPath, "-frames:v", "1", firstFrame], logs);
+    await assertFrameFile(firstFrame, "首帧");
+    await runFfmpeg(["-y", "-ss", String(lastTimestamp), "-i", options.inputPath, "-frames:v", "1", lastFrame], logs);
+    await assertFrameFile(lastFrame, "尾帧");
 
     const frameDiffScore = await compareFrames(firstFrame, lastFrame);
-    const info = parseMediaInfo(rawInfo, frameDiffScore, { first: options.outputDir ? firstFrame : undefined, last: options.outputDir ? lastFrame : undefined });
+    const [firstFrameBuffer, lastFrameBuffer] = await Promise.all([fs.readFile(firstFrame), fs.readFile(lastFrame)]);
+    const info = buildLoopInfo(mediaInfo, frameDiffScore, {
+      first: `data:image/png;base64,${firstFrameBuffer.toString("base64")}`,
+      last: `data:image/png;base64,${lastFrameBuffer.toString("base64")}`
+    });
     logs.push(`Loop frame diff score: ${frameDiffScore ?? "unknown"}`);
+    logs.push(`Loop frame timestamps: ${firstTimestamp.toFixed(3)}s / ${lastTimestamp.toFixed(3)}s`);
     logs.push(info.summary);
+    await fs.rm(tempDir, { recursive: true, force: true });
 
     await history.finishTask(id, "success");
     return { id, status: "success", files, outputPath, logs, info };
   } catch (error) {
+    if (tempDir) await fs.rm(tempDir, { recursive: true, force: true });
     const message = error instanceof Error ? error.message : String(error);
     await history.finishTask(id, "error", message);
     return { id, status: "error", files, outputPath, logs, errorMessage: message };
   }
+}
+
+export async function getMediaInfo(inputPath: string): Promise<MediaInfo> {
+  const logs: string[] = [];
+  const infoProbe = await runFfmpegCapture(["-hide_banner", "-i", inputPath], logs);
+  return parseMediaInfo(`${infoProbe.stdout}${infoProbe.stderr}`);
 }

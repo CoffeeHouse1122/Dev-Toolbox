@@ -18,12 +18,16 @@ import type {
   ImageResizeOptions,
   WatermarkOptions,
   MarkdownExportOptions,
+  MediaInfo,
   OgImageOptions,
   QrCodeOptions,
   RenameOptions,
   SeoFilesOptions,
   SharedDiskConfig,
   SpriteOptions,
+  StickyNoteExportOptions,
+  StickyNoteStyle,
+  StickyNotesPreferences,
   VideoBackgroundOptions,
   VideoAnimationOptions,
   VideoMuteOptions,
@@ -67,6 +71,7 @@ const api: DevToolboxApi = {
   removeVideoAudio: (options: VideoMuteOptions) => ipcRenderer.invoke("convert:video-mute", toPlain(options)),
   compressVideos: (options: VideoCompressOptions) => ipcRenderer.invoke("convert:video-compress", toPlain(options)),
   analyzeVideoLoop: (options: VideoLoopAnalyzeOptions) => ipcRenderer.invoke("media:video-loop", toPlain(options)),
+  getMediaInfo: (inputPath: string): Promise<MediaInfo> => ipcRenderer.invoke("media:info", inputPath),
   convertAudio: (options: AudioConvertOptions) => ipcRenderer.invoke("convert:audio", toPlain(options)),
   compressAudio: (options: AudioCompressOptions) => ipcRenderer.invoke("convert:audio-compress", toPlain(options)),
   minifyCode: (options: CodeMinifyOptions) => ipcRenderer.invoke("convert:code-minify", toPlain(options)),
@@ -147,8 +152,16 @@ const api: DevToolboxApi = {
   createStickyNote: (content?: string) => ipcRenderer.invoke("notes:create", content),
   saveStickyNote: (id: string, content: string) => ipcRenderer.invoke("notes:save", { id, content }),
   setStickyNotePinned: (id: string, pinned: boolean) => ipcRenderer.invoke("notes:pin", { id, pinned }),
+  archiveStickyNote: (id: string, archived: boolean) => ipcRenderer.invoke("notes:archive", { id, archived }),
   deleteStickyNote: (id: string) => ipcRenderer.invoke("notes:delete", id),
-  exportStickyNotes: (outputDir: string, ids?: string[]) => ipcRenderer.invoke("notes:export", { outputDir, ids })
+  restoreStickyNote: (id: string) => ipcRenderer.invoke("notes:restore", id),
+  emptyStickyNotesTrash: () => ipcRenderer.invoke("notes:empty-trash"),
+  saveStickyNotesPreferences: (preferences: StickyNotesPreferences) => ipcRenderer.invoke("notes:preferences", toPlain(preferences)),
+  applyStickyNotePreset: (id: string | null, scope: "current" | "all", style: StickyNoteStyle) =>
+    ipcRenderer.invoke("notes:apply-preset", { id, scope, style: toPlain(style) }),
+  importStickyNotes: (inputPaths: string[]) => ipcRenderer.invoke("notes:import", toPlain(inputPaths)),
+  exportStickyNotes: (outputDirOrOptions: string | StickyNoteExportOptions, ids?: string[]) =>
+    ipcRenderer.invoke("notes:export", typeof outputDirOrOptions === "string" ? { outputDir: outputDirOrOptions, ids, format: "txt" } : toPlain(outputDirOrOptions))
 };
 
 contextBridge.exposeInMainWorld("devToolbox", api);

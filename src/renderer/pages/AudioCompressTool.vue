@@ -1,10 +1,15 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
-import type { AudioCompressOptions, ConversionResult } from "../../shared/types";
+import { computed, ref, watch } from "vue";
+import type { AudioCompressOptions, ConversionResult, DevToolboxApi, MediaInfo } from "../../shared/types";
+// @ts-ignore VS Code inferred project may miss the local *.vue shim.
 import DropZone from "../components/DropZone.vue";
+// @ts-ignore VS Code inferred project may miss the local *.vue shim.
 import OutputPicker from "../components/OutputPicker.vue";
+// @ts-ignore VS Code inferred project may miss the local *.vue shim.
 import ResultPanel from "../components/ResultPanel.vue";
+// @ts-ignore VS Code inferred project may miss the local *.vue shim.
 import SelectMenu from "../components/SelectMenu.vue";
+const devToolbox = (window as unknown as Window & { devToolbox: DevToolboxApi }).devToolbox;
 
 const input = ref<string[]>([]);
 const outputDir = ref("");
@@ -12,6 +17,9 @@ const outputFormat = ref<AudioCompressOptions["outputFormat"]>("mp3");
 const bitrate = ref("160k");
 const sampleRate = ref<number | null>(44100);
 const busy = ref(false);
+const infoBusy = ref(false);
+const mediaInfo = ref<MediaInfo | null>(null);
+const mediaError = ref("");
 const result = ref<ConversionResult | null>(null);
 
 const formatOptions = [
@@ -30,12 +38,41 @@ const bitrateOptions = [
 ];
 
 const canRun = computed(() => input.value.length > 0 && outputDir.value && !busy.value);
+const infoRows = computed(() => {
+  const info = mediaInfo.value;
+  if (!info) return [];
+  return [
+    ["时长", info.durationSeconds == null ? "未知" : `${info.durationSeconds.toFixed(2)}s`],
+    ["封装", info.format],
+    ["码率", info.bitrate],
+    ["音频编码", info.audioCodec],
+    ["采样率", info.sampleRate === "未知" ? "未知" : `${info.sampleRate} Hz`],
+    ["声道", info.channels]
+  ];
+});
+
+watch(
+  () => input.value[0],
+  async (filePath) => {
+    mediaInfo.value = null;
+    mediaError.value = "";
+    if (!filePath) return;
+    infoBusy.value = true;
+    try {
+      mediaInfo.value = await devToolbox.getMediaInfo(filePath);
+    } catch (error) {
+      mediaError.value = error instanceof Error ? error.message : String(error);
+    } finally {
+      infoBusy.value = false;
+    }
+  }
+);
 
 async function run() {
   if (!canRun.value) return;
   busy.value = true;
   try {
-    result.value = await window.devToolbox.compressAudio({
+    result.value = await devToolbox.compressAudio({
       inputPaths: [...input.value],
       outputDir: outputDir.value,
       outputFormat: outputFormat.value,
@@ -86,7 +123,31 @@ async function run() {
         </div>
       </section>
 
-      <ResultPanel :result="result" :busy="busy" />
+      <aside class="media-tool-side">
+        <section class="output-summary">
+          <div class="section-title">
+            <h2>当前音频</h2>
+            <span class="status-pill" :class="{ running: infoBusy, error: mediaError }">INFO</span>
+          </div>
+          <p v-if="mediaError" class="error-text">{{ mediaError }}</p>
+          <div v-else-if="infoRows.length" class="info-list">
+            <div v-for="row in infoRows" :key="row[0]" class="info-row media-info-row">
+              <span>{{ row[0] }}</span>
+              <strong>{{ row[1] }}</strong>
+            </div>
+          </div>
+          <p v-else class="empty-state">选择音频文件后显示格式、编码、采样率和码率。</p>
+        </section>
+
+        <ResultPanel :result="result" :busy="busy" />
+      </aside>
     </div>
   </section>
 </template>
+
+<style scoped>
+.media-info-row {
+  grid-template-columns: 74px minmax(0, 1fr);
+  align-items: center;
+}
+</style>

@@ -1,10 +1,15 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import type { CodeMinifyOptions, ConversionResult } from "../../shared/types";
+import type { CodeMinifyOptions, ConversionResult, DevToolboxApi } from "../../shared/types";
+// @ts-ignore VS Code inferred project may miss the local *.vue shim.
 import DropZone from "../components/DropZone.vue";
+// @ts-ignore VS Code inferred project may miss the local *.vue shim.
 import OutputPicker from "../components/OutputPicker.vue";
+// @ts-ignore VS Code inferred project may miss the local *.vue shim.
 import ResultPanel from "../components/ResultPanel.vue";
+// @ts-ignore VS Code inferred project may miss the local *.vue shim.
 import SelectMenu from "../components/SelectMenu.vue";
+const devToolbox = (window as unknown as Window & { devToolbox: DevToolboxApi }).devToolbox;
 
 const input = ref<string[]>([]);
 const outputDir = ref("");
@@ -25,7 +30,7 @@ async function run() {
   if (!canRun.value) return;
   busy.value = true;
   try {
-    result.value = await window.devToolbox.minifyCode({
+    result.value = await devToolbox.minifyCode({
       inputPaths: [...input.value],
       outputDir: outputDir.value,
       removeConsole: removeConsole.value,

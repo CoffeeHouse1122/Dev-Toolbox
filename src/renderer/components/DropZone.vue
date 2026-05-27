@@ -18,6 +18,11 @@ const isDragging = ref(false);
 const previewUrl = ref("");
 let previewRequestId = 0;
 
+function previewFileUrl(filePath: string, time = 0.1) {
+  const params = new URLSearchParams({ path: filePath });
+  return `devtoolbox-file://preview?${params.toString()}#t=${time}`;
+}
+
 const fileNames = computed(() => props.modelValue.map((item) => item.split(/[\\/]/).pop()).join(", "));
 const selectionLabel = computed(() => {
   if (props.modelValue.length === 0) return "未选择文件";
@@ -31,7 +36,7 @@ watch(
     previewUrl.value = "";
     if (!first || !preview) return;
     if (preview === "video") {
-      previewUrl.value = `devtoolbox-file://preview/${encodeURIComponent(first)}#t=0.1`;
+      previewUrl.value = previewFileUrl(first);
       return;
     }
 
@@ -84,7 +89,7 @@ function onKeydown(event: KeyboardEvent) {
   >
     <div v-if="previewUrl" class="drop-preview">
       <img v-if="preview === 'image'" class="drop-preview-media" :src="previewUrl" alt="图片预览" />
-      <video v-else class="drop-preview-media" :src="previewUrl" muted preload="metadata" playsinline />
+      <video v-else class="drop-preview-media" :key="previewUrl" :src="previewUrl" muted preload="metadata" playsinline />
     </div>
     <span v-else class="drop-icon"><i class="ri-upload-cloud-2-line" aria-hidden="true"></i></span>
     <span class="drop-title">{{ title }}</span>

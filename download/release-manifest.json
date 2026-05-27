@@ -36,6 +36,23 @@
   ],
   "releaseNotes": [
     {
+      "version": "0.1.2",
+      "publishedAt": "2026-05-25",
+      "summary": "新增工具，优化已知问题，提升整体稳定性和用户体验。",
+      "changes": [
+        "新增视频压缩、视频循环播放、音频压缩、URL编解码、CSS|JS压缩、时间戳工具",
+        "优化桌面便签的编辑体验"
+      ],
+      "downloads": [
+        {
+          "label": "下载 Windows x64",
+          "url": "./release/Dev Toolbox-0.1.2-x64.exe",
+          "note": "适用于 64 位 Windows 桌面环境",
+          "primary": true
+        }
+      ]
+    },
+    {
       "version": "0.1.1",
       "publishedAt": "2026-05-18",
       "summary": "修复已知问题并优化部分工具的性能，提升用户体验。",
@@ -52,7 +69,7 @@
         }
       ]
     },
-        {
+    {
       "version": "0.1.0",
       "publishedAt": "2026-05-15",
       "summary": "首个公开发布版本，覆盖图片、字体、音视频、CSS、文本、网络、加解密等 46 项前端开发工具。",

@@ -1,22 +1,27 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import type { ConversionResult, VideoLoopInfo } from "../../shared/types";
+import type { ConversionResult, DevToolboxApi, VideoLoopInfo } from "../../shared/types";
+// @ts-ignore VS Code inferred project may miss the local *.vue shim.
 import DropZone from "../components/DropZone.vue";
-import OutputPicker from "../components/OutputPicker.vue";
+// @ts-ignore VS Code inferred project may miss the local *.vue shim.
 import ResultPanel from "../components/ResultPanel.vue";
+const devToolbox = (window as unknown as Window & { devToolbox: DevToolboxApi }).devToolbox;
 
 type VideoLoopResult = ConversionResult & { info?: VideoLoopInfo };
 
 const input = ref<string[]>([]);
-const outputDir = ref("");
-const saveFrames = ref(true);
 const edgeSeconds = ref(0.08);
 const busy = ref(false);
 const result = ref<VideoLoopResult | null>(null);
 
-const selectedVideoUrl = computed(() => input.value[0] ? `devtoolbox-file://preview/${encodeURIComponent(input.value[0])}` : "");
+function previewFileUrl(filePath: string, time = 0.1) {
+  const params = new URLSearchParams({ path: filePath });
+  return `devtoolbox-file://preview?${params.toString()}#t=${time}`;
+}
+
+const selectedVideoUrl = computed(() => (input.value[0] ? previewFileUrl(input.value[0]) : ""));
 const selectedFileName = computed(() => input.value[0]?.split(/[\\/]/).pop() ?? "未选择视频");
-const canRun = computed(() => input.value.length === 1 && !busy.value && (!saveFrames.value || Boolean(outputDir.value)));
+const canRun = computed(() => input.value.length === 1 && !busy.value);
 const infoRows = computed(() => {
   const info = result.value?.info;
   if (!info) return [];
@@ -43,9 +48,8 @@ async function run() {
   if (!canRun.value) return;
   busy.value = true;
   try {
-    result.value = await window.devToolbox.analyzeVideoLoop({
+    result.value = await devToolbox.analyzeVideoLoop({
       inputPath: input.value[0],
-      outputDir: saveFrames.value ? outputDir.value : undefined,
       edgeSeconds: edgeSeconds.value
     });
   } finally {
@@ -77,21 +81,34 @@ async function run() {
           :filters="[{ name: '视频', extensions: ['mp4', 'webm', 'mov', 'mkv', 'avi'] }]"
         />
         <div class="loop-stage">
-          <video v-if="selectedVideoUrl" :src="selectedVideoUrl" autoplay muted loop playsinline controls></video>
+          <video v-if="selectedVideoUrl" :key="selectedVideoUrl" :src="selectedVideoUrl" autoplay muted loop playsinline controls preload="metadata"></video>
           <div v-else class="empty-state">等待选择视频</div>
         </div>
         <label class="field">
           <span>首尾取帧偏移秒数</span>
           <input v-model.number="edgeSeconds" type="number" min="0.02" max="2" step="0.01" />
         </label>
-        <label class="check-row video-check-row">
-          <input v-model="saveFrames" type="checkbox" />
-          <span>保存首尾帧截图</span>
-        </label>
-        <OutputPicker v-if="saveFrames" v-model="outputDir" />
       </section>
 
       <aside class="media-tool-side">
+        <section class="output-summary loop-frame-panel">
+          <div class="section-title">
+            <h2>首尾帧</h2>
+            <span class="status-pill">Frame</span>
+          </div>
+          <div v-if="result?.info?.firstFrameDataUrl && result?.info?.lastFrameDataUrl" class="loop-frame-grid">
+            <figure>
+              <img :src="result.info.firstFrameDataUrl" alt="循环首帧" />
+              <figcaption>首帧</figcaption>
+            </figure>
+            <figure>
+              <img :src="result.info.lastFrameDataUrl" alt="循环尾帧" />
+              <figcaption>尾帧</figcaption>
+            </figure>
+          </div>
+          <p v-else class="empty-state">分析后展示首尾帧截图，截图只在工具内显示，不保存到磁盘。</p>
+        </section>
+
         <section class="output-summary loop-info-panel">
           <div class="section-title">
             <h2>视频信息</h2>
@@ -153,6 +170,36 @@ async function run() {
 .loop-info-row {
   grid-template-columns: 74px minmax(0, 1fr);
   align-items: center;
+}
+
+.loop-frame-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.loop-frame-grid figure {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  min-width: 0;
+}
+
+.loop-frame-grid img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: #000000;
+}
+
+.loop-frame-grid figcaption {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+  text-align: center;
 }
 
 @media (max-width: 980px) {

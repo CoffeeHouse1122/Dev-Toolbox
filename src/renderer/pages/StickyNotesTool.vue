@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from "vue";
-import type { StickyNote } from "../../shared/types";
+import { toPng } from "html-to-image";
+import type { DevToolboxApi, StickyNote, StickyNoteExportFormat, StickyNoteStyle, StickyNotesPreferences, StickyNotesState } from "../../shared/types";
 
+type NoteView = "active" | "archived" | "trash";
 type ExportBlock =
   | { type: "text"; value: string }
   | { type: "blank" }
@@ -11,6 +13,7 @@ const imageTokenPattern = /!\[[^\]]*\]\((data:image\/[^)]+)\)/g;
 const richNoteMarker = "<!-- dev-toolbox-note-html:v1 -->";
 const editorPositionStorageKey = "dev-toolbox.sticky-notes.position.v1";
 const urlPattern = /((?:https?:\/\/|www\.)[^\s<>"']+|mailto:[^\s<>"']+)/gi;
+const devToolbox = (window as unknown as Window & { devToolbox: DevToolboxApi }).devToolbox;
 
 type EditorPositionState = {
   activeId: string;
@@ -20,12 +23,40 @@ type EditorPositionState = {
 
 const directory = ref("");
 const notes = ref<StickyNote[]>([]);
+const archivedNotes = ref<StickyNote[]>([]);
+const trashNotes = ref<StickyNote[]>([]);
 const activeId = ref("");
 const draftContent = ref("");
+const currentView = ref<NoteView>("active");
 const busy = ref(false);
 const saveState = ref("未保存");
 const fontSize = ref(16);
 const fontColor = ref("#1f2328");
+const highlightColor = ref("#fff3a3");
+const selectedFontFamily = ref('"Source Han Sans CN", "Microsoft YaHei", ui-sans-serif, system-ui, sans-serif');
+const defaultPreferences: StickyNotesPreferences = {
+  fontFamily: selectedFontFamily.value,
+  fontSize: 16,
+  lineHeight: 1.45,
+  padding: 16,
+  color: "#1f2328",
+  backgroundColor: "#ffffff"
+};
+const preferences = ref<StickyNotesPreferences>({ ...defaultPreferences });
+const draftStyle = ref<StickyNoteStyle>({ ...defaultPreferences });
+const showPresetPanel = ref(false);
+const fontMenuOpen = ref(false);
+const presetFontMenuOpen = ref(false);
+const lastExportedFiles = ref<string[]>([]);
+const contextMenu = ref({ visible: false, x: 0, y: 0 });
+const toolbarState = ref({
+  bold: false,
+  italic: false,
+  underline: false,
+  strike: false,
+  unorderedList: false,
+  orderedList: false
+});
 const editorRef = ref<HTMLElement | null>(null);
 const previewViewportRef = ref<HTMLElement | null>(null);
 const previewImage = ref("");
@@ -35,6 +66,11 @@ const pendingDeleteNote = ref<StickyNote | null>(null);
 
 let saveTimer: ReturnType<typeof setTimeout> | null = null;
 let suppressSave = false;
+let applyingHistory = false;
+let savedEditorRange: Range | null = null;
+let activeStyleSpan: HTMLSpanElement | null = null;
+const undoStack: string[] = [];
+const redoStack: string[] = [];
 let previewDrag:
   | {
       pointerId: number;
@@ -45,10 +81,118 @@ let previewDrag:
     }
   | null = null;
 
-const activeNote = computed(() => notes.value.find((note) => note.id === activeId.value) ?? null);
+const fontFamilies = [
+  { label: "思源黑体", value: '"Source Han Sans CN", "Microsoft YaHei", ui-sans-serif, system-ui, sans-serif' },
+  { label: "微软雅黑", value: '"Microsoft YaHei", ui-sans-serif, system-ui, sans-serif' },
+  { label: "宋体", value: 'SimSun, "Source Han Sans CN", serif' },
+  { label: "楷体", value: 'KaiTi, "Source Han Sans CN", serif' },
+  { label: "等宽", value: 'Consolas, "Courier New", monospace' }
+];
+
+const visibleNotes = computed(() => {
+  if (currentView.value === "archived") return archivedNotes.value;
+  if (currentView.value === "trash") return trashNotes.value;
+  return notes.value;
+});
+const activeNote = computed(() => [...notes.value, ...archivedNotes.value, ...trashNotes.value].find((note) => note.id === activeId.value) ?? null);
+const activeCountLabel = computed(() => {
+  if (currentView.value === "archived") return `${archivedNotes.value.length} ARCHIVED`;
+  if (currentView.value === "trash") return `${trashNotes.value.length} TRASH`;
+  return `${notes.value.length} NOTES`;
+});
+const currentFontLabel = computed(() => fontFamilies.find((font) => font.value === selectedFontFamily.value)?.label || "自定义字体");
+const preferenceFontLabel = computed(() => fontFamilies.find((font) => font.value === preferences.value.fontFamily)?.label || "自定义字体");
+
+function clampNumber(value: unknown, min: number, max: number, fallback: number) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.min(max, Math.max(min, parsed));
+}
+
+function plainStickyStyle(style: Partial<StickyNoteStyle>): StickyNoteStyle {
+  return {
+    fontFamily: String(style.fontFamily || defaultPreferences.fontFamily),
+    fontSize: clampNumber(style.fontSize, 10, 48, defaultPreferences.fontSize),
+    lineHeight: clampNumber(style.lineHeight, 1, 2.4, defaultPreferences.lineHeight),
+    padding: clampNumber(style.padding, 8, 64, defaultPreferences.padding),
+    color: style.color ? String(style.color) : defaultPreferences.color,
+    backgroundColor: style.backgroundColor ? String(style.backgroundColor) : defaultPreferences.backgroundColor
+  };
+}
+
+function clampPreferences() {
+  preferences.value = plainStickyStyle(preferences.value);
+}
+
+function rgbToHex(value: string) {
+  if (!value || value === "transparent" || value === "rgba(0, 0, 0, 0)") return "";
+  if (value.startsWith("#")) return value;
+  const match = value.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/i);
+  if (!match) return "";
+  return `#${[match[1], match[2], match[3]].map((item) => Number(item).toString(16).padStart(2, "0")).join("")}`;
+}
 
 function sortNotes(input: StickyNote[]) {
   return [...input].sort((left, right) => Number(right.pinned) - Number(left.pinned) || right.updatedAt - left.updatedAt);
+}
+
+function applyState(state: StickyNotesState) {
+  directory.value = state.directory;
+  notes.value = sortNotes(state.notes);
+  archivedNotes.value = sortNotes(state.archivedNotes);
+  trashNotes.value = sortNotes(state.trashNotes);
+  preferences.value = state.preferences;
+}
+
+function setCurrentView(view: NoteView) {
+  currentView.value = view;
+  const list = visibleNotes.value;
+  if (!list.some((note) => note.id === activeId.value)) {
+    void selectNote(list[0] ?? null);
+  }
+}
+
+function editorStyleFor(style: StickyNoteStyle) {
+  return {
+    fontFamily: style.fontFamily,
+    fontSize: `${style.fontSize}px`,
+    lineHeight: String(style.lineHeight),
+    padding: `${style.padding}px`,
+    color: style.color || preferences.value.color || "#1f2328",
+    backgroundColor: style.backgroundColor || "var(--surface)"
+  };
+}
+
+function pushHistorySnapshot() {
+  if (!editorRef.value || applyingHistory) return;
+  const current = editorDomToStoredContent(editorRef.value);
+  if (undoStack[undoStack.length - 1] === current) return;
+  undoStack.push(current);
+  if (undoStack.length > 80) undoStack.shift();
+  redoStack.length = 0;
+}
+
+function restoreHistoryContent(content: string) {
+  if (!editorRef.value) return;
+  applyingHistory = true;
+  editorRef.value.innerHTML = contentToEditorHtml(content);
+  draftContent.value = content;
+  scheduleSave();
+  requestAnimationFrame(() => {
+    applyingHistory = false;
+  });
+}
+
+function undoEdit() {
+  if (!editorRef.value || undoStack.length === 0) return;
+  redoStack.push(editorDomToStoredContent(editorRef.value));
+  restoreHistoryContent(undoStack.pop() || "");
+}
+
+function redoEdit() {
+  if (!editorRef.value || redoStack.length === 0) return;
+  undoStack.push(editorDomToStoredContent(editorRef.value));
+  restoreHistoryContent(redoStack.pop() || "");
 }
 
 function escapeHtml(value: string) {
@@ -108,7 +252,12 @@ function contentToEditorHtml(content: string) {
 }
 
 function editorDomToStoredContent(root: HTMLElement) {
-  return `${richNoteMarker}${root.innerHTML}`;
+  root.querySelectorAll<HTMLInputElement>('input[type="checkbox"][data-note-todo]').forEach((checkbox) => {
+    checkbox.toggleAttribute("checked", checkbox.checked);
+  });
+  const clone = root.cloneNode(true) as HTMLElement;
+  clone.querySelectorAll(".note-active-selection").forEach((node) => node.classList.remove("note-active-selection"));
+  return `${richNoteMarker}${clone.innerHTML}`;
 }
 
 function contentToPlainText(content: string) {
@@ -171,6 +320,7 @@ function getCaretOffset(root: HTMLElement) {
 }
 
 function storeEditorPosition() {
+  captureEditorSelection();
   if (!activeId.value) return;
   const payload: EditorPositionState = {
     activeId: activeId.value,
@@ -178,6 +328,112 @@ function storeEditorPosition() {
     scrollTop: editorRef.value?.scrollTop ?? 0
   };
   localStorage.setItem(editorPositionStorageKey, JSON.stringify(payload));
+}
+
+function captureEditorSelection() {
+  const root = editorRef.value;
+  const selection = window.getSelection();
+  if (!root || !selection || selection.rangeCount === 0) return;
+  const range = selection.getRangeAt(0);
+  if (root.contains(range.commonAncestorContainer)) {
+    savedEditorRange = range.cloneRange();
+    if (activeStyleSpan && !activeStyleSpan.contains(range.commonAncestorContainer)) {
+      activeStyleSpan = null;
+      clearSelectionMarker();
+    }
+    updateToolbarStateFromSelection();
+  }
+}
+
+function restoreEditorSelection() {
+  const root = editorRef.value;
+  const selection = window.getSelection();
+  if (!root || !selection || !savedEditorRange) return false;
+  if (!root.contains(savedEditorRange.commonAncestorContainer)) return false;
+  selection.removeAllRanges();
+  selection.addRange(savedEditorRange);
+  root.focus();
+  return true;
+}
+
+function rememberRange(range: Range) {
+  savedEditorRange = range.cloneRange();
+  storeEditorPosition();
+}
+
+function selectNodeContents(node: Node) {
+  const selection = window.getSelection();
+  if (!selection) return;
+  const range = document.createRange();
+  range.selectNodeContents(node);
+  editorRef.value?.focus({ preventScroll: true });
+  selection.removeAllRanges();
+  selection.addRange(range);
+  savedEditorRange = range.cloneRange();
+  if (node instanceof HTMLElement) markSelectionElement(node);
+  updateToolbarStateFromSelection();
+}
+
+function setCaretInside(node: Text, offset: number) {
+  const selection = window.getSelection();
+  if (!selection) return;
+  const range = document.createRange();
+  range.setStart(node, offset);
+  range.collapse(true);
+  selection.removeAllRanges();
+  selection.addRange(range);
+  savedEditorRange = range.cloneRange();
+  clearSelectionMarker();
+  updateToolbarStateFromSelection();
+}
+
+function applyStyleToSpan(span: HTMLSpanElement, style: Partial<CSSStyleDeclaration>) {
+  Object.assign(span.style, style);
+  span.style.lineHeight = "1.45";
+  span.dataset.noteStyled = "true";
+}
+
+function clearSelectionMarker() {
+  editorRef.value?.querySelectorAll(".note-active-selection").forEach((node) => node.classList.remove("note-active-selection"));
+}
+
+function markSelectionElement(node: HTMLElement) {
+  clearSelectionMarker();
+  node.classList.add("note-active-selection");
+}
+
+function selectionElement() {
+  const root = editorRef.value;
+  const selection = window.getSelection();
+  if (!root || !selection || selection.rangeCount === 0) return null;
+  const range = selection.getRangeAt(0);
+  if (!root.contains(range.commonAncestorContainer)) return null;
+  const node = range.commonAncestorContainer.nodeType === Node.TEXT_NODE ? range.commonAncestorContainer.parentElement : range.commonAncestorContainer;
+  return node instanceof HTMLElement ? node : null;
+}
+
+function updateToolbarStateFromSelection() {
+  const element = selectionElement();
+  if (!element) return;
+  const style = window.getComputedStyle(element);
+  const decoration = style.textDecorationLine || style.textDecoration || "";
+  const weight = Number(style.fontWeight);
+  toolbarState.value = {
+    bold: Number.isFinite(weight) ? weight >= 600 : ["bold", "bolder"].includes(style.fontWeight),
+    italic: style.fontStyle === "italic" || style.fontStyle === "oblique",
+    underline: decoration.includes("underline"),
+    strike: decoration.includes("line-through"),
+    unorderedList: document.queryCommandState("insertUnorderedList"),
+    orderedList: document.queryCommandState("insertOrderedList")
+  };
+  const matchedFont = fontFamilies.find((font) => style.fontFamily.includes(font.label) || font.value.split(",")[0].replace(/[\"]/g, "") === style.fontFamily.split(",")[0].replace(/[\"]/g, ""));
+  if (matchedFont) selectedFontFamily.value = matchedFont.value;
+  const nextSize = Math.round(Number.parseFloat(style.fontSize));
+  if (Number.isFinite(nextSize)) fontSize.value = Math.min(48, Math.max(10, nextSize));
+  const nextColor = rgbToHex(style.color);
+  if (nextColor) fontColor.value = nextColor;
+  const nextBackground = rgbToHex(style.backgroundColor);
+  if (nextBackground) highlightColor.value = nextBackground;
 }
 
 function restoreEditorPosition(noteId: string) {
@@ -230,16 +486,80 @@ function restoreEditorPosition(noteId: string) {
   });
 }
 
+function placeCaretAtOffset(root: HTMLElement, offset: number) {
+  const selection = window.getSelection();
+  if (!selection) return;
+  const range = document.createRange();
+  let remaining = offset;
+  let placed = false;
+  const walk = (node: Node) => {
+    if (placed) return;
+    if (node.nodeType === Node.TEXT_NODE) {
+      const length = node.textContent?.length ?? 0;
+      if (remaining <= length) {
+        range.setStart(node, Math.max(0, remaining));
+        range.collapse(true);
+        placed = true;
+        return;
+      }
+      remaining -= length;
+      return;
+    }
+    if (node instanceof HTMLBRElement || node instanceof HTMLImageElement) {
+      if (remaining <= 1) {
+        range.setStartAfter(node);
+        range.collapse(true);
+        placed = true;
+        return;
+      }
+      remaining -= 1;
+      return;
+    }
+    for (const child of Array.from(node.childNodes)) walk(child);
+  };
+  walk(root);
+  if (!placed) {
+    range.selectNodeContents(root);
+    range.collapse(false);
+  }
+  selection.removeAllRanges();
+  selection.addRange(range);
+  savedEditorRange = range.cloneRange();
+}
+
+function linkifyEditorUrls() {
+  const root = editorRef.value;
+  if (!root) return;
+  const caretOffset = getCaretOffset(root);
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+    acceptNode(node) {
+      const parent = node.parentElement;
+      if (!parent || parent.closest("a, script, style")) return NodeFilter.FILTER_REJECT;
+      urlPattern.lastIndex = 0;
+      return urlPattern.test(node.textContent || "") ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT;
+    }
+  });
+  const textNodes: Text[] = [];
+  urlPattern.lastIndex = 0;
+  while (walker.nextNode()) {
+    textNodes.push(walker.currentNode as Text);
+    urlPattern.lastIndex = 0;
+  }
+  if (!textNodes.length) return;
+  for (const node of textNodes) {
+    const html = linkifyPlainText(node.textContent || "");
+    const fragment = document.createRange().createContextualFragment(html);
+    node.replaceWith(fragment);
+  }
+  placeCaretAtOffset(root, caretOffset);
+}
+
 async function saveNoteContent(id: string, content: string) {
   const wasActive = activeId.value === id;
-  const saved = await window.devToolbox.saveStickyNote(id, content);
-  const oldIndex = notes.value.findIndex((note) => note.id === id);
-  if (oldIndex >= 0) {
-    notes.value.splice(oldIndex, 1, saved);
-  } else {
-    notes.value = [saved, ...notes.value];
-  }
-  notes.value = sortNotes(notes.value);
+  const saved = await devToolbox.saveStickyNote(id, content);
+  notes.value = saved.status === "active" ? sortNotes([...notes.value.filter((note) => note.id !== id), saved]) : notes.value.filter((note) => note.id !== id);
+  archivedNotes.value = saved.status === "archived" ? sortNotes([...archivedNotes.value.filter((note) => note.id !== id), saved]) : archivedNotes.value.filter((note) => note.id !== id);
+  trashNotes.value = saved.status === "trashed" ? sortNotes([...trashNotes.value.filter((note) => note.id !== id), saved]) : trashNotes.value.filter((note) => note.id !== id);
   if (wasActive) {
     activeId.value = saved.id;
     draftContent.value = saved.content;
@@ -262,16 +582,15 @@ async function flushPendingSave() {
 async function loadNotes() {
   busy.value = true;
   try {
-    const state = await window.devToolbox.loadStickyNotes();
+    const state = await devToolbox.loadStickyNotes();
     const savedPosition = loadEditorPosition();
-    directory.value = state.directory;
-    notes.value = sortNotes(state.notes);
-    if (!activeId.value && state.notes[0]) {
-      const preferredNote = state.notes.find((note) => note.id === savedPosition?.activeId) ?? state.notes[0];
+    applyState(state);
+    if (!activeId.value && visibleNotes.value[0]) {
+      const preferredNote = visibleNotes.value.find((note) => note.id === savedPosition?.activeId) ?? visibleNotes.value[0];
       await selectNote(preferredNote, true);
     }
-    if (activeId.value && !state.notes.some((note) => note.id === activeId.value)) {
-      await selectNote(state.notes[0] ?? null, true);
+    if (activeId.value && !visibleNotes.value.some((note) => note.id === activeId.value)) {
+      await selectNote(visibleNotes.value[0] ?? null, true);
     }
   } finally {
     busy.value = false;
@@ -281,8 +600,16 @@ async function loadNotes() {
 async function selectNote(note: StickyNote | null, restorePosition = false) {
   await flushPendingSave();
   suppressSave = true;
+  savedEditorRange = null;
+  activeStyleSpan = null;
+  undoStack.length = 0;
+  redoStack.length = 0;
   activeId.value = note?.id ?? "";
   draftContent.value = note?.content ?? "";
+  draftStyle.value = note?.style ?? { ...preferences.value };
+  fontSize.value = draftStyle.value.fontSize;
+  fontColor.value = draftStyle.value.color || preferences.value.color || "#1f2328";
+  selectedFontFamily.value = draftStyle.value.fontFamily;
   saveState.value = note ? "已保存" : "未选择";
   await nextTick();
   if (editorRef.value) editorRef.value.innerHTML = note ? contentToEditorHtml(note.content) : "";
@@ -294,27 +621,25 @@ async function selectNote(note: StickyNote | null, restorePosition = false) {
 }
 
 async function createNote() {
-  const note = await window.devToolbox.createStickyNote("新便签\n");
+  const note = await devToolbox.createStickyNote("新便签\n");
   notes.value = [note, ...notes.value];
   await selectNote(note);
 }
 
 async function chooseDirectory() {
-  const target = await window.devToolbox.selectOutputDir();
+  const target = await devToolbox.selectOutputDir();
   if (!target) return;
   await flushPendingSave();
-  const state = await window.devToolbox.setStickyNotesDirectory(target);
-  directory.value = state.directory;
-  notes.value = sortNotes(state.notes);
-  await selectNote(state.notes[0] ?? null);
+  const state = await devToolbox.setStickyNotesDirectory(target);
+  applyState(state);
+  await selectNote(visibleNotes.value[0] ?? null);
 }
 
 async function toggleNotePinned(note: StickyNote) {
-  const state = await window.devToolbox.setStickyNotePinned(note.id, !note.pinned);
-  directory.value = state.directory;
-  notes.value = sortNotes(state.notes);
-  if (activeId.value && !notes.value.some((item) => item.id === activeId.value)) {
-    await selectNote(notes.value[0] ?? null);
+  const state = await devToolbox.setStickyNotePinned(note.id, !note.pinned);
+  applyState(state);
+  if (activeId.value && !visibleNotes.value.some((item) => item.id === activeId.value)) {
+    await selectNote(visibleNotes.value[0] ?? null);
   }
 }
 
@@ -325,10 +650,67 @@ function requestDeleteNote(note: StickyNote) {
 async function confirmDeleteNote() {
   const note = pendingDeleteNote.value;
   if (!note) return;
-  await window.devToolbox.deleteStickyNote(note.id);
-  notes.value = notes.value.filter((item) => item.id !== note.id);
-  if (activeId.value === note.id) await selectNote(notes.value[0] ?? null);
+  await devToolbox.deleteStickyNote(note.id);
+  await loadNotes();
+  if (activeId.value === note.id) await selectNote(visibleNotes.value[0] ?? null);
   pendingDeleteNote.value = null;
+}
+
+async function archiveNote(note: StickyNote, archived: boolean) {
+  const state = await devToolbox.archiveStickyNote(note.id, archived);
+  applyState(state);
+  if (activeId.value === note.id) await selectNote(visibleNotes.value[0] ?? null);
+}
+
+async function restoreNote(note: StickyNote) {
+  const state = await devToolbox.restoreStickyNote(note.id);
+  applyState(state);
+  currentView.value = "active";
+  await selectNote(state.notes.find((item) => item.id === note.id) ?? state.notes[0] ?? null);
+}
+
+async function emptyTrash() {
+  const state = await devToolbox.emptyStickyNotesTrash();
+  applyState(state);
+  if (currentView.value === "trash") await selectNote(visibleNotes.value[0] ?? null);
+}
+
+async function exportNotes(format: StickyNoteExportFormat, onlyActive = false) {
+  await flushPendingSave();
+  const target = await devToolbox.selectOutputDir();
+  if (!target) return;
+  lastExportedFiles.value = await devToolbox.exportStickyNotes({
+    outputDir: target,
+    ids: onlyActive && activeId.value ? [activeId.value] : undefined,
+    format,
+    includeArchived: true,
+    includeTrash: false
+  });
+}
+
+async function importNotes() {
+  const inputPaths = await devToolbox.selectFiles(
+    [{ name: "便签文件", extensions: ["json", "txt", "zip", "html"] }],
+    true
+  );
+  if (!inputPaths.length) return;
+  await devToolbox.importStickyNotes(inputPaths);
+  await loadNotes();
+}
+
+async function savePreferences() {
+  const nextPreferences = plainStickyStyle(preferences.value);
+  const state = await devToolbox.saveStickyNotesPreferences(nextPreferences);
+  applyState(state);
+  preferences.value = nextPreferences;
+}
+
+async function applyPreset(scope: "current" | "all") {
+  const style = plainStickyStyle(preferences.value);
+  const state = await devToolbox.applyStickyNotePreset(activeId.value || null, scope, style);
+  applyState(state);
+  const next = activeId.value ? [...state.notes, ...state.archivedNotes, ...state.trashNotes].find((note) => note.id === activeId.value) : null;
+  if (next) await selectNote(next);
 }
 
 async function saveActiveNote() {
@@ -355,6 +737,71 @@ function syncEditorContent() {
   draftContent.value = editorDomToStoredContent(editorRef.value);
   storeEditorPosition();
   scheduleSave();
+}
+
+function handleEditorInput() {
+  syncEditorContent();
+  ensureCaretVisible();
+}
+
+function handleEditorKeydown(event: KeyboardEvent) {
+  const ctrl = event.ctrlKey || event.metaKey;
+  if (ctrl && event.key.toLowerCase() === "s") {
+    event.preventDefault();
+    void saveActiveNote();
+    return;
+  }
+  if (ctrl && event.key.toLowerCase() === "z" && !event.shiftKey) {
+    event.preventDefault();
+    undoEdit();
+    return;
+  }
+  if ((ctrl && event.key.toLowerCase() === "y") || (ctrl && event.shiftKey && event.key.toLowerCase() === "z")) {
+    event.preventDefault();
+    redoEdit();
+    return;
+  }
+  if (ctrl && event.key.toLowerCase() === "b") {
+    event.preventDefault();
+    applyBold();
+    return;
+  }
+  if (ctrl && event.key.toLowerCase() === "i") {
+    event.preventDefault();
+    applyItalic();
+    return;
+  }
+  if (ctrl && event.key.toLowerCase() === "u") {
+    event.preventDefault();
+    applyUnderline();
+  }
+}
+
+function handleEditorKeyup(event: KeyboardEvent) {
+  if ([" ", "Enter"].includes(event.key)) {
+    linkifyEditorUrls();
+    syncEditorContent();
+  }
+  updateToolbarStateFromSelection();
+  storeEditorPosition();
+  ensureCaretVisible();
+}
+
+function ensureCaretVisible() {
+  const root = editorRef.value;
+  const selection = window.getSelection();
+  if (!root || !selection || selection.rangeCount === 0) return;
+  requestAnimationFrame(() => {
+    const range = selection.getRangeAt(0);
+    const rect = range.getBoundingClientRect();
+    const rootRect = root.getBoundingClientRect();
+    if (!rect.width && !rect.height) return;
+    if (rect.bottom > rootRect.bottom - 72) {
+      root.scrollTop += rect.bottom - rootRect.bottom + 110;
+    } else if (rect.top < rootRect.top + 28) {
+      root.scrollTop -= rootRect.top - rect.top + 48;
+    }
+  });
 }
 
 function openPreviewImage(src: string) {
@@ -440,46 +887,175 @@ function endPreviewDrag(event: PointerEvent) {
 }
 
 function handleEditorClick(event: MouseEvent) {
+  closeContextMenu();
   const target = event.target;
+  if (target instanceof HTMLInputElement && target.type === "checkbox") {
+    syncEditorContent();
+    return;
+  }
   if (target instanceof Element) {
     const link = target.closest<HTMLAnchorElement>("a[data-note-link]");
     if (link?.href) {
       event.preventDefault();
-      void window.devToolbox.openExternal(link.href);
+      void devToolbox.openExternal(link.href);
       return;
     }
   }
   if (target instanceof HTMLImageElement) {
     openPreviewImage(target.dataset.noteSrc || target.currentSrc || target.src);
   }
+  ensureCaretVisible();
 }
 
-function applyBold() {
-  editorRef.value?.focus();
-  document.execCommand("bold");
-  syncEditorContent();
+function openEditorContextMenu(event: MouseEvent) {
+  if (!activeNote.value || currentView.value === "trash") return;
+  event.preventDefault();
+  captureEditorSelection();
+  updateToolbarStateFromSelection();
+  const menuWidth = 220;
+  const menuHeight = 260;
+  contextMenu.value = {
+    visible: true,
+    x: Math.min(event.clientX, window.innerWidth - menuWidth - 12),
+    y: Math.min(event.clientY, window.innerHeight - menuHeight - 12)
+  };
 }
 
-function applyForeColor() {
-  editorRef.value?.focus();
-  document.execCommand("foreColor", false, fontColor.value);
-  syncEditorContent();
+function closeContextMenu() {
+  contextMenu.value.visible = false;
 }
 
-function applyFontSize() {
+function getSelectedRange() {
   const root = editorRef.value;
+  restoreEditorSelection();
   const selection = window.getSelection();
   if (!root || !selection || selection.rangeCount === 0) return;
   const range = selection.getRangeAt(0);
-  if (!root.contains(range.commonAncestorContainer) || range.collapsed) return;
+  if (!root.contains(range.commonAncestorContainer)) return;
+  return range;
+}
+
+function applyInlineStyle(style: Partial<CSSStyleDeclaration>) {
+  const root = editorRef.value;
+  const range = getSelectedRange();
+  if (!root || !range) return;
+  pushHistorySnapshot();
+
+  if (activeStyleSpan && root.contains(activeStyleSpan) && !range.collapsed) {
+    applyStyleToSpan(activeStyleSpan, style);
+    selectNodeContents(activeStyleSpan);
+    syncEditorContent();
+    return;
+  }
+
   const span = document.createElement("span");
-  span.style.fontSize = `${fontSize.value}px`;
+  applyStyleToSpan(span, style);
+
+  if (range.collapsed) {
+    const marker = document.createTextNode("\u200b");
+    span.appendChild(marker);
+    range.insertNode(span);
+    activeStyleSpan = span;
+    setCaretInside(marker, 1);
+    syncEditorContent();
+    return;
+  }
+
   span.appendChild(range.extractContents());
   range.insertNode(span);
-  range.selectNodeContents(span);
-  range.collapse(false);
-  selection.removeAllRanges();
-  selection.addRange(range);
+  activeStyleSpan = span;
+  selectNodeContents(span);
+  syncEditorContent();
+}
+
+function applyBold() {
+  const nextWeight = activeStyleSpan?.style.fontWeight === "700" || activeStyleSpan?.style.fontWeight === "bold" ? "400" : "700";
+  applyInlineStyle({ fontWeight: nextWeight });
+}
+
+function applyItalic() {
+  const nextStyle = activeStyleSpan?.style.fontStyle === "italic" ? "normal" : "italic";
+  applyInlineStyle({ fontStyle: nextStyle });
+}
+
+function nextTextDecoration(decoration: "underline" | "line-through") {
+  const current = activeStyleSpan?.style.textDecoration || "";
+  const parts = new Set(current.split(/\s+/).filter(Boolean));
+  if (parts.has(decoration)) parts.delete(decoration);
+  else parts.add(decoration);
+  return Array.from(parts).join(" ") || "none";
+}
+
+function applyUnderline() {
+  applyInlineStyle({ textDecoration: nextTextDecoration("underline") });
+}
+
+function applyStrike() {
+  applyInlineStyle({ textDecoration: nextTextDecoration("line-through") });
+}
+
+function applyForeColor() {
+  applyInlineStyle({ color: fontColor.value });
+}
+
+function resetForeColor() {
+  fontColor.value = draftStyle.value.color || preferences.value.color || "#1f2328";
+  applyInlineStyle({ color: fontColor.value });
+}
+
+function applyHighlightColor() {
+  applyInlineStyle({ backgroundColor: highlightColor.value });
+}
+
+function resetHighlightColor() {
+  highlightColor.value = "#ffffff";
+  applyInlineStyle({ backgroundColor: "#ffffff" });
+}
+
+function applyFontFamily(value: string) {
+  selectedFontFamily.value = value;
+  applyInlineStyle({ fontFamily: value });
+}
+
+function chooseFontFamily(value: string) {
+  fontMenuOpen.value = false;
+  applyFontFamily(value);
+}
+
+function chooseContextFontFamily(value: string) {
+  chooseFontFamily(value);
+  closeContextMenu();
+}
+
+function choosePreferenceFontFamily(value: string) {
+  preferences.value.fontFamily = value;
+  presetFontMenuOpen.value = false;
+}
+
+function applyFontSize() {
+  fontSize.value = clampNumber(fontSize.value, 10, 48, 16);
+  applyInlineStyle({ fontSize: `${fontSize.value}px` });
+}
+
+function clampFontSizeInput() {
+  fontSize.value = clampNumber(fontSize.value, 10, 48, 16);
+}
+
+function adjustFontSize(delta: number) {
+  fontSize.value = Math.min(48, Math.max(10, fontSize.value + delta));
+  applyFontSize();
+}
+
+function runEditorCommand(command: "insertUnorderedList" | "insertOrderedList") {
+  pushHistorySnapshot();
+  restoreEditorSelection() || editorRef.value?.focus();
+  document.execCommand(command);
+  syncEditorContent();
+}
+
+function insertTodoItem() {
+  pushHistorySnapshot();
+  insertHtmlAtCursor('<div class="todo-line"><input type="checkbox" data-note-todo="true"> <span>待办事项</span></div>');
   syncEditorContent();
 }
 
@@ -497,6 +1073,7 @@ function insertHtmlAtCursor(html: string) {
     range.collapse(true);
     selection.removeAllRanges();
     selection.addRange(range);
+    rememberRange(range);
   }
 }
 
@@ -624,63 +1201,89 @@ async function exportActiveAsImage() {
   await flushPendingSave();
   const note = activeNote.value;
   if (!note) return;
-  const target = await window.devToolbox.selectOutputDir();
+  const target = await devToolbox.selectOutputDir();
   if (!target) return;
-
-  const blocks = parseExportBlocks(draftContent.value || note.title);
-  const loadedImages = await Promise.all(
-    blocks.map((block) => (block.type === "image" ? loadImage(block.src).catch(() => null) : Promise.resolve(null)))
+  const background = "#ffffff";
+  const textColor = draftStyle.value.color || "#1f2328";
+  const borderColor = "#d0d7de";
+  const accentColor = "#0969da";
+  const frame = document.createElement("div");
+  const html = draftContent.value.trim() ? contentToEditorHtml(draftContent.value) : escapeHtml(note.title);
+  frame.innerHTML = html;
+  Object.assign(frame.style, {
+    position: "fixed",
+    left: "0",
+    top: "0",
+    zIndex: "-1",
+    width: "980px",
+    minHeight: "360px",
+    padding: `${Math.max(24, draftStyle.value.padding * 2)}px`,
+    boxSizing: "border-box",
+    background,
+    color: textColor,
+    fontFamily: draftStyle.value.fontFamily,
+    fontSize: `${draftStyle.value.fontSize}px`,
+    fontWeight: "400",
+    lineHeight: String(draftStyle.value.lineHeight),
+    whiteSpace: "normal",
+    overflowWrap: "anywhere",
+  } satisfies Partial<CSSStyleDeclaration>);
+  frame.querySelectorAll("a").forEach((link) => {
+    if (!(link instanceof HTMLElement)) return;
+    link.style.color = accentColor;
+    link.style.textDecoration = "underline";
+    link.style.textUnderlineOffset = "3px";
+  });
+  frame.querySelectorAll("img").forEach((image) => {
+    if (!(image instanceof HTMLImageElement)) return;
+    image.style.display = "block";
+    image.style.maxWidth = "100%";
+    image.style.maxHeight = "520px";
+    image.style.margin = "12px 0";
+    image.style.border = `1px solid ${borderColor}`;
+    image.style.borderRadius = "8px";
+    image.style.objectFit = "contain";
+  });
+  frame.querySelectorAll<HTMLInputElement>('input[type="checkbox"][data-note-todo]').forEach((checkbox) => {
+    const marker = document.createElement("span");
+    marker.textContent = checkbox.checked ? "✓" : "";
+    Object.assign(marker.style, {
+      display: "inline-grid",
+      placeItems: "center",
+      width: "16px",
+      height: "16px",
+      minWidth: "16px",
+      minHeight: "16px",
+      boxSizing: "border-box",
+      marginRight: "0",
+      border: `1px solid ${checkbox.checked ? accentColor : borderColor}`,
+      borderRadius: "4px",
+      background: checkbox.checked ? accentColor : "#ffffff",
+      color: "#ffffff",
+      fontSize: "13px",
+      lineHeight: "16px",
+      fontWeight: "700",
+      verticalAlign: "-2px"
+    } satisfies Partial<CSSStyleDeclaration>);
+    checkbox.replaceWith(marker);
+  });
+  frame.querySelectorAll<HTMLElement>("[data-note-styled]").forEach((node) => {
+    node.style.lineHeight = node.style.lineHeight || "1.45";
+  });
+  document.body.appendChild(frame);
+  await Promise.all(
+    Array.from(frame.querySelectorAll("img")).map((image) => {
+      if (!(image instanceof HTMLImageElement) || image.complete) return Promise.resolve();
+      return image.decode().catch(() => undefined);
+    })
   );
-  const canvas = document.createElement("canvas");
-  const context = canvas.getContext("2d");
-  if (!context) return;
-
-  const width = 980;
-  const padding = 48;
-  const contentWidth = width - padding * 2;
-  const fontFamily = '"Source Han Sans CN", "Microsoft YaHei", sans-serif';
-  context.font = `24px ${fontFamily}`;
-
-  const blockHeights = blocks.map((block, index) => {
-    if (block.type === "blank") return 28;
-    if (block.type === "text") return wrapText(context, block.value, contentWidth).length * 36;
-    const image = loadedImages[index];
-    if (!image) return 0;
-    const scale = Math.min(1, contentWidth / image.naturalWidth, 360 / image.naturalHeight);
-    return Math.max(80, Math.round(image.naturalHeight * scale)) + 18;
-  });
-  const height = Math.max(360, padding * 2 + blockHeights.reduce((sum, item) => sum + item, 0));
-
-  canvas.width = width;
-  canvas.height = height;
-  context.fillStyle = getComputedStyle(document.documentElement).getPropertyValue("--surface").trim() || "#ffffff";
-  context.fillRect(0, 0, width, height);
-  context.fillStyle = getComputedStyle(document.documentElement).getPropertyValue("--text").trim() || "#1f2328";
-  context.font = `24px ${fontFamily}`;
-
-  let y = padding;
-  blocks.forEach((block, index) => {
-    if (block.type === "blank") {
-      y += 28;
-      return;
-    }
-    if (block.type === "text") {
-      for (const line of wrapText(context, block.value, contentWidth)) {
-        context.fillText(line, padding, y);
-        y += 36;
-      }
-      return;
-    }
-
-    const image = loadedImages[index];
-    if (!image) return;
-    const drawHeight = blockHeights[index] - 18;
-    const drawWidth = Math.min(contentWidth, Math.round(image.naturalWidth * (drawHeight / image.naturalHeight)));
-    context.drawImage(image, padding, y, drawWidth, drawHeight);
-    y += drawHeight + 18;
-  });
-
-  await window.devToolbox.base64ToImage(canvas.toDataURL("image/png"), target, `${fileBaseName(note)}.png`);
+  await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+  try {
+    const dataUrl = await toPng(frame, { pixelRatio: 2, cacheBust: true, backgroundColor: background });
+    await devToolbox.base64ToImage(dataUrl, target, `${fileBaseName(note)}.png`);
+  } finally {
+    frame.remove();
+  }
 }
 
 onMounted(async () => {
@@ -699,32 +1302,46 @@ onBeforeUnmount(() => {
         <section class="tool-main notes-control-panel">
           <div class="section-title notes-panel-title">
             <h2>桌面便签</h2>
-            <span class="status-pill" :class="{ running: busy }">{{ notes.length }} NOTES</span>
+            <span class="status-pill" :class="{ running: busy }">{{ activeCountLabel }}</span>
           </div>
           <div class="notes-action-grid">
             <button type="button" class="primary-button" @click="createNote">
               <i class="ri-add-line" aria-hidden="true"></i>
               新建
             </button>
+            <button type="button" class="secondary-button" @click="importNotes">
+              <i class="ri-upload-2-line" aria-hidden="true"></i>
+              导入
+            </button>
+          </div>
+          <div class="notes-action-grid compact-actions">
+            <button type="button" class="secondary-button" @click="exportNotes('json')">JSON</button>
+            <button type="button" class="secondary-button" @click="exportNotes('txt')">TXT</button>
+            <button type="button" class="secondary-button" @click="exportNotes('zip')">ZIP</button>
             <button type="button" class="secondary-button" @click="chooseDirectory">
               <i class="ri-folder-open-line" aria-hidden="true"></i>
-              目录
+              
             </button>
           </div>
         </section>
 
         <section class="tool-main notes-directory-panel">
+          <div class="note-view-tabs" role="tablist" aria-label="便签视图">
+            <button type="button" :class="{ active: currentView === 'active' }" @click="setCurrentView('active')">当前</button>
+            <button type="button" :class="{ active: currentView === 'archived' }" @click="setCurrentView('archived')">归档</button>
+            <button type="button" :class="{ active: currentView === 'trash' }" @click="setCurrentView('trash')">回收站</button>
+          </div>
           <div class="notes-pathbar" :title="directory">
-            <span>存储目录</span>
+            <span>SQLite 存储目录</span>
             <strong>{{ directory || "加载中..." }}</strong>
           </div>
           <div class="notes-list-head">
             <strong>便签目录</strong>
-            <small>{{ notes.length }} 个文件</small>
+            <small>{{ visibleNotes.length }} 条记录</small>
           </div>
-          <div v-if="notes.length" class="notes-list">
+          <div v-if="visibleNotes.length" class="notes-list">
             <article
-              v-for="note in notes"
+              v-for="note in visibleNotes"
               :key="note.id"
               class="note-card"
               :class="{ active: note.id === activeId, pinned: note.pinned }"
@@ -735,15 +1352,28 @@ onBeforeUnmount(() => {
                 <strong>{{ note.title }}</strong>
                 <small>{{ formatTime(note.updatedAt) }}</small>
               </div>
-              <button type="button" class="icon-button" :title="note.pinned ? '取消置顶' : '置顶便签'" @click.stop="toggleNotePinned(note)">
+              <button v-if="currentView !== 'trash'" type="button" class="icon-button" :title="note.pinned ? '取消置顶' : '置顶便签'" @click.stop="toggleNotePinned(note)">
                 <i :class="note.pinned ? 'ri-pushpin-2-fill' : 'ri-pushpin-line'" aria-hidden="true"></i>
               </button>
-              <button type="button" class="icon-button" title="删除便签" @click.stop="requestDeleteNote(note)">
+              <button v-if="currentView === 'active'" type="button" class="icon-button" title="归档便签" @click.stop="archiveNote(note, true)">
+                <i class="ri-archive-line" aria-hidden="true"></i>
+              </button>
+              <button v-else-if="currentView === 'archived'" type="button" class="icon-button" title="取消归档" @click.stop="archiveNote(note, false)">
+                <i class="ri-inbox-unarchive-line" aria-hidden="true"></i>
+              </button>
+              <button v-else type="button" class="icon-button" title="恢复便签" @click.stop="restoreNote(note)">
+                <i class="ri-restart-line" aria-hidden="true"></i>
+              </button>
+              <button v-if="currentView !== 'trash'" type="button" class="icon-button" title="移入回收站" @click.stop="requestDeleteNote(note)">
                 <i class="ri-delete-bin-line" aria-hidden="true"></i>
               </button>
             </article>
           </div>
-          <p v-else class="empty-state">当前目录还没有 .txt 便签。</p>
+          <div v-else class="empty-state">当前视图没有便签。</div>
+          <button v-if="currentView === 'trash' && trashNotes.length" type="button" class="secondary-button danger-outline" @click="emptyTrash">
+            <i class="ri-delete-bin-6-line" aria-hidden="true"></i>
+            清空回收站
+          </button>
         </section>
       </aside>
 
@@ -755,35 +1385,148 @@ onBeforeUnmount(() => {
           </div>
           <div class="header-actions note-editor-actions">
             <span class="status-pill note-save-state">{{ saveState }}</span>
+            <button type="button" class="secondary-button" :disabled="!activeNote" @click="saveActiveNote">
+              <i class="ri-save-3-line" aria-hidden="true"></i>
+              保存
+            </button>
+            <button type="button" class="secondary-button" :disabled="!activeNote" @click="showPresetPanel = !showPresetPanel">
+              <i class="ri-equalizer-line" aria-hidden="true"></i>
+              预设
+            </button>
             <button type="button" class="secondary-button" :disabled="!activeNote" @click="exportActiveAsImage">
               <i class="ri-image-line" aria-hidden="true"></i>
               导出图片
             </button>
           </div>
         </div>
-        <div class="note-format-toolbar" :class="{ disabled: !activeNote }" aria-label="便签格式工具栏">
-          <button type="button" class="icon-button" title="粗体" :disabled="!activeNote" @click="applyBold">
+        <div class="note-format-toolbar" :class="{ disabled: !activeNote }" aria-label="便签格式工具栏" @mousedown="captureEditorSelection">
+          <button type="button" class="icon-button" :class="{ active: toolbarState.bold }" title="粗体" :disabled="!activeNote" @mousedown.prevent="captureEditorSelection" @click="applyBold">
             <i class="ri-bold" aria-hidden="true"></i>
           </button>
-          <label class="note-format-field" title="字号">
+          <button type="button" class="icon-button" :class="{ active: toolbarState.italic }" title="斜体" :disabled="!activeNote" @mousedown.prevent="captureEditorSelection" @click="applyItalic">
+            <i class="ri-italic" aria-hidden="true"></i>
+          </button>
+          <button type="button" class="icon-button" :class="{ active: toolbarState.underline }" title="下划线" :disabled="!activeNote" @mousedown.prevent="captureEditorSelection" @click="applyUnderline">
+            <i class="ri-underline" aria-hidden="true"></i>
+          </button>
+          <button type="button" class="icon-button" :class="{ active: toolbarState.strike }" title="删除线" :disabled="!activeNote" @mousedown.prevent="captureEditorSelection" @click="applyStrike">
+            <i class="ri-strikethrough" aria-hidden="true"></i>
+          </button>
+          <button type="button" class="icon-button" title="撤销" :disabled="!activeNote" @mousedown.prevent @click="undoEdit">
+            <i class="ri-arrow-go-back-line" aria-hidden="true"></i>
+          </button>
+          <button type="button" class="icon-button" title="重做" :disabled="!activeNote" @mousedown.prevent @click="redoEdit">
+            <i class="ri-arrow-go-forward-line" aria-hidden="true"></i>
+          </button>
+          <div class="note-font-dropdown" title="字体">
+            <button type="button" class="note-font-trigger" :disabled="!activeNote" @mousedown.prevent="captureEditorSelection" @click="fontMenuOpen = !fontMenuOpen">
+              <i class="ri-font-family" aria-hidden="true"></i>
+              <span :style="{ fontFamily: selectedFontFamily }">{{ currentFontLabel }}</span>
+              <i class="ri-arrow-down-s-line" aria-hidden="true"></i>
+            </button>
+            <div v-if="fontMenuOpen" class="note-font-menu" role="menu">
+              <button
+                v-for="font in fontFamilies"
+                :key="font.label"
+                type="button"
+                role="menuitem"
+                :class="{ active: selectedFontFamily === font.value }"
+                :style="{ fontFamily: font.value }"
+                @mousedown.prevent="captureEditorSelection"
+                @click="chooseFontFamily(font.value)"
+              >
+                {{ font.label }}
+              </button>
+            </div>
+          </div>
+          <div class="note-format-stepper" title="字号">
             <i class="ri-font-size" aria-hidden="true"></i>
-            <input v-model.number="fontSize" type="number" min="10" max="48" step="1" :disabled="!activeNote" @change="applyFontSize" />
-          </label>
+            <button type="button" class="note-step-button" title="减小字号" :disabled="!activeNote" @mousedown.prevent="captureEditorSelection" @click="adjustFontSize(-1)">
+              <i class="ri-subtract-line" aria-hidden="true"></i>
+            </button>
+            <input
+              v-model.number="fontSize"
+              class="note-size-input"
+              type="text"
+              min="10"
+              max="48"
+              step="1"
+              :disabled="!activeNote"
+              @pointerdown="captureEditorSelection"
+              @input="clampFontSizeInput"
+              @change="applyFontSize"
+            />
+            <button type="button" class="note-step-button" title="增大字号" :disabled="!activeNote" @mousedown.prevent="captureEditorSelection" @click="adjustFontSize(1)">
+              <i class="ri-add-line" aria-hidden="true"></i>
+            </button>
+          </div>
           <label class="note-color-field" title="文字色值">
             <i class="ri-palette-line" aria-hidden="true"></i>
-            <input v-model="fontColor" type="color" :disabled="!activeNote" @input="applyForeColor" />
+            <input v-model="fontColor" type="color" :disabled="!activeNote" @pointerdown="captureEditorSelection" @input="applyForeColor" />
           </label>
+          <button type="button" class="icon-button" title="文字色恢复默认" :disabled="!activeNote" @mousedown.prevent="captureEditorSelection" @click="resetForeColor">
+            <i class="ri-format-clear" aria-hidden="true"></i>
+          </button>
+          <label class="note-color-field" title="背景高亮">
+            <i class="ri-mark-pen-line" aria-hidden="true"></i>
+            <input v-model="highlightColor" type="color" :disabled="!activeNote" @pointerdown="captureEditorSelection" @input="applyHighlightColor" />
+          </label>
+          <button type="button" class="icon-button" title="高亮恢复默认" :disabled="!activeNote" @mousedown.prevent="captureEditorSelection" @click="resetHighlightColor">
+            <i class="ri-eraser-line" aria-hidden="true"></i>
+          </button>
+          <button type="button" class="icon-button" :class="{ active: toolbarState.unorderedList }" title="无序列表" :disabled="!activeNote" @mousedown.prevent="captureEditorSelection" @click="runEditorCommand('insertUnorderedList')">
+            <i class="ri-list-unordered" aria-hidden="true"></i>
+          </button>
+          <button type="button" class="icon-button" :class="{ active: toolbarState.orderedList }" title="有序列表" :disabled="!activeNote" @mousedown.prevent="captureEditorSelection" @click="runEditorCommand('insertOrderedList')">
+            <i class="ri-list-ordered" aria-hidden="true"></i>
+          </button>
+          <button type="button" class="icon-button" title="待办事项" :disabled="!activeNote" @mousedown.prevent="captureEditorSelection" @click="insertTodoItem">
+            <i class="ri-checkbox-line" aria-hidden="true"></i>
+          </button>
+        </div>
+        <div v-if="showPresetPanel" class="note-preset-panel">
+          <label><span>默认字号</span><input v-model.number="preferences.fontSize" type="number" min="10" max="48" @input="clampPreferences" /></label>
+          <label><span>默认行高</span><input v-model.number="preferences.lineHeight" type="number" min="1" max="2.4" step="0.05" @input="clampPreferences" /></label>
+          <label><span>默认边距</span><input v-model.number="preferences.padding" type="number" min="8" max="64" @input="clampPreferences" /></label>
+          <label><span>默认文字</span><input v-model="preferences.color" type="color" /></label>
+          <div class="note-font-dropdown preset-fonts" title="默认字体">
+            <button type="button" class="note-font-trigger" @click="presetFontMenuOpen = !presetFontMenuOpen">
+              <i class="ri-font-family" aria-hidden="true"></i>
+              <span :style="{ fontFamily: preferences.fontFamily }">{{ preferenceFontLabel }}</span>
+              <i class="ri-arrow-down-s-line" aria-hidden="true"></i>
+            </button>
+            <div v-if="presetFontMenuOpen" class="note-font-menu" role="menu">
+              <button
+                v-for="font in fontFamilies"
+                :key="font.label"
+                type="button"
+                role="menuitem"
+                :class="{ active: preferences.fontFamily === font.value }"
+                :style="{ fontFamily: font.value }"
+                @click="choosePreferenceFontFamily(font.value)"
+              >
+                {{ font.label }}
+              </button>
+            </div>
+          </div>
+          <button type="button" class="secondary-button" @click="savePreferences">保存默认</button>
+          <button type="button" class="secondary-button" :disabled="!activeNote" @click="applyPreset('current')">应用当前</button>
+          <button type="button" class="secondary-button" @click="applyPreset('all')">应用全部</button>
         </div>
         <div
           ref="editorRef"
           class="note-editor"
-          :class="{ disabled: !activeNote }"
+          :class="{ disabled: !activeNote || currentView === 'trash' }"
+          :style="editorStyleFor(draftStyle)"
           contenteditable="true"
           spellcheck="false"
           data-placeholder="选择或新建一个便签后开始输入。可直接粘贴图片。"
           @click="handleEditorClick"
-          @input="syncEditorContent"
-          @keyup="storeEditorPosition"
+          @contextmenu="openEditorContextMenu"
+          @beforeinput="pushHistorySnapshot"
+          @input="handleEditorInput"
+          @keydown="handleEditorKeydown"
+          @keyup="handleEditorKeyup"
           @mouseup="storeEditorPosition"
           @scroll="storeEditorPosition"
           @blur="storeEditorPosition"
@@ -793,6 +1536,36 @@ onBeforeUnmount(() => {
     </div>
 
     <Teleport to="body">
+      <div v-if="contextMenu.visible" class="note-context-scrim" @mousedown="closeContextMenu"></div>
+      <div
+        v-if="contextMenu.visible"
+        class="note-context-menu"
+        :style="{ left: `${contextMenu.x}px`, top: `${contextMenu.y}px` }"
+        role="menu"
+        @mousedown.prevent
+      >
+        <div class="note-context-row">
+          <button type="button" :class="{ active: toolbarState.bold }" title="粗体" @click="applyBold"><i class="ri-bold" aria-hidden="true"></i></button>
+          <button type="button" :class="{ active: toolbarState.italic }" title="斜体" @click="applyItalic"><i class="ri-italic" aria-hidden="true"></i></button>
+          <button type="button" :class="{ active: toolbarState.underline }" title="下划线" @click="applyUnderline"><i class="ri-underline" aria-hidden="true"></i></button>
+          <button type="button" :class="{ active: toolbarState.strike }" title="删除线" @click="applyStrike"><i class="ri-strikethrough" aria-hidden="true"></i></button>
+          <button type="button" title="文字色恢复默认" @click="resetForeColor"><i class="ri-format-clear" aria-hidden="true"></i></button>
+          <button type="button" title="高亮恢复默认" @click="resetHighlightColor"><i class="ri-eraser-line" aria-hidden="true"></i></button>
+        </div>
+        <div class="note-context-fonts">
+          <button
+            v-for="font in fontFamilies"
+            :key="font.label"
+            type="button"
+            :class="{ active: selectedFontFamily === font.value }"
+            :style="{ fontFamily: font.value }"
+            @click="chooseContextFontFamily(font.value)"
+          >
+            {{ font.label }}
+          </button>
+        </div>
+      </div>
+
       <div v-if="previewImage" class="note-preview-mask">
         <div class="note-preview-dialog" role="dialog" aria-modal="true">
           <header class="note-preview-head">
@@ -840,13 +1613,13 @@ onBeforeUnmount(() => {
 
       <div v-if="pendingDeleteNote" class="note-confirm-mask">
         <div class="note-confirm-dialog" role="dialog" aria-modal="true">
-          <h3>删除便签</h3>
-          <p>确认删除“{{ pendingDeleteNote.title }}”？本地 .txt 文件也会被删除。</p>
+          <h3>移入回收站</h3>
+          <p>确认将“{{ pendingDeleteNote.title }}”移入回收站？之后仍可恢复，清空回收站才会彻底删除。</p>
           <div class="note-confirm-actions">
             <button type="button" class="secondary-button" @click="pendingDeleteNote = null">取消</button>
             <button type="button" class="primary-button danger-button" @click="confirmDeleteNote">
               <i class="ri-delete-bin-line" aria-hidden="true"></i>
-              删除
+              移入回收站
             </button>
           </div>
         </div>
@@ -895,6 +1668,11 @@ onBeforeUnmount(() => {
   gap: 8px;
 }
 
+.compact-actions {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin-top: 8px;
+}
+
 .notes-action-grid .secondary-button,
 .notes-action-grid .primary-button {
   min-width: 0;
@@ -902,9 +1680,36 @@ onBeforeUnmount(() => {
 }
 
 .notes-directory-panel {
-  grid-template-rows: auto auto minmax(0, 1fr);
+  grid-template-rows: auto auto auto minmax(0, 1fr) auto;
   align-content: start;
   overflow: hidden;
+}
+
+.note-view-tabs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-subtle);
+}
+
+.note-view-tabs button {
+  min-width: 0;
+  height: 30px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.note-view-tabs button.active {
+  background: var(--surface);
+  color: var(--accent-strong);
+  box-shadow: inset 0 0 0 1px var(--border);
 }
 
 .notes-pathbar {
@@ -969,7 +1774,7 @@ onBeforeUnmount(() => {
 
 .note-card {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 30px 30px;
+  grid-template-columns: minmax(0, 1fr) repeat(3, 30px);
   gap: 9px;
   align-items: center;
   width: 100%;
@@ -980,16 +1785,6 @@ onBeforeUnmount(() => {
   border-radius: 8px;
   background: var(--surface-subtle);
   cursor: pointer;
-}
-
-.note-card.pinned {
-  border-color: color-mix(in srgb, var(--accent) 42%, var(--border));
-  background: color-mix(in srgb, var(--accent) 7%, var(--surface));
-}
-
-.note-card.pinned .note-card-text strong::before {
-  content: "置顶 · ";
-  color: var(--accent-strong);
 }
 
 .note-card.active {
@@ -1034,7 +1829,7 @@ onBeforeUnmount(() => {
 
 .note-editor-panel {
   display: grid;
-  grid-template-rows: auto auto minmax(0, 1fr);
+  grid-template-rows: auto auto auto minmax(0, 1fr);
   height: 100%;
   min-height: 0;
   overflow: hidden;
@@ -1093,13 +1888,79 @@ onBeforeUnmount(() => {
   opacity: 0.62;
 }
 
-.note-format-field,
+.note-format-toolbar .icon-button.active,
+.note-context-menu button.active {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 14%, var(--surface));
+  color: var(--accent-strong);
+}
+
+.note-font-dropdown {
+  position: relative;
+  min-width: 148px;
+}
+
+.note-font-trigger {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr) 18px;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  height: 34px;
+  padding: 0 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.note-font-trigger span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: left;
+}
+
+.note-font-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 20;
+  display: grid;
+  gap: 4px;
+  width: 180px;
+  padding: 6px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: 0 16px 38px rgba(1, 4, 9, 0.18);
+}
+
+.note-font-menu button {
+  height: 32px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.note-font-menu button:hover,
+.note-font-menu button.active {
+  color: var(--accent-strong);
+  background: color-mix(in srgb, var(--accent) 8%, var(--surface));
+}
+
+.note-format-stepper,
 .note-color-field {
   display: grid;
   grid-template-columns: 22px minmax(0, 1fr);
   align-items: center;
   gap: 6px;
-  width: 104px;
   min-height: 34px;
   padding: 0 8px;
   border: 1px solid var(--border);
@@ -1108,7 +1969,44 @@ onBeforeUnmount(() => {
   color: var(--muted);
 }
 
-.note-format-field input,
+.note-format-stepper {
+  grid-template-columns: 20px 28px 58px 28px;
+  /* width: 154px; */
+}
+
+.note-size-input {
+  width: 58px;
+  height: 28px;
+  min-width: 0;
+  padding: 0 4px;
+  border: 0;
+  border-radius: 4px;
+  background: var(--surface-subtle);
+  color: var(--text);
+  font-size: 12px;
+  line-height: 1;
+  text-align: center;
+  box-shadow: none;
+}
+
+.note-step-button {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface-subtle);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.note-step-button:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent-strong);
+}
+
 .note-color-field input {
   min-height: 28px;
   padding: 0;
@@ -1118,6 +2016,42 @@ onBeforeUnmount(() => {
 
 .note-color-field {
   width: 76px;
+}
+
+.note-preset-panel {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(96px, 1fr)) auto auto auto;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-subtle);
+}
+
+.note-preset-panel label {
+  display: grid;
+  grid-template-columns: 58px minmax(0, 1fr);
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.note-preset-panel label span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.note-preset-panel input {
+  min-width: 0;
+  height: 32px;
+}
+
+.preset-fonts {
+  grid-column: 1 / -1;
+  width: 180px;
 }
 
 .note-color-field input {
@@ -1136,9 +2070,10 @@ onBeforeUnmount(() => {
   border-radius: 8px;
   background: var(--surface);
   color: var(--text);
-  font: 14px/1.75 "Source Han Sans CN", "Microsoft YaHei", ui-sans-serif, system-ui, sans-serif;
+  font: 14px/1.45 "Source Han Sans CN", "Microsoft YaHei", ui-sans-serif, system-ui, sans-serif;
   outline: none;
   overflow-wrap: anywhere;
+  scroll-padding-block: 96px;
   word-break: break-word;
   white-space: pre-wrap;
   user-select: text;
@@ -1178,6 +2113,141 @@ onBeforeUnmount(() => {
   text-decoration: underline;
   text-underline-offset: 3px;
   cursor: pointer;
+}
+
+.note-editor :deep([data-note-styled="true"]) {
+  line-height: 1.45;
+}
+
+.note-editor :deep(.note-active-selection) {
+  border-radius: 4px;
+  background-image: linear-gradient(color-mix(in srgb, var(--accent) 18%, transparent), color-mix(in srgb, var(--accent) 18%, transparent));
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 24%, transparent);
+}
+
+.note-editor :deep(ul),
+.note-editor :deep(ol) {
+  margin: 8px 0;
+  padding-left: 24px;
+}
+
+.note-editor :deep(li) {
+  margin: 4px 0;
+}
+
+.note-editor :deep(.todo-line) {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 28px;
+}
+
+.note-editor :deep(input[type="checkbox"][data-note-todo]) {
+  position: relative;
+  flex: 0 0 auto;
+  appearance: none !important;
+  display: inline-block !important;
+  width: 16px !important;
+  height: 16px !important;
+  min-width: 16px !important;
+  max-width: 16px !important;
+  min-height: 16px !important;
+  max-height: 16px !important;
+  aspect-ratio: 1 / 1;
+  margin: 0 !important;
+  padding: 0 !important;
+  box-sizing: border-box !important;
+  border: 1px solid #d0d7de !important;
+  border-radius: 4px;
+  background: #ffffff !important;
+  box-shadow: none !important;
+  outline: none !important;
+  cursor: pointer;
+}
+
+.note-editor :deep(input[type="checkbox"][data-note-todo]:focus),
+.note-editor :deep(input[type="checkbox"][data-note-todo]:focus-visible) {
+  outline: none;
+  box-shadow: none;
+}
+
+.note-editor :deep(input[type="checkbox"][data-note-todo]:checked) {
+  border-color: #0969da !important;
+  background: #0969da !important;
+}
+
+.note-editor :deep(input[type="checkbox"][data-note-todo]:checked::after) {
+  content: "";
+  position: absolute;
+  left: 4px;
+  top: 1px;
+  width: 5px;
+  height: 9px;
+  border: solid #ffffff;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+
+.danger-outline {
+  border-color: color-mix(in srgb, #d1242f 40%, var(--border));
+  color: #d1242f;
+}
+
+.note-context-menu {
+  position: fixed;
+  z-index: 120;
+  display: grid;
+  gap: 7px;
+  width: 220px;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: 0 14px 34px rgba(1, 4, 9, 0.22);
+  -webkit-app-region: no-drag;
+}
+
+.note-context-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 119;
+  background: transparent;
+  -webkit-app-region: no-drag;
+}
+
+.note-context-row {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 5px;
+}
+
+.note-context-row button,
+.note-context-fonts button {
+  min-width: 0;
+  height: 30px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface-subtle);
+  color: var(--text);
+  cursor: pointer;
+  transition: background 0.16s ease, border-color 0.16s ease, color 0.16s ease;
+}
+
+.note-context-row button:hover,
+.note-context-fonts button:hover {
+  border-color: var(--accent);
+  color: var(--accent-strong);
+  background: color-mix(in srgb, var(--accent) 8%, var(--surface));
+}
+
+.note-context-fonts {
+  display: grid;
+  gap: 5px;
+}
+
+.note-context-fonts button {
+  padding: 0 9px;
+  text-align: left;
 }
 
 .note-preview-mask,

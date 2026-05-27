@@ -171,11 +171,10 @@ export interface VideoCompressOptions {
 
 export interface VideoLoopAnalyzeOptions {
   inputPath: string;
-  outputDir?: string;
   edgeSeconds: number;
 }
 
-export interface VideoLoopInfo {
+export interface MediaInfo {
   durationSeconds: number | null;
   bitrate: string;
   format: string;
@@ -183,12 +182,17 @@ export interface VideoLoopInfo {
   audioCodec: string;
   resolution: string;
   fps: string;
-  firstFramePath?: string;
-  lastFramePath?: string;
+  sampleRate: string;
+  channels: string;
+  raw: string;
+}
+
+export interface VideoLoopInfo extends MediaInfo {
+  firstFrameDataUrl?: string;
+  lastFrameDataUrl?: string;
   frameDiffScore: number | null;
   loopRisk: "low" | "medium" | "high" | "unknown";
   summary: string;
-  raw: string;
 }
 
 export interface SequenceAnimationOptions {
@@ -434,6 +438,35 @@ export interface OpenDirectoryResult {
   message?: string;
 }
 
+export type StickyNoteStatus = "active" | "archived" | "trashed";
+
+export interface StickyNoteStyle {
+  fontFamily: string;
+  fontSize: number;
+  lineHeight: number;
+  padding: number;
+  color?: string;
+  backgroundColor?: string;
+}
+
+export interface StickyNotesPreferences extends StickyNoteStyle {}
+
+export type StickyNoteExportFormat = "json" | "txt" | "zip";
+
+export interface StickyNoteExportOptions {
+  outputDir: string;
+  ids?: string[];
+  format: StickyNoteExportFormat;
+  includeArchived?: boolean;
+  includeTrash?: boolean;
+}
+
+export interface StickyNotesImportResult {
+  imported: number;
+  skipped: number;
+  notes: StickyNote[];
+}
+
 export interface StickyNote {
   id: string;
   fileName: string;
@@ -442,11 +475,20 @@ export interface StickyNote {
   content: string;
   updatedAt: number;
   pinned: boolean;
+  status: StickyNoteStatus;
+  style: StickyNoteStyle;
+  createdAt: number;
+  archivedAt: number | null;
+  trashedAt: number | null;
 }
 
 export interface StickyNotesState {
   directory: string;
+  databasePath: string;
   notes: StickyNote[];
+  archivedNotes: StickyNote[];
+  trashNotes: StickyNote[];
+  preferences: StickyNotesPreferences;
 }
 
 export interface CaptureProxyStartOptions {
@@ -508,6 +550,7 @@ export interface DevToolboxApi {
   removeVideoAudio(options: VideoMuteOptions): Promise<ConversionResult>;
   compressVideos(options: VideoCompressOptions): Promise<ConversionResult>;
   analyzeVideoLoop(options: VideoLoopAnalyzeOptions): Promise<ConversionResult & { info?: VideoLoopInfo }>;
+  getMediaInfo(inputPath: string): Promise<MediaInfo>;
   convertAudio(options: AudioConvertOptions): Promise<ConversionResult>;
   compressAudio(options: AudioCompressOptions): Promise<ConversionResult>;
   minifyCode(options: CodeMinifyOptions): Promise<ConversionResult>;
@@ -578,8 +621,14 @@ export interface DevToolboxApi {
   createStickyNote(content?: string): Promise<StickyNote>;
   saveStickyNote(id: string, content: string): Promise<StickyNote>;
   setStickyNotePinned(id: string, pinned: boolean): Promise<StickyNotesState>;
+  archiveStickyNote(id: string, archived: boolean): Promise<StickyNotesState>;
   deleteStickyNote(id: string): Promise<void>;
-  exportStickyNotes(outputDir: string, ids?: string[]): Promise<string[]>;
+  restoreStickyNote(id: string): Promise<StickyNotesState>;
+  emptyStickyNotesTrash(): Promise<StickyNotesState>;
+  saveStickyNotesPreferences(preferences: StickyNotesPreferences): Promise<StickyNotesState>;
+  applyStickyNotePreset(id: string | null, scope: "current" | "all", style: StickyNoteStyle): Promise<StickyNotesState>;
+  importStickyNotes(inputPaths: string[]): Promise<StickyNotesImportResult>;
+  exportStickyNotes(outputDirOrOptions: string | StickyNoteExportOptions, ids?: string[]): Promise<string[]>;
   testCaptureProxy(): Promise<CaptureProxyRecord>;
 }
 

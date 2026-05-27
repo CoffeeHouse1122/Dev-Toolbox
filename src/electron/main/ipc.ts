@@ -4,7 +4,7 @@ import { createHistoryService } from "./services/history.service";
 import { applyWatermark, compressImages, createFaviconPackage, convertImages, cropImage, resizeImages } from "./services/image.service";
 import { convertFontsToWoff2 } from "./services/font.service";
 import { subsetFont } from "./services/font-tools.service";
-import { analyzeVideoLoop, compressVideos, convertVideoAnimation, createVideoBackgroundPack, removeVideoAudio } from "./services/video.service";
+import { analyzeVideoLoop, compressVideos, convertVideoAnimation, createVideoBackgroundPack, getMediaInfo, removeVideoAudio } from "./services/video.service";
 import { compressAudio, convertAudio } from "./services/audio.service";
 import { minifyCode } from "./services/code-minify.service";
 import { convertSequenceAnimation } from "./services/sequence.service";
@@ -31,11 +31,17 @@ import { loadAppSettings, saveAppSettings } from "./services/settings.service";
 import { getAppDiagnostics } from "./services/diagnostics.service";
 import { loadToolConfig, saveToolConfig } from "./services/json-config.service";
 import {
+  archiveStickyNote,
+  applyStickyNotePreset,
   createStickyNote,
   deleteStickyNote,
+  emptyStickyNotesTrash,
   exportStickyNotes,
+  importStickyNotes,
   loadStickyNotes,
+  restoreStickyNote,
   saveStickyNote,
+  saveStickyNotesPreferences,
   setStickyNotePinned,
   setStickyNotesDirectory
 } from "./services/sticky-notes.service";
@@ -77,6 +83,9 @@ import type {
   SeoFilesOptions,
   SequenceAnimationOptions,
   SharedDiskConfig,
+  StickyNoteExportOptions,
+  StickyNoteStyle,
+  StickyNotesPreferences,
   SpriteOptions,
   CodeMinifyOptions,
   VideoBackgroundOptions,
@@ -271,7 +280,6 @@ const videoCompressSchema = z.object({
 
 const videoLoopAnalyzeSchema = z.object({
   inputPath: z.string().min(1),
-  outputDir: z.string().min(1).optional(),
   edgeSeconds: z.number().min(0.02).max(2)
 });
 
@@ -407,9 +415,21 @@ const stickyNoteSaveSchema = z.object({
   content: z.string()
 });
 
+const stickyNoteStyleSchema = z.object({
+  fontFamily: z.string().min(1),
+  fontSize: z.number().min(10).max(48),
+  lineHeight: z.number().min(1).max(2.4),
+  padding: z.number().min(8).max(64),
+  color: z.string().optional(),
+  backgroundColor: z.string().optional()
+});
+
 const stickyNoteExportSchema = z.object({
   outputDir: z.string().min(1),
-  ids: z.array(z.string().min(1)).optional()
+  ids: z.array(z.string().min(1)).optional(),
+  format: z.enum(["json", "txt", "zip"]).default("txt"),
+  includeArchived: z.boolean().optional(),
+  includeTrash: z.boolean().optional()
 });
 
 export function registerIpc() {
@@ -507,6 +527,10 @@ export function registerIpc() {
   ipcMain.handle("media:video-loop", async (_event, raw: VideoLoopAnalyzeOptions) => {
     const options = videoLoopAnalyzeSchema.parse(raw);
     return analyzeVideoLoop(options, history);
+  });
+
+  ipcMain.handle("media:info", async (_event, inputPath: string) => {
+    return getMediaInfo(z.string().min(1).parse(inputPath));
   });
 
   ipcMain.handle("convert:audio", async (_event, raw: AudioConvertOptions) => {
@@ -648,13 +672,39 @@ export function registerIpc() {
     return setStickyNotePinned(payload.id, payload.pinned);
   });
 
+  ipcMain.handle("notes:archive", async (_event, raw: { id: string; archived: boolean }) => {
+    const payload = z.object({ id: z.string().min(1), archived: z.boolean() }).parse(raw);
+    return archiveStickyNote(payload.id, payload.archived);
+  });
+
   ipcMain.handle("notes:delete", async (_event, id: string) => {
     await deleteStickyNote(z.string().min(1).parse(id));
   });
 
-  ipcMain.handle("notes:export", async (_event, raw: { outputDir: string; ids?: string[] } | string) => {
-    const payload = typeof raw === "string" ? { outputDir: raw } : stickyNoteExportSchema.parse(raw);
-    return exportStickyNotes(payload.outputDir, payload.ids);
+  ipcMain.handle("notes:restore", async (_event, id: string) => {
+    return restoreStickyNote(z.string().min(1).parse(id));
+  });
+
+  ipcMain.handle("notes:empty-trash", async () => {
+    return emptyStickyNotesTrash();
+  });
+
+  ipcMain.handle("notes:preferences", async (_event, raw: StickyNotesPreferences) => {
+    return saveStickyNotesPreferences(stickyNoteStyleSchema.parse(raw));
+  });
+
+  ipcMain.handle("notes:apply-preset", async (_event, raw: { id: string | null; scope: "current" | "all"; style: StickyNoteStyle }) => {
+    const payload = z.object({ id: z.string().min(1).nullable(), scope: z.enum(["current", "all"]), style: stickyNoteStyleSchema }).parse(raw);
+    return applyStickyNotePreset(payload.id, payload.scope, payload.style);
+  });
+
+  ipcMain.handle("notes:import", async (_event, inputPaths: string[]) => {
+    return importStickyNotes(z.array(z.string().min(1)).min(1).parse(inputPaths));
+  });
+
+  ipcMain.handle("notes:export", async (_event, raw: StickyNoteExportOptions | string) => {
+    const payload = typeof raw === "string" ? { outputDir: raw, format: "txt" as const } : stickyNoteExportSchema.parse(raw);
+    return exportStickyNotes(payload);
   });
 
   ipcMain.handle("history:list", async (_event, limit?: number) => {
