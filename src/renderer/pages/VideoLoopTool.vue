@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, onBeforeUnmount, ref, watch } from "vue";
 import type { ConversionResult, DevToolboxApi, VideoLoopInfo } from "../../shared/types";
 // @ts-ignore VS Code inferred project may miss the local *.vue shim.
 import DropZone from "../components/DropZone.vue";
@@ -13,9 +13,10 @@ const input = ref<string[]>([]);
 const edgeSeconds = ref(0.08);
 const busy = ref(false);
 const result = ref<VideoLoopResult | null>(null);
+const loopVideoRef = ref<HTMLVideoElement | null>(null);
 
 function previewFileUrl(filePath: string, time = 0.1) {
-  const params = new URLSearchParams({ path: filePath });
+  const params = new URLSearchParams({ path: filePath, cache: "1" });
   return `devtoolbox-file://preview?${params.toString()}#t=${time}`;
 }
 
@@ -43,6 +44,25 @@ function riskText(risk?: VideoLoopInfo["loopRisk"]) {
   if (risk === "high") return "高风险";
   return "待分析";
 }
+
+function releaseLoopVideo() {
+  const video = loopVideoRef.value;
+  if (!video) return;
+  video.pause();
+  video.removeAttribute("src");
+  video.load();
+}
+
+watch(
+  () => input.value[0],
+  () => {
+    releaseLoopVideo();
+  }
+);
+
+onBeforeUnmount(() => {
+  releaseLoopVideo();
+});
 
 async function run() {
   if (!canRun.value) return;
@@ -81,7 +101,7 @@ async function run() {
           :filters="[{ name: '视频', extensions: ['mp4', 'webm', 'mov', 'mkv', 'avi'] }]"
         />
         <div class="loop-stage">
-          <video v-if="selectedVideoUrl" :key="selectedVideoUrl" :src="selectedVideoUrl" autoplay muted loop playsinline controls preload="metadata"></video>
+          <video ref="loopVideoRef" v-if="selectedVideoUrl" :key="selectedVideoUrl" :src="selectedVideoUrl" autoplay muted loop playsinline controls preload="metadata"></video>
           <div v-else class="empty-state">等待选择视频</div>
         </div>
         <label class="field">
@@ -158,7 +178,8 @@ async function run() {
 .loop-stage video {
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
+  background: #000000;
 }
 
 .loop-summary {
@@ -189,7 +210,7 @@ async function run() {
   display: block;
   width: 100%;
   aspect-ratio: 16 / 9;
-  object-fit: cover;
+  object-fit: contain;
   border: 1px solid var(--border);
   border-radius: 6px;
   background: #000000;

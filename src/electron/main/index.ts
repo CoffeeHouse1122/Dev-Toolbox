@@ -7,6 +7,7 @@ import { getPreloadEntryPath, getRendererIndexPath, getRuntimeIconPath } from ".
 import { initAutoUpdater, checkForUpdates, downloadUpdate, installUpdate } from "./services/autoUpdater.service";
 import type { ThemeTitleBarPayload, WindowFrameState } from "../../shared/types";
 import fs from "node:fs";
+import fsp from "node:fs/promises";
 
 const isDev = Boolean(process.env.VITE_DEV_SERVER_URL);
 
@@ -19,6 +20,16 @@ if (!gotLock) {
 let mainWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
 let quitting = false;
+
+type PreviewCacheEntry = {
+  sourcePath: string;
+  previewPath: string;
+  size: number;
+  mtimeMs: number;
+};
+
+const previewCache = new Map<string, PreviewCacheEntry>();
+const previewCopyTasks = new Map<string, Promise<string>>();
 
 const DEFAULT_TITLEBAR_THEME: ThemeTitleBarPayload = {
   accentColor: "#0969da",
@@ -39,14 +50,51 @@ protocol.registerSchemesAsPrivileged([
 ]);
 
 function registerPreviewProtocol() {
-  protocol.handle("devtoolbox-file", (request) => {
+  protocol.handle("devtoolbox-file", async (request) => {
     const url = new URL(request.url);
     const queryPath = url.searchParams.get("path");
     const legacyPath = url.pathname ? decodeURIComponent(url.pathname.slice(1)) : "";
     const filePath = queryPath || legacyPath;
     if (!filePath) throw new Error("Preview file path is empty.");
-    return net.fetch(pathToFileURL(filePath).toString());
+    const previewPath = url.searchParams.get("cache") === "1" ? await resolvePreviewCachePath(filePath) : filePath;
+    return net.fetch(pathToFileURL(previewPath).toString());
   });
+}
+
+function previewCacheDir() {
+  return path.join(app.getPath("temp"), "dev-toolbox-preview-cache");
+}
+
+async function clearPreviewCache() {
+  previewCache.clear();
+  previewCopyTasks.clear();
+  await fsp.rm(previewCacheDir(), { recursive: true, force: true }).catch(() => undefined);
+}
+
+async function resolvePreviewCachePath(sourcePath: string) {
+  const stat = await fsp.stat(sourcePath);
+  const cached = previewCache.get(sourcePath);
+  if (cached && cached.size === stat.size && cached.mtimeMs === stat.mtimeMs) {
+    return cached.previewPath;
+  }
+  const extension = path.extname(sourcePath) || ".bin";
+  const cacheKey = Buffer.from(`${sourcePath}:${stat.size}:${stat.mtimeMs}`).toString("base64url").slice(0, 80);
+  const previewPath = path.join(previewCacheDir(), `${cacheKey}${extension}`);
+  const taskKey = `${sourcePath}:${stat.size}:${stat.mtimeMs}`;
+  const runningTask = previewCopyTasks.get(taskKey);
+  if (runningTask) return runningTask;
+  const task = (async () => {
+    await fsp.mkdir(previewCacheDir(), { recursive: true });
+    await fsp.copyFile(sourcePath, previewPath);
+    previewCache.set(sourcePath, { sourcePath, previewPath, size: stat.size, mtimeMs: stat.mtimeMs });
+    return previewPath;
+  })();
+  previewCopyTasks.set(taskKey, task);
+  try {
+    return await task;
+  } finally {
+    previewCopyTasks.delete(taskKey);
+  }
 }
 
 function showMainWindow() {
@@ -235,6 +283,7 @@ ipcMain.on("theme:background", (_event, payload: ThemeTitleBarPayload) => {
 
 app.whenReady().then(async () => {
   await loadAppSettings();
+  await clearPreviewCache();
   registerPreviewProtocol();
   registerIpc();
   ensureTray();
@@ -262,4 +311,5 @@ app.on("window-all-closed", () => {
 
 app.on("before-quit", () => {
   quitting = true;
+  void clearPreviewCache();
 });

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from "vue";
+import { computed, onBeforeUnmount, ref, watch } from "vue";
 import type { DialogFileFilter } from "../../shared/types";
 
 const props = defineProps<{
@@ -16,11 +16,20 @@ const emit = defineEmits<{
 
 const isDragging = ref(false);
 const previewUrl = ref("");
+const previewVideoRef = ref<HTMLVideoElement | null>(null);
 let previewRequestId = 0;
 
 function previewFileUrl(filePath: string, time = 0.1) {
-  const params = new URLSearchParams({ path: filePath });
+  const params = new URLSearchParams({ path: filePath, cache: "1" });
   return `devtoolbox-file://preview?${params.toString()}#t=${time}`;
+}
+
+function releasePreviewVideo() {
+  const video = previewVideoRef.value;
+  if (!video) return;
+  video.pause();
+  video.removeAttribute("src");
+  video.load();
 }
 
 const fileNames = computed(() => props.modelValue.map((item) => item.split(/[\\/]/).pop()).join(", "));
@@ -33,6 +42,7 @@ watch(
   () => [props.modelValue[0], props.preview] as const,
   async ([first, preview]) => {
     const requestId = ++previewRequestId;
+    releasePreviewVideo();
     previewUrl.value = "";
     if (!first || !preview) return;
     if (preview === "video") {
@@ -49,6 +59,10 @@ watch(
   },
   { immediate: true }
 );
+
+onBeforeUnmount(() => {
+  releasePreviewVideo();
+});
 
 async function pickFiles() {
   const paths = await window.devToolbox.selectFiles(props.filters, props.multiple ?? true);
@@ -89,7 +103,7 @@ function onKeydown(event: KeyboardEvent) {
   >
     <div v-if="previewUrl" class="drop-preview">
       <img v-if="preview === 'image'" class="drop-preview-media" :src="previewUrl" alt="图片预览" />
-      <video v-else class="drop-preview-media" :key="previewUrl" :src="previewUrl" muted preload="metadata" playsinline />
+      <video ref="previewVideoRef" v-else class="drop-preview-media" :key="previewUrl" :src="previewUrl" muted preload="metadata" playsinline />
     </div>
     <span v-else class="drop-icon"><i class="ri-upload-cloud-2-line" aria-hidden="true"></i></span>
     <span class="drop-title">{{ title }}</span>

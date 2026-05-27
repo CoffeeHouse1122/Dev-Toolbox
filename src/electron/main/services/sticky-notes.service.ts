@@ -171,6 +171,30 @@ function htmlToPlainText(content: string) {
     .trim();
 }
 
+function stripTxtExportEnvelope(value: string) {
+  return value
+    .replace(/^#\s*\d+\.\s*[^\r\n]+\r?\n状态:\s*[^\r\n]*\r?\n更新时间:\s*[^\r\n]*\r?\n\r?\n/, "")
+    .trim();
+}
+
+function parseTxtImportPayload(fileName: string, raw: string): ImportNotePayload[] {
+  const parts = raw.replace(/\r\n/g, "\n").split(/\n{2,}---\n{2,}/);
+  const exportedParts = parts.filter((part) => /^#\s*\d+\.\s*[^\n]+\n状态:/m.test(part));
+  if (!exportedParts.length) return [{ title: fileName, content: stripTxtExportEnvelope(raw) }];
+  return exportedParts.map((part) => ({
+    title: part.match(/^#\s*\d+\.\s*([^\n]+)/m)?.[1]?.trim() || fileName,
+    content: stripTxtExportEnvelope(part)
+  }));
+}
+
+function normalizeDuplicateText(value: string) {
+  return stripTxtExportEnvelope(value).replace(/\r\n/g, "\n").replace(/[ \t]+$/gm, "").trim();
+}
+
+function notePlainText(content: string) {
+  return normalizeDuplicateText(htmlToPlainText(content) || content);
+}
+
 function resolveTitle(fallback: string, content: string) {
   const plain = (content.startsWith(richNoteMarker) || /<[a-z][\s\S]*>/i.test(content) ? htmlToPlainText(content) : content).replace(
     /^!\[[^\]]*\]\(data:image\/[^)]+\)\s*$/gim,
@@ -243,7 +267,7 @@ function upsertNote(db: Database.Database, payload: ImportNotePayload & { source
     id,
     title,
     content,
-    plainText: htmlToPlainText(content) || content,
+    plainText: notePlainText(content),
     pinned: payload.pinned ? 1 : 0,
     status: payload.status || "active",
     styleJson: JSON.stringify(style),
@@ -310,7 +334,7 @@ export async function saveStickyNote(id: string, content: string): Promise<Stick
     db.prepare("UPDATE notes SET title = ?, content = ?, plain_text = ?, updated_at = ? WHERE id = ?").run(
       title,
       content,
-      htmlToPlainText(content) || content,
+      notePlainText(content),
       now,
       id
     );
@@ -461,9 +485,11 @@ export async function exportStickyNotes(outputDirOrOptions: string | StickyNoteE
       return [target];
     }
     const target = path.join(options.outputDir, notes.length === 1 ? notes[0].fileName : `sticky-notes-${stamp}.txt`);
-    const content = notes
-      .map((note, index) => [`# ${index + 1}. ${note.title}`, `状态: ${note.status}`, `更新时间: ${new Date(note.updatedAt).toLocaleString()}`, "", htmlToPlainText(note.content) || note.content].join("\n"))
-      .join("\n\n---\n\n");
+    const content = notes.length === 1
+      ? notePlainText(notes[0].content)
+      : notes
+          .map((note, index) => [`# ${index + 1}. ${note.title}`, `状态: ${note.status}`, `更新时间: ${new Date(note.updatedAt).toLocaleString()}`, "", notePlainText(note.content)].join("\n"))
+          .join("\n\n---\n\n");
     await fs.writeFile(target, content, "utf8");
     return [target];
   } finally {
@@ -477,7 +503,7 @@ function parseImportPayload(raw: string): ImportNotePayload[] {
 }
 
 function hasDuplicateNote(db: Database.Database, content: string, title?: string, sourcePath?: string | null) {
-  const plainText = htmlToPlainText(content) || content.trim();
+  const plainText = notePlainText(content);
   if (sourcePath) {
     const bySource = db.prepare("SELECT id FROM notes WHERE source_path = ?").get(sourcePath);
     if (bySource) return true;
@@ -541,8 +567,12 @@ export async function importStickyNotes(inputPaths: string[]): Promise<StickyNot
         continue;
       }
       if (extension === ".txt" || extension === ".html") {
-        if (importNoteIfUnique(db, { title: path.basename(inputPath, extension), content: await fs.readFile(inputPath, "utf8"), sourcePath: inputPath })) imported += 1;
-        else skipped += 1;
+        const fileName = path.basename(inputPath, extension);
+        const payloads = extension === ".txt" ? parseTxtImportPayload(fileName, await fs.readFile(inputPath, "utf8")) : [{ title: fileName, content: await fs.readFile(inputPath, "utf8") }];
+        for (const payload of payloads) {
+          if (importNoteIfUnique(db, { ...payload, sourcePath: payloads.length === 1 ? inputPath : null })) imported += 1;
+          else skipped += 1;
+        }
         continue;
       }
       skipped += 1;
