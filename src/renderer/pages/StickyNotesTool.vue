@@ -4,6 +4,7 @@ import { toPng } from "html-to-image";
 import type { DevToolboxApi, StickyNote, StickyNoteExportFormat, StickyNoteStyle, StickyNotesPreferences, StickyNotesState } from "../../shared/types";
 
 type NoteView = "active" | "archived" | "trash";
+type PresetNumberKey = "fontSize" | "lineHeight" | "padding";
 type ExportBlock =
   | { type: "text"; value: string }
   | { type: "blank" }
@@ -30,6 +31,7 @@ const draftContent = ref("");
 const currentView = ref<NoteView>("active");
 const busy = ref(false);
 const saveState = ref("未保存");
+const selectedExportFormat = ref<StickyNoteExportFormat>("json");
 const fontSize = ref(16);
 const fontColor = ref("#1f2328");
 const highlightColor = ref("#fff3a3");
@@ -122,6 +124,21 @@ function plainStickyStyle(style: Partial<StickyNoteStyle>): StickyNoteStyle {
 
 function clampPreferences() {
   preferences.value = plainStickyStyle(preferences.value);
+}
+
+function clampPreferenceNumber(key: PresetNumberKey) {
+  const ranges = {
+    fontSize: [10, 48, defaultPreferences.fontSize],
+    lineHeight: [1, 2.4, defaultPreferences.lineHeight],
+    padding: [8, 64, defaultPreferences.padding]
+  } satisfies Record<PresetNumberKey, [number, number, number]>;
+  const [min, max, fallback] = ranges[key];
+  preferences.value[key] = clampNumber(preferences.value[key], min, max, fallback);
+}
+
+function adjustPreferenceNumber(key: PresetNumberKey, delta: number) {
+  preferences.value[key] = Number((Number(preferences.value[key]) + delta).toFixed(2));
+  clampPreferenceNumber(key);
 }
 
 function rgbToHex(value: string) {
@@ -268,7 +285,7 @@ function contentToPlainText(content: string) {
 }
 
 function fileBaseName(note: StickyNote) {
-  return note.title.replace(/[<>:"/\\|?*\x00-\x1F]/g, " ").replace(/\s+/g, " ").trim().slice(0, 36) || "便签";
+  return (note.fileName || "").replace(/\.txt$/i, "") || note.title.replace(/[<>:"/\\|?*\x00-\x1F]/g, " ").replace(/\s+/g, " ").trim().slice(0, 36) || "便签";
 }
 
 function loadEditorPosition(): EditorPositionState | null {
@@ -397,9 +414,41 @@ function clearSelectionMarker() {
   editorRef.value?.querySelectorAll(".note-active-selection").forEach((node) => node.classList.remove("note-active-selection"));
 }
 
+function clearActiveInlineSelection() {
+  clearSelectionMarker();
+  activeStyleSpan = null;
+}
+
 function markSelectionElement(node: HTMLElement) {
   clearSelectionMarker();
   node.classList.add("note-active-selection");
+}
+
+function prepareSelectionForToolbar() {
+  captureEditorSelection();
+  const root = editorRef.value;
+  const range = getSelectedRange();
+  if (!root || !range || range.collapsed) return;
+  if (activeStyleSpan && root.contains(activeStyleSpan)) {
+    markSelectionElement(activeStyleSpan);
+    return;
+  }
+  const span = document.createElement("span");
+  span.dataset.noteStyled = "true";
+  span.appendChild(range.extractContents());
+  range.insertNode(span);
+  activeStyleSpan = span;
+  selectNodeContents(span);
+}
+
+function handleDocumentPointerDown(event: PointerEvent) {
+  const target = event.target;
+  if (!(target instanceof Node)) return;
+  const targetElement = target instanceof Element ? target : target.parentElement;
+  if (editorRef.value?.contains(target)) return;
+  if (targetElement?.closest(".note-format-toolbar, .note-context-menu")) return;
+  clearActiveInlineSelection();
+  closeContextMenu();
 }
 
 function selectionElement() {
@@ -622,7 +671,7 @@ async function selectNote(note: StickyNote | null, restorePosition = false) {
 
 async function createNote() {
   const note = await devToolbox.createStickyNote("新便签\n");
-  notes.value = [note, ...notes.value];
+  notes.value = sortNotes([...notes.value, note]);
   await selectNote(note);
 }
 
@@ -688,6 +737,15 @@ async function exportNotes(format: StickyNoteExportFormat, onlyActive = false) {
   });
 }
 
+async function exportSelectedNotes() {
+  await exportNotes(selectedExportFormat.value);
+}
+
+async function exportActiveAsText() {
+  if (!activeNote.value) return;
+  await exportNotes("txt", true);
+}
+
 async function importNotes() {
   const inputPaths = await devToolbox.selectFiles(
     [{ name: "便签文件", extensions: ["json", "txt", "zip", "html"] }],
@@ -740,6 +798,7 @@ function syncEditorContent() {
 }
 
 function handleEditorInput() {
+  clearActiveInlineSelection();
   syncEditorContent();
   ensureCaretVisible();
 }
@@ -889,6 +948,9 @@ function endPreviewDrag(event: PointerEvent) {
 function handleEditorClick(event: MouseEvent) {
   closeContextMenu();
   const target = event.target;
+  if (target instanceof Element && !target.closest(".note-active-selection")) {
+    clearActiveInlineSelection();
+  }
   if (target instanceof HTMLInputElement && target.type === "checkbox") {
     syncEditorContent();
     return;
@@ -1287,10 +1349,12 @@ async function exportActiveAsImage() {
 }
 
 onMounted(async () => {
+  document.addEventListener("pointerdown", handleDocumentPointerDown, true);
   await loadNotes();
 });
 
 onBeforeUnmount(() => {
+  document.removeEventListener("pointerdown", handleDocumentPointerDown, true);
   void flushPendingSave();
 });
 </script>
@@ -1315,13 +1379,20 @@ onBeforeUnmount(() => {
             </button>
           </div>
           <div class="notes-action-grid compact-actions">
-            <button type="button" class="secondary-button" @click="exportNotes('json')">JSON</button>
-            <button type="button" class="secondary-button" @click="exportNotes('txt')">TXT</button>
-            <button type="button" class="secondary-button" @click="exportNotes('zip')">ZIP</button>
             <button type="button" class="secondary-button" @click="chooseDirectory">
               <i class="ri-folder-open-line" aria-hidden="true"></i>
-              
             </button>
+            <button type="button" class="secondary-button" :class="{ selected: selectedExportFormat === 'json' }" @click="selectedExportFormat = 'json'">JSON</button>
+            <button type="button" class="secondary-button" :class="{ selected: selectedExportFormat === 'txt' }" @click="selectedExportFormat = 'txt'">TXT</button>
+            <button type="button" class="secondary-button" :class="{ selected: selectedExportFormat === 'zip' }" @click="selectedExportFormat = 'zip'">ZIP</button>
+            <button type="button" class="primary-button" @click="exportSelectedNotes">
+              <i class="ri-download-2-line" aria-hidden="true"></i>
+              导出
+            </button>
+          </div>
+          <div class="notes-pathbar" :title="directory">
+            <span>导出目录</span>
+            <strong>{{ directory || "加载中..." }}</strong>
           </div>
         </section>
 
@@ -1330,10 +1401,6 @@ onBeforeUnmount(() => {
             <button type="button" :class="{ active: currentView === 'active' }" @click="setCurrentView('active')">当前</button>
             <button type="button" :class="{ active: currentView === 'archived' }" @click="setCurrentView('archived')">归档</button>
             <button type="button" :class="{ active: currentView === 'trash' }" @click="setCurrentView('trash')">回收站</button>
-          </div>
-          <div class="notes-pathbar" :title="directory">
-            <span>SQLite 存储目录</span>
-            <strong>{{ directory || "加载中..." }}</strong>
           </div>
           <div class="notes-list-head">
             <strong>便签目录</strong>
@@ -1344,7 +1411,7 @@ onBeforeUnmount(() => {
               v-for="note in visibleNotes"
               :key="note.id"
               class="note-card"
-              :class="{ active: note.id === activeId, pinned: note.pinned }"
+              :class="{ active: note.id === activeId, pinned: note.pinned, trash: currentView === 'trash' }"
               :title="note.title"
               @click="selectNote(note)"
             >
@@ -1385,13 +1452,13 @@ onBeforeUnmount(() => {
           </div>
           <div class="header-actions note-editor-actions">
             <span class="status-pill note-save-state">{{ saveState }}</span>
-            <button type="button" class="secondary-button" :disabled="!activeNote" @click="saveActiveNote">
-              <i class="ri-save-3-line" aria-hidden="true"></i>
-              保存
-            </button>
             <button type="button" class="secondary-button" :disabled="!activeNote" @click="showPresetPanel = !showPresetPanel">
               <i class="ri-equalizer-line" aria-hidden="true"></i>
               预设
+            </button>
+            <button type="button" class="secondary-button" :disabled="!activeNote" @click="exportActiveAsText">
+              <i class="ri-file-text-line" aria-hidden="true"></i>
+              导出TXT
             </button>
             <button type="button" class="secondary-button" :disabled="!activeNote" @click="exportActiveAsImage">
               <i class="ri-image-line" aria-hidden="true"></i>
@@ -1447,7 +1514,7 @@ onBeforeUnmount(() => {
             <input
               v-model.number="fontSize"
               class="note-size-input"
-              type="text"
+              type="number"
               min="10"
               max="48"
               step="1"
@@ -1462,14 +1529,14 @@ onBeforeUnmount(() => {
           </div>
           <label class="note-color-field" title="文字色值">
             <i class="ri-palette-line" aria-hidden="true"></i>
-            <input v-model="fontColor" type="color" :disabled="!activeNote" @pointerdown="captureEditorSelection" @input="applyForeColor" />
+            <input v-model="fontColor" type="color" :disabled="!activeNote" @pointerdown="prepareSelectionForToolbar" @input="applyForeColor" />
           </label>
           <button type="button" class="icon-button" title="文字色恢复默认" :disabled="!activeNote" @mousedown.prevent="captureEditorSelection" @click="resetForeColor">
             <i class="ri-format-clear" aria-hidden="true"></i>
           </button>
           <label class="note-color-field" title="背景高亮">
             <i class="ri-mark-pen-line" aria-hidden="true"></i>
-            <input v-model="highlightColor" type="color" :disabled="!activeNote" @pointerdown="captureEditorSelection" @input="applyHighlightColor" />
+            <input v-model="highlightColor" type="color" :disabled="!activeNote" @pointerdown="prepareSelectionForToolbar" @input="applyHighlightColor" />
           </label>
           <button type="button" class="icon-button" title="高亮恢复默认" :disabled="!activeNote" @mousedown.prevent="captureEditorSelection" @click="resetHighlightColor">
             <i class="ri-eraser-line" aria-hidden="true"></i>
@@ -1485,9 +1552,24 @@ onBeforeUnmount(() => {
           </button>
         </div>
         <div v-if="showPresetPanel" class="note-preset-panel">
-          <label><span>默认字号</span><input v-model.number="preferences.fontSize" type="number" min="10" max="48" @input="clampPreferences" /></label>
-          <label><span>默认行高</span><input v-model.number="preferences.lineHeight" type="number" min="1" max="2.4" step="0.05" @input="clampPreferences" /></label>
-          <label><span>默认边距</span><input v-model.number="preferences.padding" type="number" min="8" max="64" @input="clampPreferences" /></label>
+          <div class="note-format-stepper preset-stepper" title="默认字号">
+            <i class="ri-font-size" aria-hidden="true"></i>
+            <button type="button" class="note-step-button" @click="adjustPreferenceNumber('fontSize', -1)"><i class="ri-subtract-line" aria-hidden="true"></i></button>
+            <input v-model.number="preferences.fontSize" class="note-size-input" type="number" min="10" max="48" @input="clampPreferenceNumber('fontSize')" />
+            <button type="button" class="note-step-button" @click="adjustPreferenceNumber('fontSize', 1)"><i class="ri-add-line" aria-hidden="true"></i></button>
+          </div>
+          <div class="note-format-stepper preset-stepper" title="默认行高">
+            <i class="ri-line-height" aria-hidden="true"></i>
+            <button type="button" class="note-step-button" @click="adjustPreferenceNumber('lineHeight', -0.05)"><i class="ri-subtract-line" aria-hidden="true"></i></button>
+            <input v-model.number="preferences.lineHeight" class="note-size-input" type="number" min="1" max="2.4" step="0.05" @input="clampPreferenceNumber('lineHeight')" />
+            <button type="button" class="note-step-button" @click="adjustPreferenceNumber('lineHeight', 0.05)"><i class="ri-add-line" aria-hidden="true"></i></button>
+          </div>
+          <div class="note-format-stepper preset-stepper" title="默认边距">
+            <i class="ri-expand-left-right-line" aria-hidden="true"></i>
+            <button type="button" class="note-step-button" @click="adjustPreferenceNumber('padding', -1)"><i class="ri-subtract-line" aria-hidden="true"></i></button>
+            <input v-model.number="preferences.padding" class="note-size-input" type="number" min="8" max="64" @input="clampPreferenceNumber('padding')" />
+            <button type="button" class="note-step-button" @click="adjustPreferenceNumber('padding', 1)"><i class="ri-add-line" aria-hidden="true"></i></button>
+          </div>
           <label><span>默认文字</span><input v-model="preferences.color" type="color" /></label>
           <div class="note-font-dropdown preset-fonts" title="默认字体">
             <button type="button" class="note-font-trigger" @click="presetFontMenuOpen = !presetFontMenuOpen">
@@ -1518,7 +1600,7 @@ onBeforeUnmount(() => {
           class="note-editor"
           :class="{ disabled: !activeNote || currentView === 'trash' }"
           :style="editorStyleFor(draftStyle)"
-          contenteditable="true"
+          :contenteditable="activeNote && currentView !== 'trash' ? 'true' : 'false'"
           spellcheck="false"
           data-placeholder="选择或新建一个便签后开始输入。可直接粘贴图片。"
           @click="handleEditorClick"
@@ -1669,7 +1751,7 @@ onBeforeUnmount(() => {
 }
 
 .compact-actions {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 0.82fr)) 1.4fr;
   margin-top: 8px;
 }
 
@@ -1680,7 +1762,7 @@ onBeforeUnmount(() => {
 }
 
 .notes-directory-panel {
-  grid-template-rows: auto auto auto minmax(0, 1fr) auto;
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
   align-content: start;
   overflow: hidden;
 }
@@ -1785,6 +1867,14 @@ onBeforeUnmount(() => {
   border-radius: 8px;
   background: var(--surface-subtle);
   cursor: pointer;
+}
+
+.note-card.trash {
+  grid-template-columns: minmax(0, 1fr) 30px;
+}
+
+.note-card.trash .icon-button {
+  justify-self: end;
 }
 
 .note-card.active {
@@ -2020,7 +2110,7 @@ onBeforeUnmount(() => {
 
 .note-preset-panel {
   display: grid;
-  grid-template-columns: repeat(4, minmax(96px, 1fr)) auto auto auto;
+  grid-template-columns: repeat(3, auto);
   align-items: center;
   gap: 8px;
   min-width: 0;
@@ -2050,7 +2140,6 @@ onBeforeUnmount(() => {
 }
 
 .preset-fonts {
-  grid-column: 1 / -1;
   width: 180px;
 }
 
@@ -2085,9 +2174,9 @@ onBeforeUnmount(() => {
 }
 
 .note-editor.disabled {
-  pointer-events: none;
   color: var(--muted);
   background: var(--surface-subtle);
+  cursor: default;
 }
 
 .note-editor:empty::before {

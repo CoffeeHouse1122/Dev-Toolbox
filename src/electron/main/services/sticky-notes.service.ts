@@ -139,6 +139,12 @@ function safeFileName(title: string) {
   return normalized || "未命名便签";
 }
 
+function formatDateName(value: number) {
+  const date = new Date(value);
+  const pad = (input: number) => String(input).padStart(2, "0");
+  return `${date.getFullYear()}${pad(date.getMonth() + 1)}${pad(date.getDate())}`;
+}
+
 function decodeTextEntities(value: string) {
   return value
     .replace(/&nbsp;/g, " ")
@@ -191,7 +197,7 @@ function rowToNote(row: NoteRow): StickyNote {
   } catch {
     style = normalizeStyle();
   }
-  const fileName = `${safeFileName(row.title)}-${row.id.slice(0, 8)}.txt`;
+  const fileName = `${safeFileName(row.title)}-${formatDateName(row.updated_at)}.txt`;
   return {
     id: row.id,
     fileName,
@@ -250,38 +256,11 @@ function upsertNote(db: Database.Database, payload: ImportNotePayload & { source
   return id;
 }
 
-async function migrateLegacyTextNotes(db: Database.Database, directory: string) {
-  await fs.mkdir(directory, { recursive: true });
-  const entries = await fs.readdir(directory, { withFileTypes: true }).catch(() => []);
-  const insert = db.transaction((items: Array<{ filePath: string; content: string; updatedAt: number }>) => {
-    for (const item of items) {
-      const exists = db.prepare("SELECT id FROM notes WHERE source_path = ?").get(item.filePath);
-      if (exists) continue;
-      upsertNote(db, {
-        title: path.basename(item.filePath, ".txt"),
-        content: item.content,
-        updatedAt: item.updatedAt,
-        createdAt: item.updatedAt,
-        sourcePath: item.filePath
-      });
-    }
-  });
-  const items: Array<{ filePath: string; content: string; updatedAt: number }> = [];
-  for (const entry of entries) {
-    if (!entry.isFile() || !entry.name.toLowerCase().endsWith(".txt")) continue;
-    const filePath = path.join(directory, entry.name);
-    const [content, stat] = await Promise.all([fs.readFile(filePath, "utf8"), fs.stat(filePath)]);
-    items.push({ filePath, content, updatedAt: stat.mtimeMs });
-  }
-  insert(items);
-}
-
 async function buildState(): Promise<StickyNotesState> {
   const settings = await loadStickyNotesSettings();
   await fs.mkdir(path.dirname(databasePath()), { recursive: true });
   const db = openDatabase();
   try {
-    await migrateLegacyTextNotes(db, settings.directory);
     const preferences = readSetting(db, "preferences", defaultPreferences);
     const all = readAllNotes(db);
     return {
@@ -440,6 +419,19 @@ function exportPayload(notes: StickyNote[], preferences: StickyNotesPreferences)
   };
 }
 
+function uniqueZipName(usedNames: Set<string>, fileName: string) {
+  const extension = path.extname(fileName);
+  const baseName = path.basename(fileName, extension);
+  let candidate = fileName;
+  let index = 2;
+  while (usedNames.has(candidate)) {
+    candidate = `${baseName}-${index}${extension}`;
+    index += 1;
+  }
+  usedNames.add(candidate);
+  return candidate;
+}
+
 export async function exportStickyNotes(outputDirOrOptions: string | StickyNoteExportOptions, ids?: string[]): Promise<string[]> {
   const options: StickyNoteExportOptions =
     typeof outputDirOrOptions === "string"
@@ -459,15 +451,16 @@ export async function exportStickyNotes(outputDirOrOptions: string | StickyNoteE
     if (options.format === "zip") {
       const zip = new JSZip();
       zip.file("sticky-notes.json", `${JSON.stringify(exportPayload(notes, preferences), null, 2)}\n`);
+      const usedNames = new Set<string>();
       for (const note of notes) {
-        zip.file(`${safeFileName(note.title)}-${note.id.slice(0, 8)}.txt`, htmlToPlainText(note.content) || note.content);
+        zip.file(uniqueZipName(usedNames, note.fileName), htmlToPlainText(note.content) || note.content);
       }
       const buffer = await zip.generateAsync({ type: "nodebuffer", compression: "DEFLATE" });
       const target = path.join(options.outputDir, `sticky-notes-${stamp}.zip`);
       await fs.writeFile(target, buffer);
       return [target];
     }
-    const target = path.join(options.outputDir, `sticky-notes-${stamp}.txt`);
+    const target = path.join(options.outputDir, notes.length === 1 ? notes[0].fileName : `sticky-notes-${stamp}.txt`);
     const content = notes
       .map((note, index) => [`# ${index + 1}. ${note.title}`, `状态: ${note.status}`, `更新时间: ${new Date(note.updatedAt).toLocaleString()}`, "", htmlToPlainText(note.content) || note.content].join("\n"))
       .join("\n\n---\n\n");
@@ -483,6 +476,23 @@ function parseImportPayload(raw: string): ImportNotePayload[] {
   return Array.isArray(parsed) ? parsed : Array.isArray(parsed.notes) ? parsed.notes : [];
 }
 
+function hasDuplicateNote(db: Database.Database, content: string, title?: string, sourcePath?: string | null) {
+  const plainText = htmlToPlainText(content) || content.trim();
+  if (sourcePath) {
+    const bySource = db.prepare("SELECT id FROM notes WHERE source_path = ?").get(sourcePath);
+    if (bySource) return true;
+  }
+  const row = db.prepare("SELECT id FROM notes WHERE plain_text = ? LIMIT 1").get(plainText);
+  return Boolean(row);
+}
+
+function importNoteIfUnique(db: Database.Database, payload: ImportNotePayload & { sourcePath?: string | null }) {
+  const content = payload.content || "";
+  if (!content || hasDuplicateNote(db, content, payload.title, payload.sourcePath)) return false;
+  upsertNote(db, payload);
+  return true;
+}
+
 async function importJsonContent(db: Database.Database, raw: string) {
   let imported = 0;
   let skipped = 0;
@@ -493,8 +503,8 @@ async function importJsonContent(db: Database.Database, raw: string) {
         skipped += 1;
         continue;
       }
-      upsertNote(db, { ...item, id: createId(), status: item.status === "trashed" ? "active" : item.status || "active" });
-      imported += 1;
+      if (importNoteIfUnique(db, { ...item, id: createId(), status: item.status === "trashed" ? "active" : item.status || "active" })) imported += 1;
+      else skipped += 1;
     }
   });
   insert(notes);
@@ -525,14 +535,14 @@ export async function importStickyNotes(inputPaths: string[]): Promise<StickyNot
         }
         for (const entry of Object.values(zip.files)) {
           if (entry.dir || !entry.name.toLowerCase().endsWith(".txt")) continue;
-          upsertNote(db, { title: path.basename(entry.name, ".txt"), content: await entry.async("string") });
-          imported += 1;
+          if (importNoteIfUnique(db, { title: path.basename(entry.name, ".txt"), content: await entry.async("string") })) imported += 1;
+          else skipped += 1;
         }
         continue;
       }
       if (extension === ".txt" || extension === ".html") {
-        upsertNote(db, { title: path.basename(inputPath, extension), content: await fs.readFile(inputPath, "utf8") });
-        imported += 1;
+        if (importNoteIfUnique(db, { title: path.basename(inputPath, extension), content: await fs.readFile(inputPath, "utf8"), sourcePath: inputPath })) imported += 1;
+        else skipped += 1;
         continue;
       }
       skipped += 1;
