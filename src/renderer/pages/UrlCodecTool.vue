@@ -46,7 +46,7 @@ const usageTips = [
         </div>
         <div class="info-list">
           <div v-for="tip in usageTips" :key="tip" class="info-row">
-            <strong>{{ tip }}</strong>
+            <span>{{ tip }}</span>
           </div>
         </div>
       </aside>
