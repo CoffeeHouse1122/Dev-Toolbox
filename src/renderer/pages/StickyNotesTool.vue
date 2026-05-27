@@ -4,6 +4,7 @@ import { toPng } from "html-to-image";
 import type { DevToolboxApi, StickyNote, StickyNoteExportFormat, StickyNoteStyle, StickyNotesPreferences, StickyNotesState } from "../../shared/types";
 
 type NoteView = "active" | "archived" | "trash";
+type ToastTone = "success" | "error" | "info";
 type ExportBlock =
   | { type: "text"; value: string }
   | { type: "blank" }
@@ -62,8 +63,10 @@ const previewImage = ref("");
 const previewScale = ref(1);
 const previewOffset = ref({ x: 0, y: 0 });
 const pendingDeleteNote = ref<StickyNote | null>(null);
+const toast = ref({ visible: false, message: "", tone: "info" as ToastTone });
 
 let saveTimer: ReturnType<typeof setTimeout> | null = null;
+let toastTimer: ReturnType<typeof setTimeout> | null = null;
 let suppressSave = false;
 let applyingHistory = false;
 let savedEditorRange: Range | null = null;
@@ -128,6 +131,15 @@ function rgbToHex(value: string) {
 
 function sortNotes(input: StickyNote[]) {
   return [...input].sort((left, right) => Number(right.pinned) - Number(left.pinned) || right.updatedAt - left.updatedAt);
+}
+
+function showToast(message: string, tone: ToastTone = "info") {
+  toast.value = { visible: true, message, tone };
+  if (toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => {
+    toast.value.visible = false;
+    toastTimer = null;
+  }, 2600);
 }
 
 function applyState(state: StickyNotesState) {
@@ -714,13 +726,18 @@ async function exportNotes(format: StickyNoteExportFormat, onlyActive = false) {
   await flushPendingSave();
   const target = await resolveExportDirectory();
   if (!target) return;
-  lastExportedFiles.value = await devToolbox.exportStickyNotes({
-    outputDir: target,
-    ids: onlyActive && activeId.value ? [activeId.value] : undefined,
-    format,
-    includeArchived: true,
-    includeTrash: false
-  });
+  try {
+    lastExportedFiles.value = await devToolbox.exportStickyNotes({
+      outputDir: target,
+      ids: onlyActive && activeId.value ? [activeId.value] : undefined,
+      format,
+      includeArchived: true,
+      includeTrash: false
+    });
+    showToast(`已导出 ${lastExportedFiles.value.length} 个文件`, "success");
+  } catch (error) {
+    showToast(`导出失败：${error instanceof Error ? error.message : String(error)}`, "error");
+  }
 }
 
 async function exportSelectedNotes() {
@@ -738,8 +755,13 @@ async function importNotes() {
     true
   );
   if (!inputPaths.length) return;
-  await devToolbox.importStickyNotes(inputPaths);
-  await loadNotes();
+  try {
+    const result = await devToolbox.importStickyNotes(inputPaths);
+    await loadNotes();
+    showToast(`导入完成：新增 ${result.imported}，跳过 ${result.skipped}`, "success");
+  } catch (error) {
+    showToast(`导入失败：${error instanceof Error ? error.message : String(error)}`, "error");
+  }
 }
 
 async function saveActiveNote() {
@@ -1309,6 +1331,9 @@ async function exportActiveAsImage() {
   try {
     const dataUrl = await toPng(frame, { pixelRatio: 2, cacheBust: true, backgroundColor: background });
     await devToolbox.base64ToImage(dataUrl, target, `${fileBaseName(note)}.png`);
+    showToast("便签图片已导出", "success");
+  } catch (error) {
+    showToast(`图片导出失败：${error instanceof Error ? error.message : String(error)}`, "error");
   } finally {
     frame.remove();
   }
@@ -1321,6 +1346,7 @@ onMounted(async () => {
 
 onBeforeUnmount(() => {
   document.removeEventListener("pointerdown", handleDocumentPointerDown, true);
+  if (toastTimer) clearTimeout(toastTimer);
   void flushPendingSave();
 });
 </script>
@@ -1533,6 +1559,11 @@ onBeforeUnmount(() => {
           @paste="handlePaste"
         ></div>
       </section>
+    </div>
+
+    <div v-if="toast.visible" class="note-toast" :class="toast.tone" role="status" aria-live="polite">
+      <i :class="toast.tone === 'error' ? 'ri-error-warning-line' : toast.tone === 'success' ? 'ri-checkbox-circle-line' : 'ri-information-line'" aria-hidden="true"></i>
+      <span>{{ toast.message }}</span>
     </div>
 
     <Teleport to="body">
@@ -1798,6 +1829,16 @@ onBeforeUnmount(() => {
 .note-card.active {
   border-color: var(--accent);
   background: color-mix(in srgb, var(--accent) 8%, var(--surface));
+}
+
+.note-card.pinned {
+  border-color: color-mix(in srgb, var(--accent) 42%, var(--border));
+  background: linear-gradient(90deg, color-mix(in srgb, var(--accent) 13%, var(--surface-subtle)), var(--surface-subtle) 42%);
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+.note-card.pinned.active {
+  background: linear-gradient(90deg, color-mix(in srgb, var(--accent) 18%, var(--surface)), color-mix(in srgb, var(--accent) 8%, var(--surface)) 48%);
 }
 
 .note-card-text {
@@ -2163,6 +2204,52 @@ onBeforeUnmount(() => {
 .danger-outline {
   border-color: color-mix(in srgb, #d1242f 40%, var(--border));
   color: #d1242f;
+}
+
+.note-toast {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 90;
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  max-width: min(420px, calc(100vw - 48px));
+  padding: 11px 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 16px 38px rgba(1, 4, 9, 0.2);
+  -webkit-app-region: no-drag;
+}
+
+.note-toast span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.note-toast.success {
+  border-color: color-mix(in srgb, #1a7f37 42%, var(--border));
+}
+
+.note-toast.success i {
+  color: #1a7f37;
+}
+
+.note-toast.error {
+  border-color: color-mix(in srgb, #d1242f 46%, var(--border));
+}
+
+.note-toast.error i {
+  color: #d1242f;
+}
+
+.note-toast.info i {
+  color: var(--accent-strong);
 }
 
 .note-context-menu {

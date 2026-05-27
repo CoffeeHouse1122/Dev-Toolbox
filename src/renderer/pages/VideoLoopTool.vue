@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, watch } from "vue";
+import { computed, onBeforeUnmount, ref } from "vue";
 import type { ConversionResult, DevToolboxApi, VideoLoopInfo } from "../../shared/types";
 // @ts-ignore VS Code inferred project may miss the local *.vue shim.
 import DropZone from "../components/DropZone.vue";
@@ -15,9 +15,10 @@ const busy = ref(false);
 const result = ref<VideoLoopResult | null>(null);
 const loopVideoRef = ref<HTMLVideoElement | null>(null);
 const videoOrientation = ref<"landscape" | "portrait" | "square">("landscape");
+const previewVersion = ref(0);
 
 function previewFileUrl(filePath: string, time = 0.1) {
-  const params = new URLSearchParams({ path: filePath, cache: "1" });
+  const params = new URLSearchParams({ path: filePath, cache: "1", v: String(previewVersion.value) });
   return `devtoolbox-file://preview?${params.toString()}#t=${time}`;
 }
 
@@ -60,6 +61,14 @@ function releaseLoopVideo() {
   video.load();
 }
 
+function playLoopVideo() {
+  const video = loopVideoRef.value;
+  if (!video) return;
+  video.loop = true;
+  video.muted = true;
+  void video.play().catch(() => undefined);
+}
+
 function updateVideoOrientation(event: Event) {
   const video = event.currentTarget as HTMLVideoElement;
   if (!video.videoWidth || !video.videoHeight) {
@@ -69,15 +78,16 @@ function updateVideoOrientation(event: Event) {
   if (video.videoHeight > video.videoWidth) videoOrientation.value = "portrait";
   else if (video.videoHeight === video.videoWidth) videoOrientation.value = "square";
   else videoOrientation.value = "landscape";
+  playLoopVideo();
 }
 
-watch(
-  () => input.value[0],
-  () => {
-    releaseLoopVideo();
-    videoOrientation.value = "landscape";
-  }
-);
+function selectInput(paths: string[]) {
+  releaseLoopVideo();
+  input.value = paths;
+  result.value = null;
+  videoOrientation.value = "landscape";
+  previewVersion.value += 1;
+}
 
 onBeforeUnmount(() => {
   releaseLoopVideo();
@@ -113,14 +123,15 @@ async function run() {
     <div class="video-loop-layout">
       <section class="tool-main video-loop-main">
         <DropZone
-          v-model="input"
+          :model-value="input"
           title="源视频"
           preview="video"
           :multiple="false"
           :filters="[{ name: '视频', extensions: ['mp4', 'webm', 'mov', 'mkv', 'avi'] }]"
+          @update:model-value="selectInput"
         />
         <div class="loop-stage" :class="{ portrait: isPortraitVideo }">
-          <video ref="loopVideoRef" v-if="selectedVideoUrl" :key="selectedVideoUrl" :src="selectedVideoUrl" autoplay muted loop playsinline controls preload="metadata" @loadedmetadata="updateVideoOrientation"></video>
+          <video ref="loopVideoRef" v-if="selectedVideoUrl" :key="selectedVideoUrl" :src="selectedVideoUrl" autoplay muted loop playsinline controls preload="auto" @loadedmetadata="updateVideoOrientation" @canplay="playLoopVideo"></video>
           <div v-else class="empty-state">等待选择视频</div>
         </div>
         <label class="field">
@@ -186,8 +197,9 @@ async function run() {
 .loop-stage {
   display: grid;
   place-items: center;
-  height: clamp(360px, calc(100vh - 380px), 680px);
-  min-height: 360px;
+  aspect-ratio: 16 / 9;
+  width: 100%;
+  min-height: 260px;
   overflow: hidden;
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -195,6 +207,7 @@ async function run() {
 }
 
 .loop-stage.portrait {
+  aspect-ratio: auto;
   height: clamp(480px, calc(100vh - 260px), 780px);
 }
 
@@ -232,7 +245,7 @@ async function run() {
 .loop-frame-grid img {
   display: block;
   width: 100%;
-  height: clamp(160px, 22vh, 260px);
+  aspect-ratio: 16 / 9;
   object-fit: contain;
   border: 1px solid var(--border);
   border-radius: 6px;
@@ -240,6 +253,7 @@ async function run() {
 }
 
 .loop-frame-grid.portrait img {
+  aspect-ratio: auto;
   height: clamp(240px, 32vh, 380px);
 }
 

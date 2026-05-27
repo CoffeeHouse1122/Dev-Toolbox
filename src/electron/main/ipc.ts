@@ -143,16 +143,16 @@ const imageCropSchema = z.object({
   quality: z.number().int().min(1).max(100)
 });
 
-const FOLDER_OPEN_LOCK_MS = 4000;
-let folderOpenLocked = false;
-let folderOpenReleaseTimer: ReturnType<typeof setTimeout> | null = null;
+const LOCAL_OPEN_LOCK_MS = 4000;
+let localOpenLocked = false;
+let localOpenReleaseTimer: ReturnType<typeof setTimeout> | null = null;
 let releaseOnWindowFocus: (() => void) | null = null;
 
-function releaseFolderOpenLock() {
-  folderOpenLocked = false;
-  if (folderOpenReleaseTimer) {
-    clearTimeout(folderOpenReleaseTimer);
-    folderOpenReleaseTimer = null;
+function releaseLocalOpenLock() {
+  localOpenLocked = false;
+  if (localOpenReleaseTimer) {
+    clearTimeout(localOpenReleaseTimer);
+    localOpenReleaseTimer = null;
   }
   if (releaseOnWindowFocus) {
     app.off("browser-window-focus", releaseOnWindowFocus);
@@ -160,17 +160,28 @@ function releaseFolderOpenLock() {
   }
 }
 
-function acquireFolderOpenLock() {
-  if (folderOpenLocked) return false;
-  folderOpenLocked = true;
-  releaseOnWindowFocus = () => {
-    releaseFolderOpenLock();
-  };
-  app.once("browser-window-focus", releaseOnWindowFocus);
-  folderOpenReleaseTimer = setTimeout(() => {
-    releaseFolderOpenLock();
-  }, FOLDER_OPEN_LOCK_MS);
+function acquireLocalOpenLock(autoRelease = true) {
+  if (localOpenLocked) return false;
+  localOpenLocked = true;
+  if (autoRelease) {
+    releaseOnWindowFocus = () => {
+      releaseLocalOpenLock();
+    };
+    app.once("browser-window-focus", releaseOnWindowFocus);
+    localOpenReleaseTimer = setTimeout(() => {
+      releaseLocalOpenLock();
+    }, LOCAL_OPEN_LOCK_MS);
+  }
   return true;
+}
+
+async function runWithLocalOpenLock<T>(fallback: T, action: () => Promise<T>) {
+  if (!acquireLocalOpenLock(false)) return fallback;
+  try {
+    return await action();
+  } finally {
+    releaseLocalOpenLock();
+  }
 }
 
 async function pathExists(targetPath: string) {
@@ -187,12 +198,12 @@ async function openDirectory(targetPath: string): Promise<OpenDirectoryResult> {
   if (!(await pathExists(normalizedPath))) {
     return { status: "missing", path: normalizedPath, message: "目标文件夹不存在。" };
   }
-  if (!acquireFolderOpenLock()) {
+  if (!acquireLocalOpenLock()) {
     return { status: "blocked", path: normalizedPath, message: "本地文件夹正在打开，请稍后再试。" };
   }
   const errorMessage = await shell.openPath(normalizedPath);
   if (errorMessage) {
-    releaseFolderOpenLock();
+    releaseLocalOpenLock();
     return { status: "missing", path: normalizedPath, message: errorMessage };
   }
   return { status: "opened", path: normalizedPath };
@@ -439,22 +450,26 @@ export function registerIpc() {
   ipcMain.handle(
     "dialog:select-files",
     async (_event, filters?: DialogFileFilter[], multiSelections = true): Promise<string[]> => {
-      const result = await dialog.showOpenDialog({
-        properties: multiSelections ? ["openFile", "multiSelections"] : ["openFile"],
-        filters
-      });
+      return runWithLocalOpenLock([], async () => {
+        const result = await dialog.showOpenDialog({
+          properties: multiSelections ? ["openFile", "multiSelections"] : ["openFile"],
+          filters
+        });
 
-      return result.canceled ? [] : result.filePaths;
+        return result.canceled ? [] : result.filePaths;
+      });
     }
   );
 
   ipcMain.handle("dialog:select-output-dir", async (_event, defaultPath?: string): Promise<string | null> => {
-    const result = await dialog.showOpenDialog({
-      properties: ["openDirectory", "createDirectory"],
-      defaultPath: defaultPath || undefined
-    });
+    return runWithLocalOpenLock(null, async () => {
+      const result = await dialog.showOpenDialog({
+        properties: ["openDirectory", "createDirectory"],
+        defaultPath: defaultPath || undefined
+      });
 
-    return result.canceled ? null : result.filePaths[0] ?? null;
+      return result.canceled ? null : result.filePaths[0] ?? null;
+    });
   });
 
   ipcMain.handle("file:path-exists", async (_event, targetPath: string) => pathExists(z.string().min(1).parse(targetPath)));
@@ -718,7 +733,7 @@ export function registerIpc() {
   ipcMain.handle("shell:reveal-path", async (_event, filePath: string) => {
     const normalizedPath = path.normalize(filePath);
     if (!(await pathExists(normalizedPath))) return;
-    if (!acquireFolderOpenLock()) return;
+    if (!acquireLocalOpenLock()) return;
     shell.showItemInFolder(normalizedPath);
   });
 
