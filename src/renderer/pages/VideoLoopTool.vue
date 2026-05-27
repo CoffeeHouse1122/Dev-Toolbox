@@ -14,6 +14,7 @@ const edgeSeconds = ref(0.08);
 const busy = ref(false);
 const result = ref<VideoLoopResult | null>(null);
 const loopVideoRef = ref<HTMLVideoElement | null>(null);
+const videoOrientation = ref<"landscape" | "portrait" | "square">("landscape");
 
 function previewFileUrl(filePath: string, time = 0.1) {
   const params = new URLSearchParams({ path: filePath, cache: "1" });
@@ -23,6 +24,12 @@ function previewFileUrl(filePath: string, time = 0.1) {
 const selectedVideoUrl = computed(() => (input.value[0] ? previewFileUrl(input.value[0]) : ""));
 const selectedFileName = computed(() => input.value[0]?.split(/[\\/]/).pop() ?? "未选择视频");
 const canRun = computed(() => input.value.length === 1 && !busy.value);
+const isPortraitVideo = computed(() => {
+  if (videoOrientation.value === "portrait") return true;
+  const resolution = result.value?.info?.resolution;
+  const match = resolution?.match(/(\d{2,5})x(\d{2,5})/);
+  return match ? Number(match[2]) > Number(match[1]) : false;
+});
 const infoRows = computed(() => {
   const info = result.value?.info;
   if (!info) return [];
@@ -53,10 +60,22 @@ function releaseLoopVideo() {
   video.load();
 }
 
+function updateVideoOrientation(event: Event) {
+  const video = event.currentTarget as HTMLVideoElement;
+  if (!video.videoWidth || !video.videoHeight) {
+    videoOrientation.value = "landscape";
+    return;
+  }
+  if (video.videoHeight > video.videoWidth) videoOrientation.value = "portrait";
+  else if (video.videoHeight === video.videoWidth) videoOrientation.value = "square";
+  else videoOrientation.value = "landscape";
+}
+
 watch(
   () => input.value[0],
   () => {
     releaseLoopVideo();
+    videoOrientation.value = "landscape";
   }
 );
 
@@ -100,8 +119,8 @@ async function run() {
           :multiple="false"
           :filters="[{ name: '视频', extensions: ['mp4', 'webm', 'mov', 'mkv', 'avi'] }]"
         />
-        <div class="loop-stage">
-          <video ref="loopVideoRef" v-if="selectedVideoUrl" :key="selectedVideoUrl" :src="selectedVideoUrl" autoplay muted loop playsinline controls preload="metadata"></video>
+        <div class="loop-stage" :class="{ portrait: isPortraitVideo }">
+          <video ref="loopVideoRef" v-if="selectedVideoUrl" :key="selectedVideoUrl" :src="selectedVideoUrl" autoplay muted loop playsinline controls preload="metadata" @loadedmetadata="updateVideoOrientation"></video>
           <div v-else class="empty-state">等待选择视频</div>
         </div>
         <label class="field">
@@ -116,7 +135,7 @@ async function run() {
             <h2>首尾帧</h2>
             <span class="status-pill">Frame</span>
           </div>
-          <div v-if="result?.info?.firstFrameDataUrl && result?.info?.lastFrameDataUrl" class="loop-frame-grid">
+          <div v-if="result?.info?.firstFrameDataUrl && result?.info?.lastFrameDataUrl" class="loop-frame-grid" :class="{ portrait: isPortraitVideo }">
             <figure>
               <img :src="result.info.firstFrameDataUrl" alt="循环首帧" />
               <figcaption>首帧</figcaption>
@@ -167,12 +186,16 @@ async function run() {
 .loop-stage {
   display: grid;
   place-items: center;
-  aspect-ratio: 16 / 9;
-  min-height: 260px;
+  height: clamp(360px, calc(100vh - 380px), 680px);
+  min-height: 360px;
   overflow: hidden;
   border: 1px solid var(--border);
   border-radius: 8px;
   background: #000000;
+}
+
+.loop-stage.portrait {
+  height: clamp(480px, calc(100vh - 260px), 780px);
 }
 
 .loop-stage video {
@@ -209,11 +232,15 @@ async function run() {
 .loop-frame-grid img {
   display: block;
   width: 100%;
-  aspect-ratio: 16 / 9;
+  height: clamp(160px, 22vh, 260px);
   object-fit: contain;
   border: 1px solid var(--border);
   border-radius: 6px;
   background: #000000;
+}
+
+.loop-frame-grid.portrait img {
+  height: clamp(240px, 32vh, 380px);
 }
 
 .loop-frame-grid figcaption {

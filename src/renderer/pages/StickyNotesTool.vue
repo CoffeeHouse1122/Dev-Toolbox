@@ -4,7 +4,6 @@ import { toPng } from "html-to-image";
 import type { DevToolboxApi, StickyNote, StickyNoteExportFormat, StickyNoteStyle, StickyNotesPreferences, StickyNotesState } from "../../shared/types";
 
 type NoteView = "active" | "archived" | "trash";
-type PresetNumberKey = "fontSize" | "lineHeight" | "padding";
 type ExportBlock =
   | { type: "text"; value: string }
   | { type: "blank" }
@@ -46,9 +45,7 @@ const defaultPreferences: StickyNotesPreferences = {
 };
 const preferences = ref<StickyNotesPreferences>({ ...defaultPreferences });
 const draftStyle = ref<StickyNoteStyle>({ ...defaultPreferences });
-const showPresetPanel = ref(false);
 const fontMenuOpen = ref(false);
-const presetFontMenuOpen = ref(false);
 const lastExportedFiles = ref<string[]>([]);
 const contextMenu = ref({ visible: false, x: 0, y: 0 });
 const toolbarState = ref({
@@ -103,7 +100,6 @@ const activeCountLabel = computed(() => {
   return `${notes.value.length} NOTES`;
 });
 const currentFontLabel = computed(() => fontFamilies.find((font) => font.value === selectedFontFamily.value)?.label || "自定义字体");
-const preferenceFontLabel = computed(() => fontFamilies.find((font) => font.value === preferences.value.fontFamily)?.label || "自定义字体");
 
 function clampNumber(value: unknown, min: number, max: number, fallback: number) {
   const parsed = Number(value);
@@ -120,25 +116,6 @@ function plainStickyStyle(style: Partial<StickyNoteStyle>): StickyNoteStyle {
     color: style.color ? String(style.color) : defaultPreferences.color,
     backgroundColor: style.backgroundColor ? String(style.backgroundColor) : defaultPreferences.backgroundColor
   };
-}
-
-function clampPreferences() {
-  preferences.value = plainStickyStyle(preferences.value);
-}
-
-function clampPreferenceNumber(key: PresetNumberKey) {
-  const ranges = {
-    fontSize: [10, 48, defaultPreferences.fontSize],
-    lineHeight: [1, 2.4, defaultPreferences.lineHeight],
-    padding: [8, 64, defaultPreferences.padding]
-  } satisfies Record<PresetNumberKey, [number, number, number]>;
-  const [min, max, fallback] = ranges[key];
-  preferences.value[key] = clampNumber(preferences.value[key], min, max, fallback);
-}
-
-function adjustPreferenceNumber(key: PresetNumberKey, delta: number) {
-  preferences.value[key] = Number((Number(preferences.value[key]) + delta).toFixed(2));
-  clampPreferenceNumber(key);
 }
 
 function rgbToHex(value: string) {
@@ -765,21 +742,6 @@ async function importNotes() {
   await loadNotes();
 }
 
-async function savePreferences() {
-  const nextPreferences = plainStickyStyle(preferences.value);
-  const state = await devToolbox.saveStickyNotesPreferences(nextPreferences);
-  applyState(state);
-  preferences.value = nextPreferences;
-}
-
-async function applyPreset(scope: "current" | "all") {
-  const style = plainStickyStyle(preferences.value);
-  const state = await devToolbox.applyStickyNotePreset(activeId.value || null, scope, style);
-  applyState(state);
-  const next = activeId.value ? [...state.notes, ...state.archivedNotes, ...state.trashNotes].find((note) => note.id === activeId.value) : null;
-  if (next) await selectNote(next);
-}
-
 async function saveActiveNote() {
   if (!activeId.value) return;
   if (saveTimer) {
@@ -1096,11 +1058,6 @@ function chooseFontFamily(value: string) {
 function chooseContextFontFamily(value: string) {
   chooseFontFamily(value);
   closeContextMenu();
-}
-
-function choosePreferenceFontFamily(value: string) {
-  preferences.value.fontFamily = value;
-  presetFontMenuOpen.value = false;
 }
 
 function applyFontSize() {
@@ -1461,10 +1418,6 @@ onBeforeUnmount(() => {
           </div>
           <div class="header-actions note-editor-actions">
             <span class="status-pill note-save-state">{{ saveState }}</span>
-            <button type="button" class="secondary-button" :disabled="!activeNote" @click="showPresetPanel = !showPresetPanel">
-              <i class="ri-equalizer-line" aria-hidden="true"></i>
-              预设
-            </button>
             <button type="button" class="secondary-button" :disabled="!activeNote" @click="exportActiveAsText">
               <i class="ri-file-text-line" aria-hidden="true"></i>
               导出TXT
@@ -1559,54 +1512,6 @@ onBeforeUnmount(() => {
           <button type="button" class="icon-button" title="待办事项" :disabled="!activeNote" @mousedown.prevent="captureEditorSelection" @click="insertTodoItem">
             <i class="ri-checkbox-line" aria-hidden="true"></i>
           </button>
-        </div>
-        <div v-if="showPresetPanel" class="note-preset-panel">
-          <div class="note-preset-controls">
-            <div class="note-format-stepper preset-stepper" title="默认字号">
-              <i class="ri-font-size" aria-hidden="true"></i>
-              <button type="button" class="note-step-button" @click="adjustPreferenceNumber('fontSize', -1)"><i class="ri-subtract-line" aria-hidden="true"></i></button>
-              <input v-model.number="preferences.fontSize" class="note-size-input" type="number" min="10" max="48" @input="clampPreferenceNumber('fontSize')" />
-              <button type="button" class="note-step-button" @click="adjustPreferenceNumber('fontSize', 1)"><i class="ri-add-line" aria-hidden="true"></i></button>
-            </div>
-            <div class="note-format-stepper preset-stepper" title="默认行高">
-              <i class="ri-line-height" aria-hidden="true"></i>
-              <button type="button" class="note-step-button" @click="adjustPreferenceNumber('lineHeight', -0.05)"><i class="ri-subtract-line" aria-hidden="true"></i></button>
-              <input v-model.number="preferences.lineHeight" class="note-size-input" type="number" min="1" max="2.4" step="0.05" @input="clampPreferenceNumber('lineHeight')" />
-              <button type="button" class="note-step-button" @click="adjustPreferenceNumber('lineHeight', 0.05)"><i class="ri-add-line" aria-hidden="true"></i></button>
-            </div>
-            <div class="note-format-stepper preset-stepper" title="默认边距">
-              <i class="ri-expand-left-right-line" aria-hidden="true"></i>
-              <button type="button" class="note-step-button" @click="adjustPreferenceNumber('padding', -1)"><i class="ri-subtract-line" aria-hidden="true"></i></button>
-              <input v-model.number="preferences.padding" class="note-size-input" type="number" min="8" max="64" @input="clampPreferenceNumber('padding')" />
-              <button type="button" class="note-step-button" @click="adjustPreferenceNumber('padding', 1)"><i class="ri-add-line" aria-hidden="true"></i></button>
-            </div>
-            <label><input v-model="preferences.color" type="color" /></label>
-            <div class="note-font-dropdown preset-fonts" title="默认字体">
-              <button type="button" class="note-font-trigger" @click="presetFontMenuOpen = !presetFontMenuOpen">
-                <i class="ri-font-family" aria-hidden="true"></i>
-                <span :style="{ fontFamily: preferences.fontFamily }">{{ preferenceFontLabel }}</span>
-                <i class="ri-arrow-down-s-line" aria-hidden="true"></i>
-              </button>
-              <div v-if="presetFontMenuOpen" class="note-font-menu" role="menu">
-                <button
-                  v-for="font in fontFamilies"
-                  :key="font.label"
-                  type="button"
-                  role="menuitem"
-                  :class="{ active: preferences.fontFamily === font.value }"
-                  :style="{ fontFamily: font.value }"
-                  @click="choosePreferenceFontFamily(font.value)"
-                >
-                  {{ font.label }}
-                </button>
-              </div>
-            </div>
-          </div>
-          <div class="note-preset-actions">
-            <button type="button" class="secondary-button" @click="savePreferences">保存默认</button>
-            <button type="button" class="secondary-button" :disabled="!activeNote" @click="applyPreset('current')">应用当前</button>
-            <button type="button" class="secondary-button" @click="applyPreset('all')">应用全部</button>
-          </div>
         </div>
         <div
           ref="editorRef"
@@ -1932,7 +1837,7 @@ onBeforeUnmount(() => {
 
 .note-editor-panel {
   display: grid;
-  grid-template-rows: auto auto auto minmax(0, 1fr);
+  grid-template-rows: auto auto minmax(0, 1fr);
   height: 100%;
   min-height: 0;
   overflow: hidden;
@@ -2121,51 +2026,6 @@ onBeforeUnmount(() => {
   width: 76px;
 }
 
-.note-preset-panel {
-  display: grid;
-  gap: 8px;
-  min-width: 0;
-  padding: 8px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--surface-subtle);
-}
-
-.note-preset-controls,
-.note-preset-actions {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-}
-
-.note-preset-actions .secondary-button {
-  min-width: 92px;
-}
-
-.note-preset-panel label {
-  display: grid;
-  align-items: center;
-  min-width: 0;
-}
-
-.note-preset-panel label span {
-  color: var(--muted);
-  font-size: 12px;
-  font-weight: 700;
-}
-
-.note-preset-panel input {
-  min-width: 50px;
-  height: 32px;
-  padding: 2px 5px;
-}
-
-.preset-fonts {
-  width: 180px;
-}
-
 .note-color-field input {
   height: 24px;
   cursor: pointer;
@@ -2175,7 +2035,7 @@ onBeforeUnmount(() => {
   width: 100%;
   height: 100%;
   min-width: 0;
-  min-height: 0;
+  min-height: 100%;
   overflow: auto;
   padding: 16px;
   border: 1px solid var(--border);
