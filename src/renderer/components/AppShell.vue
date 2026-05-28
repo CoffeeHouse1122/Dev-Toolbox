@@ -3,6 +3,7 @@ import { AnimatePresence, motion } from "motion-v";
 import { computed, onBeforeUnmount, onMounted, provide, ref, watch } from "vue";
 import { RouterLink, RouterView } from "vue-router";
 import { useThemeStore } from "../stores/theme";
+import Checkbox from "./Checkbox.vue";
 
 type NavTool = {
   id: string;
@@ -838,9 +839,7 @@ onBeforeUnmount(() => {
                   @dragend="onDragEnd"
                 >
                   <span class="drag-handle" title="拖动排序"><i class="ri-draggable" aria-hidden="true"></i></span>
-                  <label class="nav-visible-toggle" :title="tool.visible ? '点击隐藏' : '点击显示'">
-                    <input v-model="tool.visible" type="checkbox" />
-                  </label>
+                  <Checkbox v-model="tool.visible" class="nav-visible-toggle" compact :aria-label="tool.visible ? '点击隐藏' : '点击显示'" :title="tool.visible ? '点击隐藏' : '点击显示'" />
                   <i class="tool-icon" :class="tool.icon" aria-hidden="true"></i>
                   <input v-model="tool.label" class="tool-input" aria-label="导航名称" placeholder="导航名称" />
                   <button type="button" class="icon-button" title="上移" @click="moveTool(groupIndex, toolIndex, -1)">

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import type { CodeMinifyOptions, ConversionResult, DevToolboxApi } from "../../shared/types";
+import Checkbox from "../components/Checkbox.vue";
 // @ts-ignore VS Code inferred project may miss the local *.vue shim.
 import DropZone from "../components/DropZone.vue";
 // @ts-ignore VS Code inferred project may miss the local *.vue shim.
@@ -70,14 +71,8 @@ async function run() {
             <span>兼容目标</span>
             <SelectMenu v-model="target" :options="targetOptions" />
           </div>
-          <label class="check-row video-check-row">
-            <input v-model="removeConsole" type="checkbox" />
-            <span>移除 console.log</span>
-          </label>
-          <label class="check-row video-check-row">
-            <input v-model="beautify" type="checkbox" />
-            <span>保留可读格式</span>
-          </label>
+          <Checkbox v-model="removeConsole" class="check-row video-check-row" label="移除 console.log" />
+          <Checkbox v-model="beautify" class="check-row video-check-row" label="保留可读格式" />
         </div>
       </section>
 

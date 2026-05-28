@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import type { CaptureProxyRecord, CaptureProxyStatus } from "../../shared/types";
+import Checkbox from "../components/Checkbox.vue";
 
 type HostMode = "local" | "lan";
 type MethodFilter = "all" | "http" | "connect" | "error";
@@ -265,14 +266,8 @@ onBeforeUnmount(() => {
             <span>正文上限 KB</span>
             <input v-model.number="maxBodyKb" type="number" min="1" max="2048" :disabled="status.running || !captureBodies" />
           </label>
-          <label class="check-row capture-body-check">
-            <input v-model="captureBodies" type="checkbox" :disabled="status.running" />
-            <span>记录 HTTP 请求 / 响应正文</span>
-          </label>
-          <label class="check-row capture-body-check">
-            <input v-model="enableHttps" type="checkbox" :disabled="status.running" />
-            <span>HTTPS 解密</span>
-          </label>
+          <Checkbox v-model="captureBodies" class="check-row capture-body-check" :disabled="status.running" label="记录 HTTP 请求 / 响应正文" />
+          <Checkbox v-model="enableHttps" class="check-row capture-body-check" :disabled="status.running" label="HTTPS 解密" />
         </div>
 
         <div class="capture-ca-row">
@@ -526,21 +521,6 @@ onBeforeUnmount(() => {
   font-size: 12px;
   white-space: nowrap;
   word-break: keep-all;
-}
-
-.capture-body-check input[type="checkbox"] {
-  width: 14px;
-  min-height: 14px;
-  margin: 0;
-  accent-color: var(--accent);
-  outline: none;
-  box-shadow: none;
-}
-
-.capture-body-check input[type="checkbox"]:focus,
-.capture-body-check input[type="checkbox"]:focus-visible {
-  outline: none;
-  box-shadow: none;
 }
 
 .capture-ca-row {

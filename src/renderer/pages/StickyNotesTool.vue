@@ -6,7 +6,7 @@ import type { DevToolboxApi, StickyNote, StickyNoteExportFormat, StickyNoteStyle
 
 type NoteView = "active" | "archived" | "trash";
 type ToastTone = "success" | "error" | "info";
-type ColorPaletteKind = "text" | "highlight";
+type ColorPaletteKind = "text" | "highlight" | "editorBackground";
 type ExportBlock =
   | { type: "text"; value: string }
   | { type: "blank" }
@@ -136,12 +136,24 @@ const highlightColorPalette = [
   { name: "清除", value: "#ffffff" }
 ];
 
+const editorBackgroundPalette = [
+  { name: "纸白", value: "#ffffff" },
+  { name: "暖纸", value: "#fffaf0" },
+  { name: "晨雾", value: "#f6f8fa" },
+  { name: "薄荷", value: "#f2fbf5" },
+  { name: "浅蓝", value: "#f1f8ff" },
+  { name: "薰衣", value: "#faf5ff" },
+  { name: "杏仁", value: "#fff4e6" },
+  { name: "玫瑰", value: "#fff5f7" }
+];
+
 const visibleNotes = computed(() => {
   if (currentView.value === "archived") return archivedNotes.value;
   if (currentView.value === "trash") return trashNotes.value;
   return notes.value;
 });
 const activeNote = computed(() => [...notes.value, ...archivedNotes.value, ...trashNotes.value].find((note) => note.id === activeId.value) ?? null);
+const editorBackgroundColor = computed(() => draftStyle.value.backgroundColor || defaultPreferences.backgroundColor || "#ffffff");
 const activeCountLabel = computed(() => {
   if (currentView.value === "archived") return `${archivedNotes.value.length} ARCHIVED`;
   if (currentView.value === "trash") return `${trashNotes.value.length} TRASH`;
@@ -299,16 +311,37 @@ function noteTextToEditorHtml(content: string) {
 }
 
 function contentToEditorHtml(content: string) {
-  return content.startsWith(richNoteMarker) ? content.slice(richNoteMarker.length) : noteTextToEditorHtml(content);
+  const html = content.startsWith(richNoteMarker) ? content.slice(richNoteMarker.length) : noteTextToEditorHtml(content);
+  const container = document.createElement("div");
+  container.innerHTML = html;
+  normalizeTodoControls(container);
+  return container.innerHTML;
 }
 
 function editorDomToStoredContent(root: HTMLElement) {
-  root.querySelectorAll<HTMLInputElement>('input[type="checkbox"][data-note-todo]').forEach((checkbox) => {
-    checkbox.toggleAttribute("checked", checkbox.checked);
-  });
+  normalizeTodoControls(root);
   const clone = root.cloneNode(true) as HTMLElement;
   clone.querySelectorAll(".note-active-selection").forEach((node) => node.classList.remove("note-active-selection"));
   return `${richNoteMarker}${clone.innerHTML}`;
+}
+
+function todoMarkerHtml(checked = false) {
+  return `<span class="note-todo-box" role="checkbox" data-note-todo="true" data-checked="${checked}" aria-checked="${checked}" tabindex="0" contenteditable="false"></span>`;
+}
+
+function normalizeTodoControls(root: HTMLElement) {
+  root.querySelectorAll<HTMLInputElement>("input[data-note-todo]").forEach((checkbox) => {
+    checkbox.replaceWith(document.createRange().createContextualFragment(todoMarkerHtml(checkbox.checked || checkbox.hasAttribute("checked"))));
+  });
+  root.querySelectorAll<HTMLElement>("[data-note-todo]").forEach((marker) => {
+    const checked = marker.dataset.checked === "true" || marker.getAttribute("aria-checked") === "true";
+    marker.classList.add("note-todo-box");
+    marker.setAttribute("role", "checkbox");
+    marker.setAttribute("aria-checked", String(checked));
+    marker.setAttribute("data-checked", String(checked));
+    marker.setAttribute("tabindex", "0");
+    marker.setAttribute("contenteditable", "false");
+  });
 }
 
 function contentToPlainText(content: string) {
@@ -844,6 +877,15 @@ function handleEditorInput() {
 }
 
 function handleEditorKeydown(event: KeyboardEvent) {
+  const target = event.target;
+  if ((event.key === " " || event.key === "Enter") && target instanceof Element) {
+    const marker = target.closest<HTMLElement>("[data-note-todo]");
+    if (marker) {
+      event.preventDefault();
+      toggleTodoMarker(marker);
+      return;
+    }
+  }
   if (event.key === "Tab") {
     event.preventDefault();
     applyTabIndent(event.shiftKey);
@@ -879,6 +921,15 @@ function handleEditorKeydown(event: KeyboardEvent) {
     event.preventDefault();
     applyUnderline();
   }
+}
+
+function toggleTodoMarker(marker: HTMLElement) {
+  if (!activeNote.value || currentView.value === "trash") return;
+  pushHistorySnapshot();
+  const checked = marker.dataset.checked !== "true";
+  marker.dataset.checked = String(checked);
+  marker.setAttribute("aria-checked", String(checked));
+  syncEditorContent();
 }
 
 function applyTabIndent(outdent: boolean) {
@@ -1016,11 +1067,13 @@ function handleEditorClick(event: MouseEvent) {
   if (target instanceof Element && !target.closest(".note-active-selection")) {
     clearActiveInlineSelection();
   }
-  if (target instanceof HTMLInputElement && target.type === "checkbox") {
-    syncEditorContent();
-    return;
-  }
   if (target instanceof Element) {
+    const marker = target.closest<HTMLElement>("[data-note-todo]");
+    if (marker) {
+      event.preventDefault();
+      toggleTodoMarker(marker);
+      return;
+    }
     const link = target.closest<HTMLAnchorElement>("a[data-note-link]");
     if (link?.href) {
       event.preventDefault();
@@ -1212,6 +1265,20 @@ function resetHighlightColor() {
   colorPaletteOpen.value = "";
 }
 
+async function chooseEditorBackground(value: string) {
+  const note = activeNote.value;
+  if (!note || currentView.value === "trash") return;
+  const nextStyle = plainStickyStyle({ ...draftStyle.value, backgroundColor: value });
+  draftStyle.value = nextStyle;
+  colorPaletteOpen.value = "";
+  try {
+    const state = await devToolbox.applyStickyNotePreset(note.id, "current", nextStyle);
+    applyState(state);
+  } catch (error) {
+    showToast(`背景色保存失败：${error instanceof Error ? error.message : String(error)}`, "error");
+  }
+}
+
 function applyFontFamily(value: string) {
   selectedFontFamily.value = value;
   applyInlineStyle({ fontFamily: value });
@@ -1256,7 +1323,7 @@ function runEditorCommand(command: "insertUnorderedList" | "insertOrderedList") 
 
 function insertTodoItem() {
   pushHistorySnapshot();
-  insertHtmlAtCursor('<div class="todo-line"><input type="checkbox" data-note-todo="true"> <span>待办事项</span></div>');
+  insertHtmlAtCursor(`<div class="todo-line">${todoMarkerHtml(false)} <span>待办事项</span></div>`);
   syncEditorContent();
 }
 
@@ -1445,9 +1512,10 @@ async function exportActiveAsImage() {
     image.style.borderRadius = "8px";
     image.style.objectFit = "contain";
   });
-  frame.querySelectorAll<HTMLInputElement>('input[type="checkbox"][data-note-todo]').forEach((checkbox) => {
+  frame.querySelectorAll<HTMLElement>("[data-note-todo]").forEach((checkbox) => {
+    const checked = checkbox.dataset.checked === "true" || checkbox.getAttribute("aria-checked") === "true";
     const marker = document.createElement("span");
-    marker.textContent = checkbox.checked ? "✓" : "";
+    marker.textContent = checked ? "✓" : "";
     Object.assign(marker.style, {
       display: "inline-grid",
       placeItems: "center",
@@ -1457,9 +1525,9 @@ async function exportActiveAsImage() {
       minHeight: "16px",
       boxSizing: "border-box",
       marginRight: "0",
-      border: `1px solid ${checkbox.checked ? accentColor : borderColor}`,
+      border: `1px solid ${checked ? accentColor : borderColor}`,
       borderRadius: "4px",
-      background: checkbox.checked ? accentColor : "#ffffff",
+      background: checked ? accentColor : "#ffffff",
       color: "#ffffff",
       fontSize: "13px",
       lineHeight: "16px",
@@ -1716,6 +1784,28 @@ onBeforeUnmount(() => {
           <button type="button" class="icon-button" title="高亮恢复默认" :disabled="!activeNote" @mousedown.prevent="captureEditorSelection" @click="resetHighlightColor">
             <i class="ri-eraser-line" aria-hidden="true"></i>
           </button>
+          <div class="note-color-field" title="编辑器背景色">
+            <button type="button" class="note-color-trigger" :disabled="!activeNote || currentView === 'trash'" @mousedown.prevent="prepareSelectionForToolbar" @click="toggleColorPalette('editorBackground')">
+              <i class="ri-brush-line" aria-hidden="true"></i>
+              <span class="note-color-preview" :style="{ backgroundColor: editorBackgroundColor }"></span>
+            </button>
+            <div v-if="colorPaletteOpen === 'editorBackground'" class="note-color-menu" role="menu" aria-label="编辑器背景色">
+              <strong>背景色板</strong>
+              <button
+                v-for="color in editorBackgroundPalette"
+                :key="color.value"
+                type="button"
+                class="note-color-swatch"
+                :class="{ active: editorBackgroundColor.toLowerCase() === color.value }"
+                :title="`${color.name} ${color.value}`"
+                :style="{ backgroundColor: color.value }"
+                @mousedown.prevent="prepareSelectionForToolbar"
+                @click="chooseEditorBackground(color.value)"
+              >
+                <i v-if="editorBackgroundColor.toLowerCase() === color.value" class="ri-check-line" aria-hidden="true"></i>
+              </button>
+            </div>
+          </div>
           <button type="button" class="icon-button" :class="{ active: toolbarState.unorderedList }" title="无序列表" :disabled="!activeNote" @mousedown.prevent="captureEditorSelection" @click="runEditorCommand('insertUnorderedList')">
             <i class="ri-list-unordered" aria-hidden="true"></i>
           </button>
@@ -2509,10 +2599,9 @@ onBeforeUnmount(() => {
   min-height: 28px;
 }
 
-.note-editor :deep(input[type="checkbox"][data-note-todo]) {
+.note-editor :deep(.note-todo-box[data-note-todo]) {
   position: relative;
   flex: 0 0 auto;
-  appearance: none !important;
   display: inline-block !important;
   width: 16px !important;
   height: 16px !important;
@@ -2532,18 +2621,18 @@ onBeforeUnmount(() => {
   cursor: pointer;
 }
 
-.note-editor :deep(input[type="checkbox"][data-note-todo]:focus),
-.note-editor :deep(input[type="checkbox"][data-note-todo]:focus-visible) {
+.note-editor :deep(.note-todo-box[data-note-todo]:focus),
+.note-editor :deep(.note-todo-box[data-note-todo]:focus-visible) {
   outline: none;
-  box-shadow: none;
+  box-shadow: 0 0 0 3px color-mix(in srgb, #0969da 16%, transparent) !important;
 }
 
-.note-editor :deep(input[type="checkbox"][data-note-todo]:checked) {
+.note-editor :deep(.note-todo-box[data-note-todo][data-checked="true"]) {
   border-color: #0969da !important;
   background: #0969da !important;
 }
 
-.note-editor :deep(input[type="checkbox"][data-note-todo]:checked::after) {
+.note-editor :deep(.note-todo-box[data-note-todo][data-checked="true"]::after) {
   content: "";
   position: absolute;
   left: 4px;

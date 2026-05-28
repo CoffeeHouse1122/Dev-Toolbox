@@ -5,6 +5,7 @@ import DropZone from "../components/DropZone.vue";
 import OutputPicker from "../components/OutputPicker.vue";
 import ResultPanel from "../components/ResultPanel.vue";
 import SelectMenu from "../components/SelectMenu.vue";
+import Checkbox from "../components/Checkbox.vue";
 
 const input = ref<string[]>([]);
 const outputDir = ref("");
@@ -75,10 +76,7 @@ async function run() {
             <span>字体族名</span>
             <input v-model="fontFamily" />
           </label>
-          <label class="check-row span-2">
-            <input v-model="generateCss" type="checkbox" />
-            <span>同时生成 @font-face CSS</span>
-          </label>
+          <Checkbox v-model="generateCss" class="check-row span-2" label="同时生成 @font-face CSS" />
         </div>
       </section>
 

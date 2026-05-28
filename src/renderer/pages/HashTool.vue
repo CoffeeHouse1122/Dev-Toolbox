@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed } from "vue";
+import Checkbox from "../components/Checkbox.vue";
 
 const input = ref("");
 const mode = ref<"hash" | "encrypt" | "decrypt">("hash");
@@ -8,6 +9,11 @@ const uppercase = ref(false);
 const encryptKey = ref("");
 const output = ref("");
 const busy = ref(false);
+
+function setUppercase(value: boolean) {
+  uppercase.value = value;
+  output.value = "";
+}
 
 // ---- 哈希 ---- //
 
@@ -174,10 +180,7 @@ const resultLabel = computed(() => {
           </button>
         </div>
         <span class="hash-separator"></span>
-        <label class="hash-check-label">
-          <input type="checkbox" v-model="uppercase" @change="output = ''" />
-          <span>大写</span>
-        </label>
+        <Checkbox class="hash-check-label" :model-value="uppercase" label="大写" @update:model-value="setUppercase" />
         <button type="button" class="primary-button" :disabled="busy || !input" @click="doAction">
           <i class="ri-fingerprint-line" aria-hidden="true"></i>
           {{ actionLabel }}
@@ -232,14 +235,6 @@ const resultLabel = computed(() => {
   cursor: pointer;
   white-space: nowrap;
 }
-.hash-check-label input[type="checkbox"] {
-  width: 16px;
-  height: 16px;
-  min-height: unset;
-  cursor: pointer;
-  accent-color: var(--accent);
-}
-
 .primary-button i {
   margin-right: 6px;
 }

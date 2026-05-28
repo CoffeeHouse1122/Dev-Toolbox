@@ -5,6 +5,7 @@ import DropZone from "../components/DropZone.vue";
 import OutputPicker from "../components/OutputPicker.vue";
 import ResultPanel from "../components/ResultPanel.vue";
 import SelectMenu from "../components/SelectMenu.vue";
+import Checkbox from "../components/Checkbox.vue";
 
 const input = ref<string[]>([]);
 const outputDir = ref("");
@@ -85,10 +86,7 @@ async function run() {
             <span>输出宽度</span>
             <input v-model.number="width" type="number" min="1" placeholder="保持原始宽度" />
           </label>
-          <label class="check-row">
-            <input v-model="loop" type="checkbox" />
-            <span>循环播放</span>
-          </label>
+          <Checkbox v-model="loop" class="check-row" label="循环播放" />
         </div>
         <div v-if="input.length" class="sequence-list">
           <div v-for="(frame, index) in input.slice(0, 8)" :key="frame" class="sequence-row">

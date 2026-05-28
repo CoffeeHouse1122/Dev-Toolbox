@@ -10,7 +10,8 @@ import ResultPanel from "../components/ResultPanel.vue";
 // @ts-ignore VS Code inferred project may miss the local *.vue shim.
 import SelectMenu from "../components/SelectMenu.vue";
 // @ts-ignore VS Code inferred project may miss the local *.vue shim.
-import MotionRange from "../components/MotionRange.vue";
+import Slider from "../components/Slider.vue";
+import Checkbox from "../components/Checkbox.vue";
 const devToolbox = (window as unknown as Window & { devToolbox: DevToolboxApi }).devToolbox;
 
 const input = ref<string[]>([]);
@@ -121,7 +122,7 @@ async function run() {
         <div class="video-form-grid">
           <label class="field">
             <span>CRF</span>
-            <MotionRange v-model="crf" :min="12" :max="36" aria-label="CRF" />
+            <Slider v-model="crf" :min="12" :max="36" aria-label="CRF" />
           </label>
           <label class="field">
             <span>最大宽度</span>
@@ -135,10 +136,7 @@ async function run() {
             <span>音频码率</span>
             <SelectMenu v-model="audioBitrate" :options="audioBitrateOptions" />
           </div>
-          <label class="check-row span-2 video-check-row">
-            <input v-model="keepAudio" type="checkbox" />
-            <span>保留音频并重新编码</span>
-          </label>
+          <Checkbox v-model="keepAudio" class="check-row span-2 video-check-row" label="保留音频并重新编码" />
         </div>
       </section>
 

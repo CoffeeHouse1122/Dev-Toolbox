@@ -5,6 +5,7 @@ import DropZone from "../components/DropZone.vue";
 import OutputPicker from "../components/OutputPicker.vue";
 import OptionGrid from "../components/OptionGrid.vue";
 import ResultPanel from "../components/ResultPanel.vue";
+import Checkbox from "../components/Checkbox.vue";
 
 const input = ref<string[]>([]);
 const outputDir = ref("");
@@ -75,14 +76,8 @@ async function run() {
               </button>
             </div>
           </label>
-          <label class="check-row">
-            <input v-model="includePng" type="checkbox" />
-            <span>生成 PNG 文件</span>
-          </label>
-          <label class="check-row">
-            <input v-model="includeManifest" type="checkbox" />
-            <span>生成 Manifest</span>
-          </label>
+          <Checkbox v-model="includePng" class="check-row" label="生成 PNG 文件" />
+          <Checkbox v-model="includeManifest" class="check-row" label="生成 Manifest" />
         </OptionGrid>
       </div>
 

@@ -6,7 +6,8 @@ import OptionGrid from "../components/OptionGrid.vue";
 import OutputPicker from "../components/OutputPicker.vue";
 import ResultPanel from "../components/ResultPanel.vue";
 import SelectMenu from "../components/SelectMenu.vue";
-import MotionRange from "../components/MotionRange.vue";
+import Slider from "../components/Slider.vue";
+import Checkbox from "../components/Checkbox.vue";
 
 const input = ref<string[]>([]);
 const pattern = ref<string[]>([]);
@@ -126,22 +127,22 @@ async function run() {
 
           <label class="field">
             <span>透明度</span>
-            <MotionRange v-model="opacity" :min="1" :max="100" unit="%" aria-label="透明度" />
+            <Slider v-model="opacity" :min="1" :max="100" unit="%" aria-label="透明度" />
           </label>
 
           <label class="field">
             <span>旋转角度</span>
-            <MotionRange v-model="rotation" :min="-90" :max="90" unit="°" aria-label="旋转角度" />
+            <Slider v-model="rotation" :min="-90" :max="90" unit="°" aria-label="旋转角度" />
           </label>
 
           <label class="field">
             <span>字号 / 图案尺寸</span>
-            <MotionRange v-model="scale" :min="12" :max="160" aria-label="字号 / 图案尺寸" />
+            <Slider v-model="scale" :min="12" :max="160" aria-label="字号 / 图案尺寸" />
           </label>
 
           <label class="field">
             <span>铺满间距</span>
-            <MotionRange v-model="gap" :min="80" :max="720" :disabled="position !== 'tile'" aria-label="铺满间距" />
+            <Slider v-model="gap" :min="80" :max="720" :disabled="position !== 'tile'" aria-label="铺满间距" />
           </label>
 
           <label class="field">
@@ -151,13 +152,10 @@ async function run() {
 
           <label class="field">
             <span>图片质量</span>
-            <MotionRange v-model="quality" :min="1" :max="100" aria-label="图片质量" />
+            <Slider v-model="quality" :min="1" :max="100" aria-label="图片质量" />
           </label>
 
-          <label class="check-row span-2">
-            <input v-model="keepMetadata" type="checkbox" />
-            <span>图片输出保留元数据</span>
-          </label>
+          <Checkbox v-model="keepMetadata" class="check-row span-2" label="图片输出保留元数据" />
         </OptionGrid>
       </section>
 

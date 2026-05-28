@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import { toPng } from "html-to-image";
-import MotionRange from "../components/MotionRange.vue";
+import Slider from "../components/Slider.vue";
+import Checkbox from "../components/Checkbox.vue";
 
 const code = ref(
   `function fibonacci(n) {\n  if (n < 2) return n;\n  return fibonacci(n - 1) + fibonacci(n - 2);\n}\n\nconsole.log(fibonacci(10));\n`
@@ -246,21 +247,15 @@ async function copyImage() {
         </label>
         <label class="field">
           <span>背景内边距</span>
-          <MotionRange v-model="padding" :min="0" :max="120" unit="px" aria-label="背景内边距" />
+          <Slider v-model="padding" :min="0" :max="120" unit="px" aria-label="背景内边距" />
         </label>
         <label class="field">
           <span>字号</span>
-          <MotionRange v-model="fontSize" :min="10" :max="22" unit="px" aria-label="字号" />
+          <Slider v-model="fontSize" :min="10" :max="22" unit="px" aria-label="字号" />
         </label>
-        <label class="check-row">
-          <input v-model="showWindow" type="checkbox" />
-          <span>显示窗口装饰</span>
-        </label>
-        <label class="check-row">
-          <input v-model="showLineNumbers" type="checkbox" />
-          <span>显示行号</span>
-        </label>
-   
+          <Checkbox v-model="showWindow" class="check-row" label="显示窗口装饰" />
+          <Checkbox v-model="showLineNumbers" class="check-row" label="显示行号" />
+
       </aside>
       <div class="tool-main" style="padding: 0; box-shadow: none; border: 0; background: transparent;">
         <div class="code-shot-stage" ref="stage" :style="{ background: theme.bg }">

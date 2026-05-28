@@ -4,7 +4,8 @@ import type { ConversionResult } from "../../shared/types";
 import DropZone from "../components/DropZone.vue";
 import OutputPicker from "../components/OutputPicker.vue";
 import ResultPanel from "../components/ResultPanel.vue";
-import MotionRange from "../components/MotionRange.vue";
+import Slider from "../components/Slider.vue";
+import Checkbox from "../components/Checkbox.vue";
 
 const input = ref<string[]>([]);
 const outputDir = ref("");
@@ -56,16 +57,10 @@ async function run() {
         <div class="option-grid">
           <label class="field">
             <span>质量</span>
-            <MotionRange v-model="quality" :min="1" :max="100" aria-label="质量" />
+            <Slider v-model="quality" :min="1" :max="100" aria-label="质量" />
           </label>
-          <label class="check-row">
-            <input v-model="keepMetadata" type="checkbox" />
-            <span>保留元数据</span>
-          </label>
-          <label class="check-row">
-            <input v-model="keepOriginalName" type="checkbox" />
-            <span>保持原命名输出</span>
-          </label>
+          <Checkbox v-model="keepMetadata" class="check-row" label="保留元数据" />
+          <Checkbox v-model="keepOriginalName" class="check-row" label="保持原命名输出" />
         </div>
       </section>
       <ResultPanel :result="result" :busy="busy" />

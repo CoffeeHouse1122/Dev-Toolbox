@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import type { SharedDiskConfig, SharedDiskConnectResult, SharedDiskStatus } from "../../shared/types";
+import Checkbox from "../components/Checkbox.vue";
 
 const config = ref<SharedDiskConfig>({
   url: "http://10.0.15.5:5000",
@@ -158,10 +159,7 @@ onBeforeUnmount(() => {
             <span>打开文件默认目录</span>
             <input v-model="config.defaultDirectory" placeholder="例如 \\10.0.15.5\需求素材同步共享" />
           </label>
-          <label class="check-row span-2">
-            <input v-model="config.persistent" type="checkbox" />
-            <span>Windows 持久连接</span>
-          </label>
+          <Checkbox v-model="config.persistent" class="check-row span-2" label="Windows 持久连接" />
         </div>
       </section>
 

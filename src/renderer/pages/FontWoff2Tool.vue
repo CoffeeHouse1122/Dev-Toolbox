@@ -5,6 +5,7 @@ import DropZone from "../components/DropZone.vue";
 import OutputPicker from "../components/OutputPicker.vue";
 import OptionGrid from "../components/OptionGrid.vue";
 import ResultPanel from "../components/ResultPanel.vue";
+import Checkbox from "../components/Checkbox.vue";
 
 const input = ref<string[]>([]);
 const outputDir = ref("");
@@ -55,10 +56,7 @@ async function run() {
             <span>字体名称</span>
             <input v-model="fontFamily" placeholder="默认使用文件名" />
           </label>
-          <label class="check-row">
-            <input v-model="generateCss" type="checkbox" />
-            <span>生成 @font-face CSS</span>
-          </label>
+          <Checkbox v-model="generateCss" class="check-row" label="生成 @font-face CSS" />
         </OptionGrid>
 
         <section class="preview-strip">

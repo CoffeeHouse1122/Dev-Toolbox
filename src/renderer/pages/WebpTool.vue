@@ -6,7 +6,8 @@ import OutputPicker from "../components/OutputPicker.vue";
 import OptionGrid from "../components/OptionGrid.vue";
 import ResultPanel from "../components/ResultPanel.vue";
 import SelectMenu from "../components/SelectMenu.vue";
-import MotionRange from "../components/MotionRange.vue";
+import Slider from "../components/Slider.vue";
+import Checkbox from "../components/Checkbox.vue";
 
 const input = ref<string[]>([]);
 const outputDir = ref("");
@@ -78,7 +79,7 @@ async function run() {
           </div>
           <label class="field">
             <span>质量</span>
-            <MotionRange v-model="quality" :min="1" :max="100" aria-label="质量" />
+            <Slider v-model="quality" :min="1" :max="100" aria-label="质量" />
           </label>
           <label class="field">
             <span>最大宽度</span>
@@ -88,14 +89,8 @@ async function run() {
             <span>最大高度</span>
             <input v-model.number="maxHeight" type="number" min="1" placeholder="保持原始" />
           </label>
-          <label class="check-row">
-            <input v-model="lossless" type="checkbox" />
-            <span>无损压缩</span>
-          </label>
-          <label class="check-row">
-            <input v-model="keepMetadata" type="checkbox" />
-            <span>保留元数据</span>
-          </label>
+          <Checkbox v-model="lossless" class="check-row" label="无损压缩" />
+          <Checkbox v-model="keepMetadata" class="check-row" label="保留元数据" />
         </OptionGrid>
       </div>
 

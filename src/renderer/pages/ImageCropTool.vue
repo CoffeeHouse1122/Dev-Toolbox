@@ -5,7 +5,7 @@ import DropZone from "../components/DropZone.vue";
 import OutputPicker from "../components/OutputPicker.vue";
 import ResultPanel from "../components/ResultPanel.vue";
 import SelectMenu from "../components/SelectMenu.vue";
-import MotionRange from "../components/MotionRange.vue";
+import Slider from "../components/Slider.vue";
 
 type DragMode = "draw" | "move" | "resize";
 type ResizeHandle = "n" | "s" | "e" | "w" | "nw" | "ne" | "sw" | "se";
@@ -231,7 +231,7 @@ async function run() {
           </div>
           <label class="field">
             <span>质量</span>
-            <MotionRange v-model="quality" :min="1" :max="100" aria-label="质量" />
+            <Slider v-model="quality" :min="1" :max="100" aria-label="质量" />
           </label>
           <div class="crop-stats span-2">
             <span>{{ cropRect.x }}, {{ cropRect.y }}</span>

@@ -3,6 +3,7 @@ import { computed, ref } from "vue";
 import type { ConversionResult } from "../../shared/types";
 import OutputPicker from "../components/OutputPicker.vue";
 import ResultPanel from "../components/ResultPanel.vue";
+import Checkbox from "../components/Checkbox.vue";
 
 const sourceDir = ref("");
 const outputDir = ref("");
@@ -64,10 +65,7 @@ async function run() {
             <span>清单文件名</span>
             <input v-model="baseName" />
           </label>
-          <label class="check-row span-2">
-            <input v-model="includeHash" type="checkbox" />
-            <span>计算 SHA-256 哈希</span>
-          </label>
+          <Checkbox v-model="includeHash" class="check-row span-2" label="计算 SHA-256 哈希" />
         </div>
       </section>
 

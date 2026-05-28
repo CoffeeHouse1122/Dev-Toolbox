@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import DropZone from "../components/DropZone.vue";
-import MotionRange from "../components/MotionRange.vue";
+import Slider from "../components/Slider.vue";
 
 const input = ref<string[]>([]);
 const sample = ref("Dev Toolbox 字体预览：前端资源工具箱 1234567890");
@@ -40,7 +40,7 @@ const styleText = computed(() =>
           </label>
           <label class="field span-2">
             <span>字号</span>
-            <MotionRange v-model="size" :min="14" :max="96" unit="px" aria-label="字号" />
+            <Slider v-model="size" :min="14" :max="96" unit="px" aria-label="字号" />
           </label>
         </div>
       </section>

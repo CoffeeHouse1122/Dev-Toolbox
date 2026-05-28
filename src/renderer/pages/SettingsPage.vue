@@ -2,6 +2,7 @@
 import { inject, onMounted, onUnmounted, ref } from "vue";
 import { useThemeStore, type ThemeMode } from "../stores/theme";
 import type { AppCloseBehavior, AppDiagnostics, AppSettings, UpdateStatus } from "../../shared/types";
+import Checkbox from "../components/Checkbox.vue";
 
 const theme = useThemeStore();
 
@@ -159,10 +160,7 @@ onUnmounted(() => {
 
       <div class="settings-block">
         <h3>开机自启</h3>
-        <label class="settings-toggle-row">
-          <input type="checkbox" :checked="settings.autoLaunch" @change="setAutoLaunch(($event.target as HTMLInputElement).checked)" />
-          <span>启动 Windows 后自动打开 Dev Toolbox</span>
-        </label>
+        <Checkbox class="settings-toggle-row" :model-value="settings.autoLaunch" label="启动 Windows 后自动打开 Dev Toolbox" @update:model-value="setAutoLaunch" />
       </div>
       <div class="settings-block">
         <div class="settings-block-head">

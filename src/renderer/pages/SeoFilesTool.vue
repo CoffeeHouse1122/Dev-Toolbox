@@ -4,6 +4,7 @@ import type { ConversionResult } from "../../shared/types";
 import OutputPicker from "../components/OutputPicker.vue";
 import ResultPanel from "../components/ResultPanel.vue";
 import SelectMenu from "../components/SelectMenu.vue";
+import Checkbox from "../components/Checkbox.vue";
 
 const outputDir = ref("");
 const siteUrl = ref("https://example.com");
@@ -59,14 +60,8 @@ async function run() {
           <input v-model="siteUrl" />
         </label>
         <div class="option-grid">
-          <label class="check-row">
-            <input v-model="includeRobots" type="checkbox" />
-            <span>robots.txt</span>
-          </label>
-          <label class="check-row">
-            <input v-model="includeSitemap" type="checkbox" />
-            <span>sitemap.xml</span>
-          </label>
+          <Checkbox v-model="includeRobots" class="check-row" label="robots.txt" />
+          <Checkbox v-model="includeSitemap" class="check-row" label="sitemap.xml" />
           <div class="field">
             <span>changefreq</span>
             <SelectMenu v-model="changefreq" :options="changefreqOptions" />

@@ -5,7 +5,8 @@ import DropZone from "../components/DropZone.vue";
 import OutputPicker from "../components/OutputPicker.vue";
 import ResultPanel from "../components/ResultPanel.vue";
 import SelectMenu from "../components/SelectMenu.vue";
-import MotionRange from "../components/MotionRange.vue";
+import Slider from "../components/Slider.vue";
+import Checkbox from "../components/Checkbox.vue";
 
 const input = ref<string[]>([]);
 const outputDir = ref("");
@@ -89,12 +90,9 @@ async function run() {
           </label>
           <label class="field">
             <span>CRF</span>
-            <MotionRange v-model="crf" :min="12" :max="40" aria-label="CRF" />
+            <Slider v-model="crf" :min="12" :max="40" aria-label="CRF" />
           </label>
-          <label class="check-row span-2 video-check-row">
-            <input v-model="makePoster" type="checkbox" />
-            <span>生成封面 poster.png</span>
-          </label>
+          <Checkbox v-model="makePoster" class="check-row span-2 video-check-row" label="生成封面 poster.png" />
         </div>
       </section>
 
