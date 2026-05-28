@@ -32,6 +32,7 @@ const pendingDeleteLink = ref<LinkItem | null>(null);
 const draggingLinkId = ref("");
 const dragOverLinkId = ref("");
 const dragPlacement = ref<DropPlacement>("before");
+const categoryMenuOpen = ref(false);
 const toast = ref({ visible: false, message: "", tone: "info" as ToastTone });
 const editing = computed(() => !!draft.value.id);
 
@@ -47,9 +48,9 @@ const categoryTones = [
   { background: "#ddf4ff", border: "#80ccff", color: "#0969da" },
   { background: "#e8f7f5", border: "#6ed3cc", color: "#0a6866" }
 ];
-const linkCardTransition = { type: "spring", stiffness: 420, damping: 34, mass: 0.7 };
-const linkCardEnter = { opacity: 0, y: 4 };
-const linkCardVisible = { opacity: 1, y: 0 };
+const linkCardTransition = { type: "spring", stiffness: 360, damping: 24, mass: 0.76 };
+const linkCardHover = { y: -4, rotateZ: -0.35, boxShadow: "0 12px 28px rgba(1, 4, 9, 0.12)" };
+const linkCardPress = { y: -1, scale: 0.992, rotateZ: 0 };
 const linkToastEnter = { opacity: 0, y: 12, scale: 0.98 };
 const linkToastVisible = { opacity: 1, y: 0, scale: 1 };
 const linkToastExit = { opacity: 0, y: 8, scale: 0.98 };
@@ -122,6 +123,37 @@ function categoryTabStyle(value: string): CSSProperties {
   return categoryTagStyle(value);
 }
 
+function linkCardEnter(index: number) {
+  return {
+    opacity: 0,
+    y: 18,
+    x: index % 2 === 0 ? -8 : 8,
+    rotateZ: index % 2 === 0 ? -0.8 : 0.8,
+    filter: "blur(5px)"
+  };
+}
+
+function linkCardVisible(index: number) {
+  return {
+    opacity: 1,
+    y: 0,
+    x: 0,
+    rotateZ: 0,
+    filter: "blur(0px)",
+    transition: { ...linkCardTransition, delay: Math.min(index * 0.035, 0.18) }
+  };
+}
+
+function linkCardExit(index: number) {
+  return {
+    opacity: 0,
+    y: -8,
+    rotateZ: index % 2 === 0 ? 0.55 : -0.55,
+    filter: "blur(3px)",
+    transition: { duration: 0.14 }
+  };
+}
+
 function normalizeUrl(url: string) {
   const trimmed = url.trim();
   if (!trimmed) return "";
@@ -130,16 +162,24 @@ function normalizeUrl(url: string) {
 
 function openCreate() {
   draft.value = emptyDraft();
+  categoryMenuOpen.value = false;
   showModal.value = true;
 }
 
 function openEdit(item: LinkItem) {
   draft.value = { ...item };
+  categoryMenuOpen.value = false;
   showModal.value = true;
 }
 
 function closeModal() {
   showModal.value = false;
+  categoryMenuOpen.value = false;
+}
+
+function chooseDraftCategory(value: string) {
+  draft.value.category = value;
+  categoryMenuOpen.value = false;
 }
 
 function saveDraft() {
@@ -159,6 +199,7 @@ function saveDraft() {
     showToast("已新增链接。", "success");
   }
   showModal.value = false;
+  categoryMenuOpen.value = false;
 }
 
 function requestDeleteLink(item: LinkItem) {
@@ -337,18 +378,21 @@ watch(
       </div>
 
       <div class="links-grid">
+        <AnimatePresence>
         <motion.article
-          v-for="item in filteredLinks"
-          :key="item.id"
+          v-for="(item, index) in filteredLinks"
+          :key="`${category}:${item.id}`"
           class="link-card"
           :class="{
             dragging: item.id === draggingLinkId,
             'drop-before': item.id === dragOverLinkId && dragPlacement === 'before',
             'drop-after': item.id === dragOverLinkId && dragPlacement === 'after'
           }"
-          :initial="linkCardEnter"
-          :animate="linkCardVisible"
-          :transition="linkCardTransition"
+          :initial="linkCardEnter(index)"
+          :animate="linkCardVisible(index)"
+          :exit="linkCardExit(index)"
+          :whileHover="linkCardHover"
+          :whilePress="linkCardPress"
           draggable="true"
           @dragstart="startLinkDrag($event, item.id)"
           @dragover="handleLinkDragOver($event, item.id)"
@@ -381,6 +425,7 @@ watch(
             </button>
           </div>
         </motion.article>
+        </AnimatePresence>
         <p v-if="!filteredLinks.length" class="empty-state link-empty">暂无匹配链接，点击右上角"新增链接"开始添加。</p>
       </div>
     </div>
@@ -418,10 +463,27 @@ watch(
                 <span>名称</span>
                 <input v-model="draft.title" placeholder="例如 Vue 文档" />
               </label>
-              <label class="field">
+              <div class="field links-category-field">
                 <span>分类</span>
-                <input v-model="draft.category" placeholder="技术文档" />
-              </label>
+                <div class="links-category-combobox">
+                  <input v-model="draft.category" placeholder="输入新分类或选择已有分类" @focus="categoryMenuOpen = true" @input="categoryMenuOpen = true" />
+                  <button type="button" class="icon-button" title="选择已有分类" @click="categoryMenuOpen = !categoryMenuOpen">
+                    <i :class="categoryMenuOpen ? 'ri-arrow-up-s-line' : 'ri-arrow-down-s-line'" aria-hidden="true"></i>
+                  </button>
+                  <div v-if="categoryMenuOpen && categoryNames.length" class="links-category-menu">
+                    <button
+                      v-for="item in categoryNames"
+                      :key="item"
+                      type="button"
+                      :class="{ active: item === draft.category }"
+                      :style="categoryTagStyle(item)"
+                      @mousedown.prevent="chooseDraftCategory(item)"
+                    >
+                      {{ item }}
+                    </button>
+                  </div>
+                </div>
+              </div>
               <label class="field span-2">
                 <span>URL</span>
                 <input v-model="draft.url" placeholder="https://example.com" />
@@ -498,6 +560,56 @@ watch(
 .link-card-actions,
 .link-card-actions button {
   cursor: pointer;
+}
+
+.links-category-field {
+  position: relative;
+}
+
+.links-category-combobox {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 34px;
+  gap: 8px;
+  align-items: center;
+}
+
+.links-category-combobox .icon-button {
+  width: 34px;
+  height: 34px;
+}
+
+.links-category-menu {
+  position: absolute;
+  z-index: 45;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 42px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  max-height: 148px;
+  overflow: auto;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: 0 16px 38px rgba(1, 4, 9, 0.18);
+}
+
+.links-category-menu button {
+  min-height: 26px;
+  padding: 3px 9px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.links-category-menu button:hover,
+.links-category-menu button.active {
+  box-shadow: inset 0 0 0 1px currentColor;
 }
 
 .links-category-tabs button {

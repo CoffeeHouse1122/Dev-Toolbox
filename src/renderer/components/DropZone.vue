@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { motion } from "motion-v";
 import { computed, onBeforeUnmount, ref, watch } from "vue";
 import type { DialogFileFilter } from "../../shared/types";
 
@@ -18,6 +19,12 @@ const isDragging = ref(false);
 const previewUrl = ref("");
 const previewVideoRef = ref<HTMLVideoElement | null>(null);
 let previewRequestId = 0;
+
+const dropZoneRest = { scale: 1, rotateZ: 0, boxShadow: "0 0 0 rgba(1, 4, 9, 0)" };
+const dropZoneActive = { scale: 1.012, rotateZ: -0.28, boxShadow: "0 14px 34px rgba(1, 4, 9, 0.14)" };
+const dropZoneHover = { y: -2, boxShadow: "0 12px 28px rgba(1, 4, 9, 0.1)" };
+const dropZonePress = { scale: 0.992, rotateZ: 0 };
+const dropZoneTransition = { type: "spring", stiffness: 380, damping: 28, mass: 0.72 };
 
 function previewFileUrl(filePath: string, time = 0.1) {
   const params = new URLSearchParams({ path: filePath, cache: "1" });
@@ -90,9 +97,14 @@ function onKeydown(event: KeyboardEvent) {
 </script>
 
 <template>
-  <div
+  <motion.div
     class="drop-zone"
     :class="{ active: isDragging, 'has-preview': Boolean(previewUrl) }"
+    :initial="false"
+    :animate="isDragging ? dropZoneActive : dropZoneRest"
+    :whileHover="dropZoneHover"
+    :whilePress="dropZonePress"
+    :transition="dropZoneTransition"
     role="button"
     tabindex="0"
     @click="pickFiles"
@@ -108,5 +120,5 @@ function onKeydown(event: KeyboardEvent) {
     <span v-else class="drop-icon"><i class="ri-upload-cloud-2-line" aria-hidden="true"></i></span>
     <span class="drop-title">{{ title }}</span>
     <span class="drop-files" :title="fileNames">{{ selectionLabel }}</span>
-  </div>
+  </motion.div>
 </template>
