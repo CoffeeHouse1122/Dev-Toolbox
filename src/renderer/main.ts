@@ -2,6 +2,7 @@ import { createApp } from "vue";
 import { createPinia } from "pinia";
 import SimpleBar from "simplebar";
 import App from "./App.vue";
+import { installMotion } from "./plugins/motion";
 import { router } from "./router";
 import "remixicon/fonts/remixicon.css";
 import "simplebar/dist/simplebar.css";
@@ -90,7 +91,7 @@ window.addEventListener("keydown", (event) => {
 
 window.addEventListener("focusin", (event) => disableSpellcheck(event.target));
 
-createApp(App).use(createPinia()).use(router).mount("#app");
+createApp(App).use(createPinia()).use(router).use(installMotion).mount("#app");
 disableSpellcheckIn();
 initSimpleBars();
 scheduleSimpleBarRecalculation();

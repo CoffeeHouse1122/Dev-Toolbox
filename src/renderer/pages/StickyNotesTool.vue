@@ -5,6 +5,7 @@ import type { DevToolboxApi, StickyNote, StickyNoteExportFormat, StickyNoteStyle
 
 type NoteView = "active" | "archived" | "trash";
 type ToastTone = "success" | "error" | "info";
+type ColorPaletteKind = "text" | "highlight";
 type ExportBlock =
   | { type: "text"; value: string }
   | { type: "blank" }
@@ -20,6 +21,11 @@ type EditorPositionState = {
   activeId: string;
   caretOffset: number;
   scrollTop: number;
+};
+
+type LinkEditDraft = {
+  text: string;
+  href: string;
 };
 
 const directory = ref("");
@@ -47,6 +53,7 @@ const defaultPreferences: StickyNotesPreferences = {
 const preferences = ref<StickyNotesPreferences>({ ...defaultPreferences });
 const draftStyle = ref<StickyNoteStyle>({ ...defaultPreferences });
 const fontMenuOpen = ref(false);
+const colorPaletteOpen = ref<ColorPaletteKind | "">("");
 const lastExportedFiles = ref<string[]>([]);
 const contextMenu = ref({ visible: false, x: 0, y: 0 });
 const toolbarState = ref({
@@ -63,6 +70,7 @@ const previewImage = ref("");
 const previewScale = ref(1);
 const previewOffset = ref({ x: 0, y: 0 });
 const pendingDeleteNote = ref<StickyNote | null>(null);
+const pendingLinkEdit = ref<LinkEditDraft | null>(null);
 const toast = ref({ visible: false, message: "", tone: "info" as ToastTone });
 
 let saveTimer: ReturnType<typeof setTimeout> | null = null;
@@ -71,6 +79,7 @@ let suppressSave = false;
 let applyingHistory = false;
 let savedEditorRange: Range | null = null;
 let activeStyleSpan: HTMLSpanElement | null = null;
+let activeLinkElement: HTMLAnchorElement | null = null;
 const undoStack: string[] = [];
 const redoStack: string[] = [];
 let previewDrag:
@@ -89,6 +98,30 @@ const fontFamilies = [
   { label: "宋体", value: 'SimSun, "Source Han Sans CN", serif' },
   { label: "楷体", value: 'KaiTi, "Source Han Sans CN", serif' },
   { label: "等宽", value: 'Consolas, "Courier New", monospace' }
+];
+
+const textColorPalette = [
+  { name: "墨黑", value: "#1f2328" },
+  { name: "石墨", value: "#57606a" },
+  { name: "海蓝", value: "#0969da" },
+  { name: "青绿", value: "#0a6866" },
+  { name: "松绿", value: "#1a7f37" },
+  { name: "金棕", value: "#9a6700" },
+  { name: "朱红", value: "#cf222e" },
+  { name: "紫藤", value: "#8250df" },
+  { name: "玫红", value: "#bf3989" },
+  { name: "白色", value: "#ffffff" }
+];
+
+const highlightColorPalette = [
+  { name: "淡黄", value: "#fff3a3" },
+  { name: "薄荷", value: "#dcffe4" },
+  { name: "天蓝", value: "#ddf4ff" },
+  { name: "浅紫", value: "#fbefff" },
+  { name: "暖橙", value: "#fff1e5" },
+  { name: "浅红", value: "#ffebe9" },
+  { name: "灰雾", value: "#eaeef2" },
+  { name: "清除", value: "#ffffff" }
 ];
 
 const visibleNotes = computed(() => {
@@ -130,7 +163,7 @@ function rgbToHex(value: string) {
 }
 
 function sortNotes(input: StickyNote[]) {
-  return [...input].sort((left, right) => Number(right.pinned) - Number(left.pinned) || right.updatedAt - left.updatedAt);
+  return [...input].sort((left, right) => Number(right.pinned) - Number(left.pinned) || right.createdAt - left.createdAt);
 }
 
 function showToast(message: string, tone: ToastTone = "info") {
@@ -435,7 +468,9 @@ function handleDocumentPointerDown(event: PointerEvent) {
   if (!(target instanceof Node)) return;
   const targetElement = target instanceof Element ? target : target.parentElement;
   if (editorRef.value?.contains(target)) return;
-  if (targetElement?.closest(".note-format-toolbar, .note-context-menu")) return;
+  if (targetElement?.closest(".note-format-toolbar, .note-context-menu, .note-link-dialog")) return;
+  colorPaletteOpen.value = "";
+  fontMenuOpen.value = false;
   clearActiveInlineSelection();
   closeContextMenu();
 }
@@ -797,6 +832,11 @@ function handleEditorInput() {
 }
 
 function handleEditorKeydown(event: KeyboardEvent) {
+  if (event.key === "Tab") {
+    event.preventDefault();
+    applyTabIndent(event.shiftKey);
+    return;
+  }
   const ctrl = event.ctrlKey || event.metaKey;
   if (ctrl && event.key.toLowerCase() === "s") {
     event.preventDefault();
@@ -827,6 +867,24 @@ function handleEditorKeydown(event: KeyboardEvent) {
     event.preventDefault();
     applyUnderline();
   }
+}
+
+function applyTabIndent(outdent: boolean) {
+  const root = editorRef.value;
+  if (!root || !activeNote.value || currentView.value === "trash") return;
+  pushHistorySnapshot();
+  restoreEditorSelection() || root.focus();
+  const selection = window.getSelection();
+  if (!selection || selection.rangeCount === 0) return;
+  const range = selection.getRangeAt(0);
+  if (!root.contains(range.commonAncestorContainer)) return;
+  if (range.collapsed && !outdent) {
+    document.execCommand("insertText", false, "    ");
+  } else {
+    document.execCommand(outdent ? "outdent" : "indent");
+  }
+  syncEditorContent();
+  updateToolbarStateFromSelection();
 }
 
 function handleEditorKeyup(event: KeyboardEvent) {
@@ -939,6 +997,8 @@ function endPreviewDrag(event: PointerEvent) {
 }
 
 function handleEditorClick(event: MouseEvent) {
+  colorPaletteOpen.value = "";
+  fontMenuOpen.value = false;
   closeContextMenu();
   const target = event.target;
   if (target instanceof Element && !target.closest(".note-active-selection")) {
@@ -952,7 +1012,7 @@ function handleEditorClick(event: MouseEvent) {
     const link = target.closest<HTMLAnchorElement>("a[data-note-link]");
     if (link?.href) {
       event.preventDefault();
-      void devToolbox.openExternal(link.href);
+      openLinkEditor(link);
       return;
     }
   }
@@ -960,6 +1020,65 @@ function handleEditorClick(event: MouseEvent) {
     openPreviewImage(target.dataset.noteSrc || target.currentSrc || target.src);
   }
   ensureCaretVisible();
+}
+
+function openLinkEditor(link: HTMLAnchorElement) {
+  activeLinkElement = link;
+  pendingLinkEdit.value = {
+    text: link.textContent || link.dataset.noteLink || link.href,
+    href: link.dataset.noteLink || link.getAttribute("href") || link.href
+  };
+  selectNodeContents(link);
+}
+
+function closeLinkEditor() {
+  pendingLinkEdit.value = null;
+  activeLinkElement = null;
+  clearSelectionMarker();
+}
+
+function activeEditableLink() {
+  const root = editorRef.value;
+  if (!root || !activeLinkElement || !root.contains(activeLinkElement)) return null;
+  return activeLinkElement;
+}
+
+function saveLinkEdit() {
+  const link = activeEditableLink();
+  const draft = pendingLinkEdit.value;
+  if (!link || !draft) {
+    closeLinkEditor();
+    return;
+  }
+  const href = normalizeLinkHref(draft.href.trim());
+  if (!href) {
+    showToast("请填写链接地址。", "error");
+    return;
+  }
+  pushHistorySnapshot();
+  link.href = href;
+  link.dataset.noteLink = href;
+  link.textContent = draft.text.trim() || href;
+  syncEditorContent();
+  closeLinkEditor();
+}
+
+function openEditedLink() {
+  const href = pendingLinkEdit.value?.href.trim();
+  if (href) void devToolbox.openExternal(normalizeLinkHref(href));
+}
+
+function removeLinkFormat() {
+  const link = activeEditableLink();
+  const draft = pendingLinkEdit.value;
+  if (!link || !draft) {
+    closeLinkEditor();
+    return;
+  }
+  pushHistorySnapshot();
+  link.replaceWith(document.createTextNode(draft.text.trim() || link.textContent || draft.href));
+  syncEditorContent();
+  closeLinkEditor();
 }
 
 function openEditorContextMenu(event: MouseEvent) {
@@ -1053,18 +1172,32 @@ function applyForeColor() {
   applyInlineStyle({ color: fontColor.value });
 }
 
+function chooseForeColor(value: string) {
+  fontColor.value = value;
+  applyForeColor();
+  colorPaletteOpen.value = "";
+}
+
 function resetForeColor() {
   fontColor.value = draftStyle.value.color || preferences.value.color || "#1f2328";
   applyInlineStyle({ color: fontColor.value });
+  colorPaletteOpen.value = "";
 }
 
 function applyHighlightColor() {
   applyInlineStyle({ backgroundColor: highlightColor.value });
 }
 
+function chooseHighlightColor(value: string) {
+  highlightColor.value = value;
+  applyHighlightColor();
+  colorPaletteOpen.value = "";
+}
+
 function resetHighlightColor() {
   highlightColor.value = "#ffffff";
   applyInlineStyle({ backgroundColor: "#ffffff" });
+  colorPaletteOpen.value = "";
 }
 
 function applyFontFamily(value: string) {
@@ -1074,7 +1207,13 @@ function applyFontFamily(value: string) {
 
 function chooseFontFamily(value: string) {
   fontMenuOpen.value = false;
+  colorPaletteOpen.value = "";
   applyFontFamily(value);
+}
+
+function toggleColorPalette(kind: ColorPaletteKind) {
+  colorPaletteOpen.value = colorPaletteOpen.value === kind ? "" : kind;
+  fontMenuOpen.value = false;
 }
 
 function chooseContextFontFamily(value: string) {
@@ -1409,7 +1548,7 @@ onBeforeUnmount(() => {
             >
               <div class="note-card-text">
                 <strong>{{ note.title }}</strong>
-                <small>{{ formatTime(note.updatedAt) }}</small>
+                <small>{{ formatTime(note.createdAt) }}</small>
               </div>
               <button v-if="currentView !== 'trash'" type="button" class="icon-button" :title="note.pinned ? '取消置顶' : '置顶便签'" @click.stop="toggleNotePinned(note)">
                 <i :class="note.pinned ? 'ri-pushpin-2-fill' : 'ri-pushpin-line'" aria-hidden="true"></i>
@@ -1515,17 +1654,53 @@ onBeforeUnmount(() => {
               <i class="ri-add-line" aria-hidden="true"></i>
             </button>
           </div>
-          <label class="note-color-field" title="文字色值">
-            <i class="ri-palette-line" aria-hidden="true"></i>
-            <input v-model="fontColor" type="color" :disabled="!activeNote" @pointerdown="prepareSelectionForToolbar" @input="applyForeColor" />
-          </label>
+          <div class="note-color-field" title="文字色值">
+            <button type="button" class="note-color-trigger" :disabled="!activeNote" @mousedown.prevent="prepareSelectionForToolbar" @click="toggleColorPalette('text')">
+              <i class="ri-palette-line" aria-hidden="true"></i>
+              <span class="note-color-preview" :style="{ backgroundColor: fontColor }"></span>
+            </button>
+            <div v-if="colorPaletteOpen === 'text'" class="note-color-menu" role="menu" aria-label="文字色值">
+              <strong>文字色板</strong>
+              <button
+                v-for="color in textColorPalette"
+                :key="color.value"
+                type="button"
+                class="note-color-swatch"
+                :class="{ active: fontColor.toLowerCase() === color.value }"
+                :title="`${color.name} ${color.value}`"
+                :style="{ backgroundColor: color.value }"
+                @mousedown.prevent="prepareSelectionForToolbar"
+                @click="chooseForeColor(color.value)"
+              >
+                <i v-if="fontColor.toLowerCase() === color.value" class="ri-check-line" aria-hidden="true"></i>
+              </button>
+            </div>
+          </div>
           <button type="button" class="icon-button" title="文字色恢复默认" :disabled="!activeNote" @mousedown.prevent="captureEditorSelection" @click="resetForeColor">
             <i class="ri-format-clear" aria-hidden="true"></i>
           </button>
-          <label class="note-color-field" title="背景高亮">
-            <i class="ri-mark-pen-line" aria-hidden="true"></i>
-            <input v-model="highlightColor" type="color" :disabled="!activeNote" @pointerdown="prepareSelectionForToolbar" @input="applyHighlightColor" />
-          </label>
+          <div class="note-color-field" title="背景高亮">
+            <button type="button" class="note-color-trigger" :disabled="!activeNote" @mousedown.prevent="prepareSelectionForToolbar" @click="toggleColorPalette('highlight')">
+              <i class="ri-mark-pen-line" aria-hidden="true"></i>
+              <span class="note-color-preview" :style="{ backgroundColor: highlightColor }"></span>
+            </button>
+            <div v-if="colorPaletteOpen === 'highlight'" class="note-color-menu" role="menu" aria-label="背景高亮">
+              <strong>高亮色板</strong>
+              <button
+                v-for="color in highlightColorPalette"
+                :key="color.value"
+                type="button"
+                class="note-color-swatch"
+                :class="{ active: highlightColor.toLowerCase() === color.value }"
+                :title="`${color.name} ${color.value}`"
+                :style="{ backgroundColor: color.value }"
+                @mousedown.prevent="prepareSelectionForToolbar"
+                @click="chooseHighlightColor(color.value)"
+              >
+                <i v-if="highlightColor.toLowerCase() === color.value" class="ri-check-line" aria-hidden="true"></i>
+              </button>
+            </div>
+          </div>
           <button type="button" class="icon-button" title="高亮恢复默认" :disabled="!activeNote" @mousedown.prevent="captureEditorSelection" @click="resetHighlightColor">
             <i class="ri-eraser-line" aria-hidden="true"></i>
           </button>
@@ -1594,6 +1769,41 @@ onBeforeUnmount(() => {
           >
             {{ font.label }}
           </button>
+        </div>
+      </div>
+
+      <div v-if="pendingLinkEdit" class="note-link-mask" @mousedown.self="closeLinkEditor">
+        <div class="note-link-dialog" role="dialog" aria-modal="true" @mousedown.stop>
+          <header class="note-link-head">
+            <h3>编辑超链接</h3>
+            <button type="button" class="icon-button" title="关闭" @click="closeLinkEditor">
+              <i class="ri-close-line" aria-hidden="true"></i>
+            </button>
+          </header>
+          <div class="note-link-body">
+            <label class="field">
+              <span>显示文本</span>
+              <input v-model="pendingLinkEdit.text" placeholder="链接文本" />
+            </label>
+            <label class="field">
+              <span>链接地址</span>
+              <input v-model="pendingLinkEdit.href" placeholder="https://example.com" />
+            </label>
+          </div>
+          <footer class="note-link-actions">
+            <button type="button" class="secondary-button" @click="openEditedLink">
+              <i class="ri-external-link-line" aria-hidden="true"></i>
+              打开链接
+            </button>
+            <button type="button" class="secondary-button" @click="removeLinkFormat">
+              <i class="ri-link-unlink" aria-hidden="true"></i>
+              取消链接
+            </button>
+            <button type="button" class="primary-button" @click="saveLinkEdit">
+              <i class="ri-save-3-line" aria-hidden="true"></i>
+              保存
+            </button>
+          </footer>
         </div>
       </div>
 
@@ -2004,8 +2214,7 @@ onBeforeUnmount(() => {
   background: color-mix(in srgb, var(--accent) 8%, var(--surface));
 }
 
-.note-format-stepper,
-.note-color-field {
+.note-format-stepper {
   display: grid;
   grid-template-columns: 22px minmax(0, 1fr);
   align-items: center;
@@ -2021,6 +2230,90 @@ onBeforeUnmount(() => {
 .note-format-stepper {
   grid-template-columns: 20px 28px 58px 28px;
   /* width: 154px; */
+}
+
+.note-color-field {
+  position: relative;
+  width: 54px;
+  height: 34px;
+}
+
+.note-color-trigger {
+  display: grid;
+  grid-template-columns: 18px 18px;
+  place-items: center;
+  align-items: center;
+  gap: 5px;
+  width: 54px;
+  height: 34px;
+  padding: 0 7px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.note-color-trigger:hover:not(:disabled),
+.note-color-field:has(.note-color-menu) .note-color-trigger {
+  border-color: var(--accent);
+  color: var(--accent-strong);
+  background: color-mix(in srgb, var(--accent) 8%, var(--surface));
+}
+
+.note-color-preview {
+  display: block;
+  width: 18px;
+  height: 18px;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.72);
+}
+
+.note-color-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 24;
+  display: grid;
+  grid-template-columns: repeat(5, 24px);
+  gap: 6px;
+  width: max-content;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: 0 16px 38px rgba(1, 4, 9, 0.18);
+}
+
+.note-color-menu strong {
+  grid-column: 1 / -1;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.note-color-swatch {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  color: #ffffff;
+  cursor: pointer;
+}
+
+.note-color-swatch:hover,
+.note-color-swatch.active {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+.note-color-swatch i {
+  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.35));
+  font-size: 15px;
 }
 
 .note-size-input {
@@ -2054,22 +2347,6 @@ onBeforeUnmount(() => {
 .note-step-button:hover:not(:disabled) {
   border-color: var(--accent);
   color: var(--accent-strong);
-}
-
-.note-color-field input {
-  min-height: 28px;
-  padding: 0;
-  border: 0;
-  box-shadow: none;
-}
-
-.note-color-field {
-  width: 76px;
-}
-
-.note-color-field input {
-  height: 24px;
-  cursor: pointer;
 }
 
 .note-editor {
@@ -2310,7 +2587,8 @@ onBeforeUnmount(() => {
 }
 
 .note-preview-mask,
-.note-confirm-mask {
+.note-confirm-mask,
+.note-link-mask {
   position: fixed;
   inset: var(--titlebar-height) 0 0 0;
   z-index: 80;
@@ -2319,6 +2597,51 @@ onBeforeUnmount(() => {
   padding: 28px;
   background: rgba(1, 4, 9, 0.58);
   -webkit-app-region: no-drag;
+}
+
+.note-link-mask {
+  z-index: 82;
+}
+
+.note-link-dialog {
+  display: grid;
+  grid-template-rows: auto auto auto;
+  width: min(520px, 92vw);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+
+.note-link-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-subtle);
+}
+
+.note-link-head h3 {
+  margin: 0;
+  font-size: 15px;
+}
+
+.note-link-body {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+}
+
+.note-link-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 12px 14px;
+  border-top: 1px solid var(--border);
+  background: var(--surface-subtle);
 }
 
 .note-preview-dialog {

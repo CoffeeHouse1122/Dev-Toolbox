@@ -239,7 +239,7 @@ function rowToNote(row: NoteRow): StickyNote {
 }
 
 function sortNotes(notes: StickyNote[]) {
-  return [...notes].sort((left, right) => Number(right.pinned) - Number(left.pinned) || right.updatedAt - left.updatedAt);
+  return [...notes].sort((left, right) => Number(right.pinned) - Number(left.pinned) || right.createdAt - left.createdAt);
 }
 
 function readAllNotes(db: Database.Database) {

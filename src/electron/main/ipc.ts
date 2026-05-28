@@ -751,7 +751,8 @@ export function registerIpc() {
 
   ipcMain.handle("file:write-text", async (_event, outputDir: string, fileName: string, content: string) => {
     await ensureDir(outputDir);
-    const output = path.join(outputDir, safeBaseName(fileName) || "dev-toolbox-config.json");
+    const extension = path.extname(fileName).replace(/[^.\w-]/g, "") || ".txt";
+    const output = path.join(outputDir, `${safeBaseName(fileName) || "dev-toolbox-config"}${extension}`);
     await writePlainTextFile(output, content);
     return output;
   });
