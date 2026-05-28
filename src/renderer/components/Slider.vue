@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { motion } from "motion-v";
-import { computed, ref } from "vue";
+import { computed, onBeforeUnmount, ref } from "vue";
 
 const props = withDefaults(defineProps<{
   modelValue: number;
@@ -24,6 +24,8 @@ const emit = defineEmits<{
 }>();
 
 const trackRef = ref<HTMLElement | null>(null);
+const isDragging = ref(false);
+const activePointerId = ref<number | null>(null);
 
 const numericMin = computed(() => Number(props.min));
 const numericMax = computed(() => Number(props.max));
@@ -34,6 +36,7 @@ const progress = computed(() => {
   return Math.min(100, Math.max(0, ((props.modelValue - numericMin.value) / span) * 100));
 });
 const displayValue = computed(() => `${props.modelValue}${props.unit}`);
+const motionTransition = computed(() => (isDragging.value ? { duration: 0 } : { type: "spring" as const, stiffness: 420, damping: 34, mass: 0.7 }));
 
 function clamp(value: number) {
   return Math.min(numericMax.value, Math.max(numericMin.value, value));
@@ -59,14 +62,60 @@ function updateFromClientX(clientX: number) {
 
 function startDrag(event: PointerEvent) {
   if (props.disabled) return;
-  (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
+  event.preventDefault();
+  isDragging.value = true;
+  activePointerId.value = event.pointerId;
   updateFromClientX(event.clientX);
+  window.addEventListener("pointermove", moveDrag);
+  window.addEventListener("pointerup", endDrag);
+  window.addEventListener("pointercancel", endDrag);
+}
+
+function startMouseDrag(event: MouseEvent) {
+  if (props.disabled || isDragging.value) return;
+  event.preventDefault();
+  isDragging.value = true;
+  activePointerId.value = null;
+  updateFromClientX(event.clientX);
+  window.addEventListener("mousemove", moveMouseDrag);
+  window.addEventListener("mouseup", endMouseDrag);
 }
 
 function moveDrag(event: PointerEvent) {
-  if (!(event.currentTarget as HTMLElement).hasPointerCapture(event.pointerId)) return;
+  if (!isDragging.value || event.pointerId !== activePointerId.value) return;
+  event.preventDefault();
   updateFromClientX(event.clientX);
 }
+
+function endDrag(event: PointerEvent) {
+  if (event.pointerId !== activePointerId.value) return;
+  isDragging.value = false;
+  activePointerId.value = null;
+  window.removeEventListener("pointermove", moveDrag);
+  window.removeEventListener("pointerup", endDrag);
+  window.removeEventListener("pointercancel", endDrag);
+}
+
+function moveMouseDrag(event: MouseEvent) {
+  if (!isDragging.value || activePointerId.value !== null) return;
+  event.preventDefault();
+  updateFromClientX(event.clientX);
+}
+
+function endMouseDrag() {
+  if (activePointerId.value !== null) return;
+  isDragging.value = false;
+  window.removeEventListener("mousemove", moveMouseDrag);
+  window.removeEventListener("mouseup", endMouseDrag);
+}
+
+onBeforeUnmount(() => {
+  window.removeEventListener("pointermove", moveDrag);
+  window.removeEventListener("pointerup", endDrag);
+  window.removeEventListener("pointercancel", endDrag);
+  window.removeEventListener("mousemove", moveMouseDrag);
+  window.removeEventListener("mouseup", endMouseDrag);
+});
 
 function handleKeydown(event: KeyboardEvent) {
   if (props.disabled) return;
@@ -100,7 +149,6 @@ function handleKeydown(event: KeyboardEvent) {
 
 <template>
   <div
-    ref="trackRef"
     class="slider-control"
     :class="{ disabled }"
     role="slider"
@@ -111,13 +159,11 @@ function handleKeydown(event: KeyboardEvent) {
     :aria-valuenow="modelValue"
     :aria-valuetext="displayValue"
     :aria-disabled="disabled"
-    @pointerdown="startDrag"
-    @pointermove="moveDrag"
     @keydown="handleKeydown"
   >
-    <div class="slider-track" aria-hidden="true">
-      <motion.div class="slider-fill" :animate="{ width: `${progress}%` }" :transition="{ duration: 0.16 }" />
-      <motion.span class="slider-thumb" :animate="{ left: `${progress}%` }" :transition="{ type: 'spring', stiffness: 420, damping: 34, mass: 0.7 }" />
+    <div ref="trackRef" class="slider-track" aria-hidden="true" @pointerdown="startDrag" @mousedown="startMouseDrag">
+      <motion.div class="slider-fill" :animate="{ width: `${progress}%` }" :transition="motionTransition" />
+      <motion.span class="slider-thumb" :animate="{ left: `${progress}%` }" :transition="motionTransition" />
     </div>
     <motion.strong class="slider-value" :animate="{ scale: disabled ? 0.96 : 1 }" :transition="{ duration: 0.16 }">{{ displayValue }}</motion.strong>
   </div>

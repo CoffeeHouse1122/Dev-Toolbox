@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import { ref, computed } from "vue";
+import SelectMenu from "../components/SelectMenu.vue";
 
 const method = ref("GET");
 const url = ref("");
 const headersText = ref("");
 const bodyText = ref("");
 const timeoutSecs = ref(10);
+const headerPreset = ref("");
 
 const busy = ref(false);
 const statusCode = ref<number | null>(null);
@@ -24,7 +26,14 @@ const presetHeaders: Record<string, string> = {
   "application/xml": "Content-Type: application/xml\nAccept: application/xml",
 };
 
+const methodOptions = ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"].map((value) => ({ label: value, value }));
+const headerPresetOptions = computed(() => [
+  { label: "手动输入", value: "" },
+  ...Object.keys(presetHeaders).map((value) => ({ label: value, value }))
+]);
+
 function setPresetHeaders(type: string) {
+  headerPreset.value = type;
   headersText.value = presetHeaders[type] || "";
 }
 
@@ -106,15 +115,7 @@ async function sendRequest() {
     <div class="tool-main">
       <!-- 请求栏 -->
       <div class="http-request-bar">
-        <select v-model="method" class="native-select" style="width:110px;flex-shrink:0;">
-          <option>GET</option>
-          <option>POST</option>
-          <option>PUT</option>
-          <option>PATCH</option>
-          <option>DELETE</option>
-          <option>HEAD</option>
-          <option>OPTIONS</option>
-        </select>
+        <SelectMenu v-model="method" class="http-method-select" :options="methodOptions" />
         <input v-model="url" class="http-url-input" placeholder="https://api.example.com/endpoint" />
         <div class="http-timeout-group">
           <span class="http-timeout-label">超时</span>
@@ -129,10 +130,7 @@ async function sendRequest() {
           <div class="io-label">
             请求头
             <span style="font-weight:400;color:var(--muted);margin-left:8px;">快捷设置</span>
-            <select class="native-select" style="margin-left:4px;" @change="setPresetHeaders(($event.target as HTMLSelectElement).value)">
-              <option value="">手动输入</option>
-              <option v-for="(_v, k) in presetHeaders" :key="k" :value="k">{{ k }}</option>
-            </select>
+            <SelectMenu :model-value="headerPreset" class="http-preset-select" :options="headerPresetOptions" @update:model-value="setPresetHeaders" />
           </div>
           <textarea v-model="headersText" class="tool-textarea" placeholder="Content-Type: application/json&#10;Authorization: Bearer xxx" style="height:120px;"></textarea>
         </div>
@@ -194,6 +192,18 @@ async function sendRequest() {
   outline: none;
 }
 .http-url-input:focus { border-color: var(--accent); }
+
+.http-method-select {
+  width: 112px;
+  flex-shrink: 0;
+}
+
+.http-preset-select {
+  display: inline-flex;
+  width: 260px;
+  margin-left: 4px;
+  vertical-align: middle;
+}
 
 .http-timeout-group {
   display: inline-flex;

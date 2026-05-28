@@ -1,9 +1,21 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
+import SelectMenu from "../components/SelectMenu.vue";
 
 const input = ref("");
 const mode = ref<"encode" | "decode">("encode");
 const charset = ref("utf-8");
+
+const charsetOptions = [
+  { label: "UTF-8", value: "utf-8" },
+  { label: "GBK", value: "gbk" },
+  { label: "GB2312", value: "gb2312" },
+  { label: "Big5", value: "big5" },
+  { label: "Shift-JIS", value: "shift_jis" },
+  { label: "EUC-KR", value: "euc-kr" },
+  { label: "ISO-8859-1", value: "iso-8859-1" },
+  { label: "Windows-1252", value: "windows-1252" }
+];
 
 const output = computed(() => {
   const raw = input.value;
@@ -44,16 +56,7 @@ const charCount = computed(() => ({ input: input.value.length, output: output.va
     <div class="tool-main">
       <label class="field">
         <span>字符编码</span>
-        <select v-model="charset" class="native-select">
-          <option value="utf-8">UTF-8</option>
-          <option value="gbk">GBK</option>
-          <option value="gb2312">GB2312</option>
-          <option value="big5">Big5</option>
-          <option value="shift_jis">Shift-JIS</option>
-          <option value="euc-kr">EUC-KR</option>
-          <option value="iso-8859-1">ISO-8859-1</option>
-          <option value="windows-1252">Windows-1252</option>
-        </select>
+        <SelectMenu v-model="charset" :options="charsetOptions" />
       </label>
 
       <div class="io-pair">
