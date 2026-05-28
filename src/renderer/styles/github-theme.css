@@ -2559,7 +2559,7 @@ input[type="range"]:focus {
 .nav-editor-modal-body .nav-editor-group-head.nav-editor-favorites-head {
   grid-template-columns: auto minmax(0, 1fr) auto;
   padding: 8px 6px;
-} 
+}
 
 .nav-editor-modal-body .nav-editor-group-head input {
   font-size: 14px;
@@ -2618,7 +2618,6 @@ input[type="range"]:focus {
   padding: 24px;
   background: color-mix(in srgb, #0d1117 56%, transparent);
   backdrop-filter: blur(2px);
-  animation: dt-fade-in 0.14s ease-out;
   -webkit-app-region: no-drag;
   pointer-events: auto;
 }
@@ -2633,7 +2632,6 @@ input[type="range"]:focus {
   background: var(--surface);
   box-shadow: 0 24px 60px rgba(1, 4, 9, 0.45);
   overflow: hidden;
-  animation: dt-pop-in 0.16s ease-out;
   -webkit-app-region: no-drag;
   pointer-events: auto;
 }
@@ -2672,16 +2670,6 @@ input[type="range"]:focus {
   padding: 12px 18px;
   border-top: 1px solid var(--border);
   background: var(--surface-subtle);
-}
-
-@keyframes dt-fade-in {
-  from { opacity: 0; }
-  to   { opacity: 1; }
-}
-
-@keyframes dt-pop-in {
-  from { opacity: 0; transform: translateY(6px) scale(0.98); }
-  to   { opacity: 1; transform: none; }
 }
 
 /* ============ Links page (no inner scroll) ============ */

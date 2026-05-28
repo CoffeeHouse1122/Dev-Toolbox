@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { motion } from "motion-v";
+import { AnimatePresence, motion } from "motion-v";
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { RouterLink, RouterView } from "vue-router";
 import { useThemeStore } from "../stores/theme";
@@ -44,6 +44,13 @@ let stopWindowStateSync: (() => void) | null = null;
 const toolRouteEnter = { opacity: 0, y: 4 };
 const toolRouteVisible = { opacity: 1, y: 0 };
 const toolRouteTransition = { duration: 0.14 };
+const modalMaskEnter = { opacity: 0 };
+const modalMaskVisible = { opacity: 1 };
+const modalMaskExit = { opacity: 0 };
+const modalPanelEnter = { opacity: 0, y: 16, scale: 0.975 };
+const modalPanelVisible = { opacity: 1, y: 0, scale: 1 };
+const modalPanelExit = { opacity: 0, y: 8, scale: 0.985 };
+const modalPanelTransition = { type: "spring", stiffness: 420, damping: 34, mass: 0.75 } as const;
 
 const defaultGroups: NavGroup[] = [
   {
@@ -715,8 +722,25 @@ onBeforeUnmount(() => {
     </main>
 
     <Teleport to="body">
-      <div v-if="editingNav" class="dt-modal-mask">
-        <div class="dt-modal nav-editor-modal" role="dialog" aria-modal="true">
+      <AnimatePresence>
+      <motion.div
+        v-if="editingNav"
+        key="nav-editor-modal"
+        class="dt-modal-mask"
+        :initial="modalMaskEnter"
+        :animate="modalMaskVisible"
+        :exit="modalMaskExit"
+        :transition="{ duration: 0.16 }"
+      >
+        <motion.div
+          class="dt-modal nav-editor-modal"
+          role="dialog"
+          aria-modal="true"
+          :initial="modalPanelEnter"
+          :animate="modalPanelVisible"
+          :exit="modalPanelExit"
+          :transition="modalPanelTransition"
+        >
           <header class="dt-modal-head">
             <div>
               <h3>编辑导航</h3>
@@ -843,8 +867,9 @@ onBeforeUnmount(() => {
               完成
             </button>
           </footer>
-        </div>
-      </div>
+        </motion.div>
+      </motion.div>
+      </AnimatePresence>
     </Teleport>
   </div>
 </template>

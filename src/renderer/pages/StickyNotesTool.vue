@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { AnimatePresence, motion } from "motion-v";
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from "vue";
 import { toPng } from "html-to-image";
 import type { DevToolboxApi, StickyNote, StickyNoteExportFormat, StickyNoteStyle, StickyNotesPreferences, StickyNotesState } from "../../shared/types";
@@ -72,6 +73,17 @@ const previewOffset = ref({ x: 0, y: 0 });
 const pendingDeleteNote = ref<StickyNote | null>(null);
 const pendingLinkEdit = ref<LinkEditDraft | null>(null);
 const toast = ref({ visible: false, message: "", tone: "info" as ToastTone });
+
+const noteToastEnter = { opacity: 0, y: 14, scale: 0.975 };
+const noteToastVisible = { opacity: 1, y: 0, scale: 1 };
+const noteToastExit = { opacity: 0, y: 10, scale: 0.985 };
+const noteMaskEnter = { opacity: 0 };
+const noteMaskVisible = { opacity: 1 };
+const noteMaskExit = { opacity: 0 };
+const noteDialogEnter = { opacity: 0, y: 16, scale: 0.975 };
+const noteDialogVisible = { opacity: 1, y: 0, scale: 1 };
+const noteDialogExit = { opacity: 0, y: 8, scale: 0.985 };
+const noteDialogTransition = { type: "spring", stiffness: 420, damping: 34, mass: 0.75 } as const;
 
 let saveTimer: ReturnType<typeof setTimeout> | null = null;
 let toastTimer: ReturnType<typeof setTimeout> | null = null;
@@ -1736,10 +1748,23 @@ onBeforeUnmount(() => {
       </section>
     </div>
 
-    <div v-if="toast.visible" class="note-toast" :class="toast.tone" role="status" aria-live="polite">
-      <i :class="toast.tone === 'error' ? 'ri-error-warning-line' : toast.tone === 'success' ? 'ri-checkbox-circle-line' : 'ri-information-line'" aria-hidden="true"></i>
-      <span>{{ toast.message }}</span>
-    </div>
+    <AnimatePresence>
+      <motion.div
+        v-if="toast.visible"
+        key="note-toast"
+        class="note-toast"
+        :class="toast.tone"
+        role="status"
+        aria-live="polite"
+        :initial="noteToastEnter"
+        :animate="noteToastVisible"
+        :exit="noteToastExit"
+        :transition="{ duration: 0.18 }"
+      >
+        <i :class="toast.tone === 'error' ? 'ri-error-warning-line' : toast.tone === 'success' ? 'ri-checkbox-circle-line' : 'ri-information-line'" aria-hidden="true"></i>
+        <span>{{ toast.message }}</span>
+      </motion.div>
+    </AnimatePresence>
 
     <Teleport to="body">
       <div v-if="contextMenu.visible" class="note-context-scrim" @mousedown="closeContextMenu"></div>
@@ -1772,8 +1797,27 @@ onBeforeUnmount(() => {
         </div>
       </div>
 
-      <div v-if="pendingLinkEdit" class="note-link-mask" @mousedown.self="closeLinkEditor">
-        <div class="note-link-dialog" role="dialog" aria-modal="true" @mousedown.stop>
+      <AnimatePresence>
+      <motion.div
+        v-if="pendingLinkEdit"
+        key="note-link-dialog"
+        class="note-link-mask"
+        :initial="noteMaskEnter"
+        :animate="noteMaskVisible"
+        :exit="noteMaskExit"
+        :transition="{ duration: 0.16 }"
+        @mousedown.self="closeLinkEditor"
+      >
+        <motion.div
+          class="note-link-dialog"
+          role="dialog"
+          aria-modal="true"
+          :initial="noteDialogEnter"
+          :animate="noteDialogVisible"
+          :exit="noteDialogExit"
+          :transition="noteDialogTransition"
+          @mousedown.stop
+        >
           <header class="note-link-head">
             <h3>编辑超链接</h3>
             <button type="button" class="icon-button" title="关闭" @click="closeLinkEditor">
@@ -1804,11 +1848,27 @@ onBeforeUnmount(() => {
               保存
             </button>
           </footer>
-        </div>
-      </div>
+        </motion.div>
+      </motion.div>
 
-      <div v-if="previewImage" class="note-preview-mask">
-        <div class="note-preview-dialog" role="dialog" aria-modal="true">
+      <motion.div
+        v-if="previewImage"
+        key="note-preview-dialog"
+        class="note-preview-mask"
+        :initial="noteMaskEnter"
+        :animate="noteMaskVisible"
+        :exit="noteMaskExit"
+        :transition="{ duration: 0.16 }"
+      >
+        <motion.div
+          class="note-preview-dialog"
+          role="dialog"
+          aria-modal="true"
+          :initial="noteDialogEnter"
+          :animate="noteDialogVisible"
+          :exit="noteDialogExit"
+          :transition="noteDialogTransition"
+        >
           <header class="note-preview-head">
             <strong>图片预览</strong>
             <div class="note-preview-actions">
@@ -1849,11 +1909,27 @@ onBeforeUnmount(() => {
               />
             </div>
           </div>
-        </div>
-      </div>
+        </motion.div>
+      </motion.div>
 
-      <div v-if="pendingDeleteNote" class="note-confirm-mask">
-        <div class="note-confirm-dialog" role="dialog" aria-modal="true">
+      <motion.div
+        v-if="pendingDeleteNote"
+        key="note-delete-dialog"
+        class="note-confirm-mask"
+        :initial="noteMaskEnter"
+        :animate="noteMaskVisible"
+        :exit="noteMaskExit"
+        :transition="{ duration: 0.16 }"
+      >
+        <motion.div
+          class="note-confirm-dialog"
+          role="dialog"
+          aria-modal="true"
+          :initial="noteDialogEnter"
+          :animate="noteDialogVisible"
+          :exit="noteDialogExit"
+          :transition="noteDialogTransition"
+        >
           <h3>移入回收站</h3>
           <p>确认将“{{ pendingDeleteNote.title }}”移入回收站？之后仍可恢复，清空回收站才会彻底删除。</p>
           <div class="note-confirm-actions">
@@ -1863,8 +1939,9 @@ onBeforeUnmount(() => {
               移入回收站
             </button>
           </div>
-        </div>
-      </div>
+        </motion.div>
+      </motion.div>
+      </AnimatePresence>
     </Teleport>
   </section>
 </template>

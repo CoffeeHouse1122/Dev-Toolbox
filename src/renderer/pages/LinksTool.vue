@@ -54,6 +54,12 @@ const linkCardPress = { y: -1, scale: 0.992, rotateZ: 0 };
 const linkToastEnter = { opacity: 0, y: 12, scale: 0.98 };
 const linkToastVisible = { opacity: 1, y: 0, scale: 1 };
 const linkToastExit = { opacity: 0, y: 8, scale: 0.98 };
+const dialogMaskEnter = { opacity: 0 };
+const dialogMaskVisible = { opacity: 1 };
+const dialogMaskExit = { opacity: 0 };
+const dialogPanelEnter = { opacity: 0, y: 14, scale: 0.975 };
+const dialogPanelVisible = { opacity: 1, y: 0, scale: 1 };
+const dialogPanelExit = { opacity: 0, y: 8, scale: 0.985 };
 
 const categoryNames = computed(() => Array.from(new Set(links.value.map((item) => item.category).filter(Boolean))));
 const categories = computed(() => ["全部", ...categoryNames.value]);
@@ -434,8 +440,26 @@ watch(
     </AnimatePresence>
 
     <Teleport to="body">
-      <div v-if="showModal" class="dt-modal-mask" @keydown.esc="closeModal">
-        <div class="dt-modal" role="dialog" aria-modal="true">
+      <AnimatePresence>
+      <motion.div
+        v-if="showModal"
+        key="link-edit-modal"
+        class="dt-modal-mask"
+        :initial="dialogMaskEnter"
+        :animate="dialogMaskVisible"
+        :exit="dialogMaskExit"
+        :transition="{ duration: 0.16 }"
+        @keydown.esc="closeModal"
+      >
+        <motion.div
+          class="dt-modal"
+          role="dialog"
+          aria-modal="true"
+          :initial="dialogPanelEnter"
+          :animate="dialogPanelVisible"
+          :exit="dialogPanelExit"
+          :transition="{ type: 'spring', stiffness: 420, damping: 34, mass: 0.75 }"
+        >
           <header class="dt-modal-head">
             <h3>{{ editing ? "编辑链接" : "新增链接" }}</h3>
             <button type="button" class="icon-button" @click="closeModal" title="关闭">
@@ -488,11 +512,27 @@ watch(
               {{ editing ? "保存修改" : "添加" }}
             </button>
           </footer>
-        </div>
-      </div>
+        </motion.div>
+      </motion.div>
 
-      <div v-if="pendingDeleteLink" class="dt-modal-mask">
-        <div class="dt-modal links-confirm-dialog" role="dialog" aria-modal="true">
+      <motion.div
+        v-if="pendingDeleteLink"
+        key="link-delete-modal"
+        class="dt-modal-mask"
+        :initial="dialogMaskEnter"
+        :animate="dialogMaskVisible"
+        :exit="dialogMaskExit"
+        :transition="{ duration: 0.16 }"
+      >
+        <motion.div
+          class="dt-modal links-confirm-dialog"
+          role="dialog"
+          aria-modal="true"
+          :initial="dialogPanelEnter"
+          :animate="dialogPanelVisible"
+          :exit="dialogPanelExit"
+          :transition="{ type: 'spring', stiffness: 420, damping: 34, mass: 0.75 }"
+        >
           <header class="dt-modal-head">
             <h3>删除链接</h3>
             <button type="button" class="icon-button" title="关闭" @click="pendingDeleteLink = null">
@@ -510,8 +550,9 @@ watch(
               删除
             </button>
           </footer>
-        </div>
-      </div>
+        </motion.div>
+      </motion.div>
+      </AnimatePresence>
     </Teleport>
   </section>
 </template>
