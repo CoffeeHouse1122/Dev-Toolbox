@@ -116,7 +116,7 @@ function handleKeydown(event: KeyboardEvent) {
     @keydown="handleKeydown"
   >
     <div class="slider-track" aria-hidden="true">
-      <motion.div class="slider-fill" :animate="{ width: `${progress}%` }" :transition="{ duration: 0.18 }" />
+      <motion.div class="slider-fill" :animate="{ width: `${progress}%` }" :transition="{ duration: 0.16 }" />
       <motion.span class="slider-thumb" :animate="{ left: `${progress}%` }" :transition="{ type: 'spring', stiffness: 420, damping: 34, mass: 0.7 }" />
     </div>
     <motion.strong class="slider-value" :animate="{ scale: disabled ? 0.96 : 1 }" :transition="{ duration: 0.16 }">{{ displayValue }}</motion.strong>
