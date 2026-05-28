@@ -48,8 +48,8 @@ const categoryTones = [
   { background: "#e8f7f5", border: "#6ed3cc", color: "#0a6866" }
 ];
 const linkCardTransition = { type: "spring", stiffness: 420, damping: 34, mass: 0.7 };
-const linkCardEnter = { opacity: 0, y: 10, scale: 0.985 };
-const linkCardVisible = { opacity: 1, y: 0, scale: 1 };
+const linkCardEnter = { opacity: 0, y: 4 };
+const linkCardVisible = { opacity: 1, y: 0 };
 const linkToastEnter = { opacity: 0, y: 12, scale: 0.98 };
 const linkToastVisible = { opacity: 1, y: 0, scale: 1 };
 const linkToastExit = { opacity: 0, y: 8, scale: 0.98 };
@@ -109,6 +109,17 @@ function categoryTagStyle(value: string): CSSProperties {
     borderColor: tone.border,
     color: tone.color
   };
+}
+
+function categoryTabStyle(value: string): CSSProperties {
+  if (value === "全部") {
+    return {
+      backgroundColor: "color-mix(in srgb, var(--accent) 10%, var(--surface))",
+      borderColor: "color-mix(in srgb, var(--accent) 36%, var(--border))",
+      color: "var(--accent-strong)"
+    };
+  }
+  return categoryTagStyle(value);
 }
 
 function normalizeUrl(url: string) {
@@ -313,6 +324,7 @@ watch(
               :key="item"
               type="button"
               :class="{ selected: item === category }"
+              :style="categoryTabStyle(item)"
               @click="category = item"
             >
               {{ item }}
@@ -328,7 +340,6 @@ watch(
         <motion.article
           v-for="item in filteredLinks"
           :key="item.id"
-          layout
           class="link-card"
           :class="{
             dragging: item.id === draggingLinkId,
@@ -487,6 +498,20 @@ watch(
 .link-card-actions,
 .link-card-actions button {
   cursor: pointer;
+}
+
+.links-category-tabs button {
+  box-shadow: inset 0 0 0 0 transparent;
+  transition: box-shadow 0.14s ease, transform 0.14s ease;
+}
+
+.links-category-tabs button:hover,
+.links-category-tabs button.selected {
+  box-shadow: inset 0 0 0 1px currentColor;
+}
+
+.links-category-tabs button.selected {
+  transform: translateY(-1px);
 }
 
 .links-toast {

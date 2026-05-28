@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { motion } from "motion-v";
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { RouterLink, RouterView } from "vue-router";
 import { useThemeStore } from "../stores/theme";
@@ -39,6 +40,10 @@ const draftFavoriteToolIds = ref<string[]>([]);
 const isReloading = ref(false);
 const justReloaded = ref(false);
 let stopWindowStateSync: (() => void) | null = null;
+
+const toolRouteEnter = { opacity: 0, y: 4 };
+const toolRouteVisible = { opacity: 1, y: 0 };
+const toolRouteTransition = { duration: 0.14 };
 
 const defaultGroups: NavGroup[] = [
   {
@@ -695,7 +700,17 @@ onBeforeUnmount(() => {
       <!-- <header class="topbar" aria-hidden="true"></header> -->
 
       <div class="workspace-body dt-simplebar">
-        <RouterView />
+        <RouterView v-slot="{ Component, route }">
+          <motion.div
+            :key="route.path"
+            class="tool-route-motion"
+            :initial="toolRouteEnter"
+            :animate="toolRouteVisible"
+            :transition="toolRouteTransition"
+          >
+            <component :is="Component" />
+          </motion.div>
+        </RouterView>
       </div>
     </main>
 
@@ -833,3 +848,9 @@ onBeforeUnmount(() => {
     </Teleport>
   </div>
 </template>
+
+<style scoped>
+.tool-route-motion {
+  min-width: 0;
+}
+</style>
