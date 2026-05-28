@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { AnimatePresence, motion } from "motion-v";
 import { computed, onMounted, ref, watch } from "vue";
 import { useRoute } from "vue-router";
 
@@ -28,12 +27,6 @@ const warningMessage = ref("");
 const isPickingDir = ref(false);
 const isOpeningDir = ref(false);
 const persistenceKey = computed(() => (props.storageKey?.trim() || route.path || "default-output").replace(/\s+/g, "-"));
-const pickerEnter = { opacity: 0, y: 6 };
-const pickerVisible = { opacity: 1, y: 0 };
-const pickerHover = { y: -1 };
-const warningEnter = { opacity: 0, y: -6, scale: 0.985 };
-const warningVisible = { opacity: 1, y: 0, scale: 1 };
-const warningExit = { opacity: 0, y: -4, scale: 0.985 };
 
 function clearWarning() {
   warningPath.value = "";
@@ -135,7 +128,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <motion.div class="output-picker-stack" :initial="pickerEnter" :animate="pickerVisible" :whileHover="pickerHover" :transition="{ duration: 0.16 }">
+  <div class="output-picker-stack">
     <div class="field-row output-picker">
       <label class="field grow">
         <span>输出目录</span>
@@ -150,28 +143,18 @@ onMounted(() => {
         </button>
       </div>
     </div>
-    <AnimatePresence>
-      <motion.div
-        v-if="warningMessage"
-        key="output-warning"
-        class="output-picker-warning"
-        :initial="warningEnter"
-        :animate="warningVisible"
-        :exit="warningExit"
-        :transition="{ duration: 0.16 }"
-      >
-        <div>
-          <strong>目录提醒</strong>
-          <p>{{ warningMessage }}</p>
-          <small v-if="warningPath">{{ warningPath }}</small>
-        </div>
-        <div class="output-picker-warning-actions">
-          <button type="button" class="secondary-button" @click="pickDir">重新选择</button>
-          <button type="button" class="icon-button" title="忽略提醒" @click="dismissWarning">
-            <i class="ri-close-line" aria-hidden="true"></i>
-          </button>
-        </div>
-      </motion.div>
-    </AnimatePresence>
-  </motion.div>
+    <div v-if="warningMessage" class="output-picker-warning">
+      <div>
+        <strong>目录提醒</strong>
+        <p>{{ warningMessage }}</p>
+        <small v-if="warningPath">{{ warningPath }}</small>
+      </div>
+      <div class="output-picker-warning-actions">
+        <button type="button" class="secondary-button" @click="pickDir">重新选择</button>
+        <button type="button" class="icon-button" title="忽略提醒" @click="dismissWarning">
+          <i class="ri-close-line" aria-hidden="true"></i>
+        </button>
+      </div>
+    </div>
+  </div>
 </template>

@@ -126,10 +126,9 @@ function categoryTabStyle(value: string): CSSProperties {
 function linkCardEnter(index: number) {
   return {
     opacity: 0,
-    y: 18,
+    y: 10,
     x: index % 2 === 0 ? -8 : 8,
-    rotateZ: index % 2 === 0 ? -0.8 : 0.8,
-    filter: "blur(5px)"
+    rotateZ: index % 2 === 0 ? -0.5 : 0.5
   };
 }
 
@@ -139,18 +138,7 @@ function linkCardVisible(index: number) {
     y: 0,
     x: 0,
     rotateZ: 0,
-    filter: "blur(0px)",
     transition: { ...linkCardTransition, delay: Math.min(index * 0.035, 0.18) }
-  };
-}
-
-function linkCardExit(index: number) {
-  return {
-    opacity: 0,
-    y: -8,
-    rotateZ: index % 2 === 0 ? 0.55 : -0.55,
-    filter: "blur(3px)",
-    transition: { duration: 0.14 }
   };
 }
 
@@ -378,10 +366,9 @@ watch(
       </div>
 
       <div class="links-grid">
-        <AnimatePresence>
         <motion.article
           v-for="(item, index) in filteredLinks"
-          :key="`${category}:${item.id}`"
+          :key="item.id"
           class="link-card"
           :class="{
             dragging: item.id === draggingLinkId,
@@ -390,7 +377,6 @@ watch(
           }"
           :initial="linkCardEnter(index)"
           :animate="linkCardVisible(index)"
-          :exit="linkCardExit(index)"
           :whileHover="linkCardHover"
           :whilePress="linkCardPress"
           draggable="true"
@@ -425,7 +411,6 @@ watch(
             </button>
           </div>
         </motion.article>
-        </AnimatePresence>
         <p v-if="!filteredLinks.length" class="empty-state link-empty">暂无匹配链接，点击右上角"新增链接"开始添加。</p>
       </div>
     </div>
