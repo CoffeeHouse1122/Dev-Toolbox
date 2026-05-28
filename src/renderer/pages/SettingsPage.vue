@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted, ref } from "vue";
+import { inject, onMounted, onUnmounted, ref } from "vue";
 import { useThemeStore, type ThemeMode } from "../stores/theme";
 import type { AppCloseBehavior, AppDiagnostics, AppSettings, UpdateStatus } from "../../shared/types";
 
@@ -16,6 +16,7 @@ const updateStatus = ref<UpdateStatus | null>(null);
 const updateChecking = ref(false);
 const updateDownloading = ref(false);
 let unsubUpdate: (() => void) | null = null;
+const openProvidedNavEditor = inject<() => void>("openNavEditor");
 
 function setTheme(mode: ThemeMode) {
   theme.setMode(mode);
@@ -48,6 +49,10 @@ async function loadDiagnostics() {
 
 function openPath(targetPath: string) {
   void window.devToolbox.revealPath(targetPath);
+}
+
+function openNavEditor() {
+  openProvidedNavEditor?.();
 }
 
 // 手动检查更新
@@ -159,6 +164,16 @@ onUnmounted(() => {
           <span>启动 Windows 后自动打开 Dev Toolbox</span>
         </label>
       </div>
+      <div class="settings-block">
+        <div class="settings-block-head">
+          <h3>导航管理</h3>
+          <button type="button" class="secondary-button" @click="openNavEditor">
+            <i class="ri-list-settings-line" aria-hidden="true"></i>
+            编辑导航
+          </button>
+        </div>
+        <p class="settings-helper-text">调整左侧工具分组、显示状态和置顶顺序。</p>
+      </div>
       <div class="settings-block diagnostics-block">
         <div class="settings-block-head">
           <h3>诊断</h3>
@@ -260,6 +275,13 @@ onUnmounted(() => {
 
 .settings-block-head h3 {
   margin: 0;
+}
+
+.settings-helper-text {
+  margin: 10px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.7;
 }
 
 .diagnostics-grid {

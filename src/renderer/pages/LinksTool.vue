@@ -300,11 +300,6 @@ async function exportConfig() {
   }
 }
 
-function resetLinks() {
-  links.value = defaultLinks.map((item) => ({ ...item }));
-  showToast("已恢复默认网站。", "success");
-}
-
 onBeforeUnmount(() => {
   if (toastTimer) clearTimeout(toastTimer);
 });
@@ -337,10 +332,6 @@ watch(
         <button type="button" class="secondary-button" @click="exportConfig">
           <i class="ri-download-2-line" aria-hidden="true"></i>
           导出
-        </button>
-        <button type="button" class="secondary-button" @click="resetLinks" title="恢复默认链接">
-          <i class="ri-reset-left-line" aria-hidden="true"></i>
-          默认
         </button>
       </div>
     </div>

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { AnimatePresence, motion } from "motion-v";
-import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { computed, onBeforeUnmount, onMounted, provide, ref, watch } from "vue";
 import { RouterLink, RouterView } from "vue-router";
 import { useThemeStore } from "../stores/theme";
 
@@ -287,6 +287,12 @@ function openNavEditor() {
   dropHover.value = null;
   editingNav.value = true;
 }
+
+function handleOpenNavEditor() {
+  openNavEditor();
+}
+
+provide("openNavEditor", handleOpenNavEditor);
 
 function cancelNavEditing() {
   draftGroups.value = cloneGroups(groups.value);
@@ -662,13 +668,6 @@ onBeforeUnmount(() => {
           <strong>Dev Toolbox</strong>
           <span>开发工具箱</span>
         </div>
-      </div>
-
-      <div class="sidebar-actions">
-        <button type="button" class="secondary-button" @click="openNavEditor">
-          <i class="ri-list-settings-line" aria-hidden="true"></i>
-          编辑导航
-        </button>
       </div>
 
       <div class="sidebar-body dt-simplebar">

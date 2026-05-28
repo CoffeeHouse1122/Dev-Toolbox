@@ -9,6 +9,8 @@ import OutputPicker from "../components/OutputPicker.vue";
 import ResultPanel from "../components/ResultPanel.vue";
 // @ts-ignore VS Code inferred project may miss the local *.vue shim.
 import SelectMenu from "../components/SelectMenu.vue";
+// @ts-ignore VS Code inferred project may miss the local *.vue shim.
+import MotionRange from "../components/MotionRange.vue";
 const devToolbox = (window as unknown as Window & { devToolbox: DevToolboxApi }).devToolbox;
 
 const input = ref<string[]>([]);
@@ -119,10 +121,7 @@ async function run() {
         <div class="video-form-grid">
           <label class="field">
             <span>CRF</span>
-            <div class="range-field">
-              <input v-model.number="crf" type="range" min="12" max="36" />
-              <strong>{{ crf }}</strong>
-            </div>
+            <MotionRange v-model="crf" :min="12" :max="36" aria-label="CRF" />
           </label>
           <label class="field">
             <span>最大宽度</span>

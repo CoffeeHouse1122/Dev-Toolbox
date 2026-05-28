@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import { toPng } from "html-to-image";
+import MotionRange from "../components/MotionRange.vue";
 
 const code = ref(
   `function fibonacci(n) {\n  if (n < 2) return n;\n  return fibonacci(n - 1) + fibonacci(n - 2);\n}\n\nconsole.log(fibonacci(10));\n`
@@ -245,11 +246,11 @@ async function copyImage() {
         </label>
         <label class="field">
           <span>背景内边距</span>
-          <input v-model.number="padding" type="range" min="0" max="120" />
+          <MotionRange v-model="padding" :min="0" :max="120" unit="px" aria-label="背景内边距" />
         </label>
         <label class="field">
           <span>字号</span>
-          <input v-model.number="fontSize" type="range" min="10" max="22" />
+          <MotionRange v-model="fontSize" :min="10" :max="22" unit="px" aria-label="字号" />
         </label>
         <label class="check-row">
           <input v-model="showWindow" type="checkbox" />

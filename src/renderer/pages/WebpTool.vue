@@ -6,6 +6,7 @@ import OutputPicker from "../components/OutputPicker.vue";
 import OptionGrid from "../components/OptionGrid.vue";
 import ResultPanel from "../components/ResultPanel.vue";
 import SelectMenu from "../components/SelectMenu.vue";
+import MotionRange from "../components/MotionRange.vue";
 
 const input = ref<string[]>([]);
 const outputDir = ref("");
@@ -77,8 +78,7 @@ async function run() {
           </div>
           <label class="field">
             <span>质量</span>
-            <input v-model.number="quality" type="range" min="1" max="100" />
-            <strong>{{ quality }}</strong>
+            <MotionRange v-model="quality" :min="1" :max="100" aria-label="质量" />
           </label>
           <label class="field">
             <span>最大宽度</span>

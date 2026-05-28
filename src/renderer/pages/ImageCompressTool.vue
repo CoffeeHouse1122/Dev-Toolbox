@@ -4,6 +4,7 @@ import type { ConversionResult } from "../../shared/types";
 import DropZone from "../components/DropZone.vue";
 import OutputPicker from "../components/OutputPicker.vue";
 import ResultPanel from "../components/ResultPanel.vue";
+import MotionRange from "../components/MotionRange.vue";
 
 const input = ref<string[]>([]);
 const outputDir = ref("");
@@ -55,8 +56,7 @@ async function run() {
         <div class="option-grid">
           <label class="field">
             <span>质量</span>
-            <input v-model.number="quality" type="range" min="1" max="100" />
-            <strong>{{ quality }}</strong>
+            <MotionRange v-model="quality" :min="1" :max="100" aria-label="质量" />
           </label>
           <label class="check-row">
             <input v-model="keepMetadata" type="checkbox" />

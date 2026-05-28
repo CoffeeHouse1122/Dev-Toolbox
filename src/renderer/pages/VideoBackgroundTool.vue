@@ -5,6 +5,7 @@ import DropZone from "../components/DropZone.vue";
 import OutputPicker from "../components/OutputPicker.vue";
 import ResultPanel from "../components/ResultPanel.vue";
 import SelectMenu from "../components/SelectMenu.vue";
+import MotionRange from "../components/MotionRange.vue";
 
 const input = ref<string[]>([]);
 const outputDir = ref("");
@@ -88,10 +89,7 @@ async function run() {
           </label>
           <label class="field">
             <span>CRF</span>
-            <div class="range-field">
-              <input v-model.number="crf" type="range" min="12" max="40" />
-              <strong>{{ crf }}</strong>
-            </div>
+            <MotionRange v-model="crf" :min="12" :max="40" aria-label="CRF" />
           </label>
           <label class="check-row span-2 video-check-row">
             <input v-model="makePoster" type="checkbox" />

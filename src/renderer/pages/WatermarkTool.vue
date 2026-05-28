@@ -6,6 +6,7 @@ import OptionGrid from "../components/OptionGrid.vue";
 import OutputPicker from "../components/OutputPicker.vue";
 import ResultPanel from "../components/ResultPanel.vue";
 import SelectMenu from "../components/SelectMenu.vue";
+import MotionRange from "../components/MotionRange.vue";
 
 const input = ref<string[]>([]);
 const pattern = ref<string[]>([]);
@@ -125,26 +126,22 @@ async function run() {
 
           <label class="field">
             <span>透明度</span>
-            <input v-model.number="opacity" type="range" min="1" max="100" />
-            <strong>{{ opacity }}%</strong>
+            <MotionRange v-model="opacity" :min="1" :max="100" unit="%" aria-label="透明度" />
           </label>
 
           <label class="field">
             <span>旋转角度</span>
-            <input v-model.number="rotation" type="range" min="-90" max="90" />
-            <strong>{{ rotation }}°</strong>
+            <MotionRange v-model="rotation" :min="-90" :max="90" unit="°" aria-label="旋转角度" />
           </label>
 
           <label class="field">
             <span>字号 / 图案尺寸</span>
-            <input v-model.number="scale" type="range" min="12" max="160" />
-            <strong>{{ scale }}</strong>
+            <MotionRange v-model="scale" :min="12" :max="160" aria-label="字号 / 图案尺寸" />
           </label>
 
           <label class="field">
             <span>铺满间距</span>
-            <input v-model.number="gap" type="range" min="80" max="720" :disabled="position !== 'tile'" />
-            <strong>{{ gap }}</strong>
+            <MotionRange v-model="gap" :min="80" :max="720" :disabled="position !== 'tile'" aria-label="铺满间距" />
           </label>
 
           <label class="field">
@@ -154,8 +151,7 @@ async function run() {
 
           <label class="field">
             <span>图片质量</span>
-            <input v-model.number="quality" type="range" min="1" max="100" />
-            <strong>{{ quality }}</strong>
+            <MotionRange v-model="quality" :min="1" :max="100" aria-label="图片质量" />
           </label>
 
           <label class="check-row span-2">
