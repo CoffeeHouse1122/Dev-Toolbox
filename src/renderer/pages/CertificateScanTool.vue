@@ -297,7 +297,7 @@ watch(
                   <strong>{{ item.domain }}</strong>
                 </td>
                 <td class="certificate-issuer-cell" :title="issuerLabel(item)">
-                  <span class="issuer-column-label">签发者</span>
+                  <!-- <span class="issuer-column-label">签发者</span> -->
                   <strong>{{ issuerLabel(item) }}</strong>
                   <small v-if="item.status === 'error' && item.errorMessage">{{ item.errorMessage }}</small>
                 </td>
