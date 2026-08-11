@@ -19,12 +19,9 @@ function base64UrlDecode(input: string): string {
   if (typeof atob !== "function") return "";
   const binary = atob(s);
   try {
-    // Decode UTF-8 properly
-    return decodeURIComponent(
-      Array.prototype.map
-        .call(binary, (c: string) => `%${("00" + c.charCodeAt(0).toString(16)).slice(-2)}`)
-        .join("")
-    );
+    const bytes = new Uint8Array(binary.length);
+    for (let index = 0; index < binary.length; index++) bytes[index] = binary.charCodeAt(index);
+    return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
   } catch {
     return binary;
   }
@@ -161,14 +158,18 @@ function loadSample() {
         <div class="code-pane">
           <div class="pane-head">
             <strong style="color: #6f42c1;">Payload</strong>
-            <span v-if="claims && claims.exp" class="status-pill" :class="{ error: isExpired, success: !isExpired }">
-              {{ isExpired ? "已过期" : "有效" }}
+            <span v-if="claims && claims.exp" class="status-pill" :class="{ error: isExpired, running: !isExpired }">
+              {{ isExpired ? "已过期（未验签）" : "未过期（未验签）" }}
             </span>
           </div>
           <textarea readonly :value="segments.payload.pretty"></textarea>
           <p v-if="segments.payload.error" class="error-banner">{{ segments.payload.error }}</p>
         </div>
       </div>
+
+      <p v-if="segments" class="warning-banner" style="margin-top: 12px;">
+        此工具只解码内容并检查时间声明，不验证签名、签发者或受众；不能据此判断 Token 可信或有效。
+      </p>
 
       <div v-if="claims" class="info-grid" style="margin-top: 16px;">
         <div class="info-panel">

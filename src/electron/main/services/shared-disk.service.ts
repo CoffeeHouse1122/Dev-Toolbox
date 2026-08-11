@@ -1,9 +1,9 @@
 import { app, safeStorage, shell } from "electron";
-import fs from "node:fs/promises";
 import path from "node:path";
 import { spawn } from "node:child_process";
 import type { SharedDiskConfig, SharedDiskConnectResult } from "../../../shared/types";
 import { ensureDir } from "./file-utils";
+import { readJsonWithBackup, writeFileAtomic } from "./atomic-file";
 
 interface StoredSharedDiskConfig extends Omit<SharedDiskConfig, "password"> {
   password: string;
@@ -71,7 +71,9 @@ function configPath() {
 function encryptPassword(password: string) {
   if (!password) return { password: "", encrypted: false };
   if (!safeStorage.isEncryptionAvailable()) {
-    return { password, encrypted: false };
+    // Never silently downgrade a secret to plaintext. The current session can
+    // still use the password, but it must be entered again after restart.
+    return { password: "", encrypted: false };
   }
   return {
     password: safeStorage.encryptString(password).toString("base64"),
@@ -81,7 +83,8 @@ function encryptPassword(password: string) {
 
 function decryptPassword(password: string, encrypted: boolean) {
   if (!password) return "";
-  if (!encrypted) return password;
+  // Legacy plaintext fallback is intentionally not restored.
+  if (!encrypted) return "";
   try {
     return safeStorage.decryptString(Buffer.from(password, "base64"));
   } catch {
@@ -137,12 +140,16 @@ function normalizeConfig(config: SharedDiskConfig): SharedDiskConfig {
 
 export async function loadSharedDiskConfig(): Promise<SharedDiskConfig> {
   try {
-    const raw = await fs.readFile(configPath(), "utf8");
-    const stored = JSON.parse(raw) as StoredSharedDiskConfig;
-    return normalizeConfig({
+    const stored = await readJsonWithBackup<StoredSharedDiskConfig>(configPath());
+    const legacyPlaintext = !stored.encrypted && stored.password ? stored.password : "";
+    const normalized = normalizeConfig({
       ...stored,
-      password: decryptPassword(stored.password, stored.encrypted)
+      password: legacyPlaintext && safeStorage.isEncryptionAvailable()
+        ? legacyPlaintext
+        : decryptPassword(stored.password, stored.encrypted)
     });
+    if (legacyPlaintext) await saveSharedDiskConfig(normalized);
+    return normalized;
   } catch {
     return { ...defaultConfig };
   }
@@ -162,11 +169,13 @@ export async function saveSharedDiskConfig(config: SharedDiskConfig): Promise<Sh
   };
 
   await ensureDir(path.dirname(configPath()));
-  await fs.writeFile(configPath(), `${JSON.stringify(stored, null, 2)}\n`, "utf8");
+  // Credential files deliberately do not retain a plaintext-capable backup.
+  await writeFileAtomic(configPath(), `${JSON.stringify(stored, null, 2)}\n`, { backup: false });
   return normalized;
 }
 
 export async function connectSharedDisk(config: SharedDiskConfig): Promise<SharedDiskConnectResult> {
+  if (process.platform !== "win32") throw new Error("共享盘登录当前仅支持 Windows");
   const normalized = normalizeConfig(config);
   if (!normalized.username) throw new Error("共享盘账号不能为空");
   if (!normalized.password) throw new Error("共享盘密码不能为空");
@@ -194,6 +203,7 @@ export async function connectSharedDisk(config: SharedDiskConfig): Promise<Share
 }
 
 export async function disconnectSharedDisk(config: SharedDiskConfig): Promise<SharedDiskConnectResult> {
+  if (process.platform !== "win32") throw new Error("共享盘断开当前仅支持 Windows");
   const normalized = normalizeConfig(config);
   const shareRoot = buildShareRoot(normalized);
   await runCommand("net", ["use", shareRoot, "/delete", "/y"], true);
@@ -206,6 +216,7 @@ export async function disconnectSharedDisk(config: SharedDiskConfig): Promise<Sh
 }
 
 export async function openSharedDiskDirectory(targetPath: string) {
+  if (process.platform !== "win32") throw new Error("共享盘目录当前仅支持 Windows");
   const normalized = targetPath.trim();
   if (!normalized) {
     throw new Error("默认目录不能为空");
@@ -216,4 +227,3 @@ export async function openSharedDiskDirectory(targetPath: string) {
   }
   return normalized;
 }
-

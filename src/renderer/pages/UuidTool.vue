@@ -5,7 +5,9 @@ const count = ref(5);
 const uuids = ref<string[]>([]);
 
 function generate() {
-  uuids.value = Array.from({ length: Math.max(1, count.value) }, () => crypto.randomUUID());
+  const normalizedCount = Math.min(100, Math.max(1, Math.trunc(Number(count.value) || 1)));
+  count.value = normalizedCount;
+  uuids.value = Array.from({ length: normalizedCount }, () => crypto.randomUUID());
 }
 
 generate();
@@ -26,4 +28,3 @@ generate();
     </div>
   </section>
 </template>
-

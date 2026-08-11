@@ -4,6 +4,7 @@ import { PDFDocument } from "pdf-lib";
 import sharp from "sharp";
 import pngToIco from "png-to-ico";
 import type {
+  ConversionItemResult,
   ConversionResult,
   FaviconOptions,
   ImageCompressOptions,
@@ -13,7 +14,19 @@ import type {
   WebpOptions
 } from "../../../shared/types";
 import type { HistoryService } from "./history.service";
-import { ensureDir, safeBaseName, uniqueId, uniqueOutputPath, writeTextFile } from "./file-utils";
+import { embeddedCjkFontFamily, embeddedCjkFontStyle } from "./embedded-font";
+import {
+  commitTemporaryFile,
+  ensureDir,
+  removeTemporaryFile,
+  safeBaseName,
+  temporaryOutputPath,
+  uniqueId,
+  uniqueOutputPath,
+  writeFileExclusive
+} from "./file-utils";
+
+const MAX_IMAGE_INPUT_BYTES = 256 * 1024 * 1024;
 
 export async function createFaviconPackage(
   options: FaviconOptions,
@@ -22,6 +35,8 @@ export async function createFaviconPackage(
   const id = uniqueId("favicon");
   const logs: string[] = [];
   const files: string[] = [];
+  let tempDir = "";
+  let generationComplete = false;
 
   await history.startTask({
     id,
@@ -33,24 +48,25 @@ export async function createFaviconPackage(
 
   try {
     await ensureDir(options.outputDir);
-    const tempDir = path.join(options.outputDir, `.favicon-temp-${id}`);
+    tempDir = path.join(options.outputDir, `.favicon-temp-${id}`);
     await ensureDir(tempDir);
     const inputBuffer = await readImageInput(options.inputPath);
 
     const sizes = [...new Set(options.sizes)].sort((a, b) => a - b);
     const pngFiles: Array<{ size: number; filePath: string }> = [];
+    const publishedPng = new Map<number, string>();
 
     for (const size of sizes) {
       const output = path.join(tempDir, `favicon-${size}.png`);
-      await sharp(inputBuffer, { limitInputPixels: false })
+      await sharp(inputBuffer)
         .resize(size, size, { fit: "cover", position: "center" })
         .png({ compressionLevel: 9 })
         .toFile(output);
       pngFiles.push({ size, filePath: output });
 
-      if (options.includePng) {
-        const publicPng = path.join(options.outputDir, `favicon-${size}x${size}.png`);
-        await fs.copyFile(output, publicPng);
+      if (options.includePng || (options.includeManifest && size >= 128)) {
+        const publicPng = await writeFileExclusive(options.outputDir, `favicon-${size}x${size}.png`, await fs.readFile(output));
+        publishedPng.set(size, path.basename(publicPng));
         files.push(publicPng);
       }
     }
@@ -58,33 +74,33 @@ export async function createFaviconPackage(
     const icoEntries = pngFiles.filter((item) => item.size <= 256);
     if (!icoEntries.length) {
       const fallbackOutput = path.join(tempDir, "favicon-256.png");
-      await sharp(inputBuffer, { limitInputPixels: false })
+      await sharp(inputBuffer)
         .resize(256, 256, { fit: "cover", position: "center" })
         .png({ compressionLevel: 9 })
         .toFile(fallbackOutput);
       icoEntries.push({ size: 256, filePath: fallbackOutput });
     }
     const icoBuffer = await pngToIco(icoEntries.map((item) => item.filePath));
-    const icoPath = path.join(options.outputDir, "favicon.ico");
-    await fs.writeFile(icoPath, icoBuffer);
+    const icoPath = await writeFileExclusive(options.outputDir, "favicon.ico", icoBuffer);
     files.unshift(icoPath);
     logs.push(`Created favicon.ico with ${icoEntries.length} embedded size(s), capped at 256px for ICO compatibility.`);
 
     if (options.includeManifest) {
       const manifestPath = path.join(options.outputDir, "site.webmanifest");
       const icons = sizes
-        .filter((size) => size >= 128)
+        .filter((size) => publishedPng.has(size))
         .map((size) => ({
-          src: `/favicon-${size}x${size}.png`,
+          src: `/${publishedPng.get(size)}`,
           sizes: `${size}x${size}`,
           type: "image/png"
         }));
 
-      await writeTextFile(
-        manifestPath,
+      const manifestOutput = await writeFileExclusive(
+        options.outputDir,
+        path.basename(manifestPath),
         `${JSON.stringify({ name: "App", short_name: "App", icons, theme_color: "#ffffff", background_color: "#ffffff", display: "standalone" }, null, 2)}\n`
       );
-      files.push(manifestPath);
+      files.push(manifestOutput);
     }
 
     try {
@@ -93,9 +109,12 @@ export async function createFaviconPackage(
       const cleanupMessage = cleanupError instanceof Error ? cleanupError.message : String(cleanupError);
       logs.push(`Skipped temp cleanup: ${cleanupMessage}`);
     }
+    generationComplete = true;
     await history.finishTask(id, "success");
     return { id, status: "success", files, outputPath: options.outputDir, logs };
   } catch (error) {
+    if (tempDir) await fs.rm(tempDir, { recursive: true, force: true }).catch(() => undefined);
+    if (!generationComplete) await Promise.all(files.map((filePath) => fs.rm(filePath, { force: true }).catch(() => undefined)));
     const message = error instanceof Error ? error.message : String(error);
     await history.finishTask(id, "error", message);
     return { id, status: "error", files, outputPath: options.outputDir, logs, errorMessage: message };
@@ -106,6 +125,8 @@ export async function convertImages(options: WebpOptions, history: HistoryServic
   const id = uniqueId("webp");
   const logs: string[] = [];
   const files: string[] = [];
+  const failures: string[] = [];
+  const items: ConversionItemResult[] = [];
 
   await history.startTask({
     id,
@@ -119,41 +140,53 @@ export async function convertImages(options: WebpOptions, history: HistoryServic
     await ensureDir(options.outputDir);
 
     for (const inputPath of options.inputPaths) {
-      const inputBuffer = await readImageInput(inputPath);
-      const base = safeBaseName(inputPath);
-      const extension = options.outputFormat === "jpeg" ? "jpg" : options.outputFormat;
-      const output = path.join(options.outputDir, `${base}.${extension}`);
+      let tempOutput = "";
+      try {
+        const inputBuffer = await readImageInput(inputPath);
+        const base = safeBaseName(inputPath);
+        const extension = options.outputFormat === "jpeg" ? "jpg" : options.outputFormat;
+        const output = await uniqueOutputPath(options.outputDir, `${base}.${extension}`);
+        tempOutput = temporaryOutputPath(output);
 
-      let pipeline = sharp(inputBuffer, { limitInputPixels: false }).rotate();
-      if (options.maxWidth || options.maxHeight) {
-        pipeline = pipeline.resize({
-          width: options.maxWidth,
-          height: options.maxHeight,
-          fit: "inside",
-          withoutEnlargement: true
-        });
-      }
-      if (options.keepMetadata) {
-        pipeline = pipeline.withMetadata();
-      }
+        let pipeline = sharp(inputBuffer).rotate();
+        if (options.maxWidth || options.maxHeight) {
+          pipeline = pipeline.resize({
+            width: options.maxWidth,
+            height: options.maxHeight,
+            fit: "inside",
+            withoutEnlargement: true
+          });
+        }
+        if (options.keepMetadata) pipeline = pipeline.withMetadata();
 
-      if (options.outputFormat === "webp") {
-        pipeline = pipeline.webp({ quality: options.quality, lossless: options.lossless });
-      } else if (options.outputFormat === "png") {
-        pipeline = pipeline.png({ compressionLevel: 9 });
-      } else if (options.outputFormat === "jpeg") {
-        pipeline = pipeline.jpeg({ quality: options.quality, mozjpeg: true });
-      } else {
-        pipeline = pipeline.avif({ quality: options.quality, lossless: options.lossless });
-      }
+        if (options.outputFormat === "webp") {
+          pipeline = pipeline.webp({ quality: options.quality, lossless: options.lossless });
+        } else if (options.outputFormat === "png") {
+          pipeline = pipeline.png({ compressionLevel: 9 });
+        } else if (options.outputFormat === "jpeg") {
+          pipeline = pipeline.jpeg({ quality: options.quality, mozjpeg: true });
+        } else {
+          pipeline = pipeline.avif({ quality: options.quality, lossless: options.lossless });
+        }
 
-      await pipeline.toFile(output);
-      files.push(output);
-      logs.push(`Converted ${path.basename(inputPath)} to ${path.basename(output)}.`);
+        await pipeline.toFile(tempOutput);
+        await commitTemporaryFile(tempOutput, output);
+        files.push(output);
+        items.push({ inputPath, outputPath: output, status: "success" });
+        logs.push(`Converted ${path.basename(inputPath)} to ${path.basename(output)}.`);
+      } catch (error) {
+        if (tempOutput) await removeTemporaryFile(tempOutput);
+        const message = `${path.basename(inputPath)}: ${error instanceof Error ? error.message : String(error)}`;
+        failures.push(message);
+        items.push({ inputPath, status: "error", errorMessage: message });
+        logs.push(`Failed ${message}`);
+      }
     }
 
-    await history.finishTask(id, "success");
-    return { id, status: "success", files, outputPath: options.outputDir, logs };
+    const errorMessage = failures.length ? `${failures.length} of ${options.inputPaths.length} image(s) failed.` : undefined;
+    const status = failures.length ? (files.length ? "partial" : "error") : "success";
+    await history.finishTask(id, status, errorMessage);
+    return { id, status, files, outputPath: options.outputDir, logs, errorMessage, items };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     await history.finishTask(id, "error", message);
@@ -170,6 +203,9 @@ type RasterFormat = "png" | "jpeg" | "webp" | "avif" | "tiff";
 const rasterFormats = new Set(["png", "jpg", "jpeg", "webp", "avif", "tif", "tiff"]);
 
 async function readImageInput(inputPath: string) {
+  const stat = await fs.stat(inputPath);
+  if (!stat.isFile()) throw new Error(`Not a file: ${path.basename(inputPath)}`);
+  if (stat.size > MAX_IMAGE_INPUT_BYTES) throw new Error(`${path.basename(inputPath)} exceeds the 256 MiB image safety limit.`);
   return fs.readFile(inputPath);
 }
 
@@ -213,14 +249,14 @@ function lineMeasure(line: string, fontSize: number) {
 async function patternToDataUri(patternPath: string | undefined, size: number) {
   if (!patternPath) return "";
   const patternBuffer = await readImageInput(patternPath);
-  const buffer = await sharp(patternBuffer, { limitInputPixels: false })
+  const buffer = await sharp(patternBuffer)
     .resize({ width: Math.round(size), height: Math.round(size), fit: "inside", withoutEnlargement: false })
     .png()
     .toBuffer();
   return `data:image/png;base64,${buffer.toString("base64")}`;
 }
 
-function renderWatermarkSvg(width: number, height: number, options: WatermarkOptions, patternDataUri: string) {
+function renderWatermarkSvg(width: number, height: number, options: WatermarkOptions, patternDataUri: string, fontStyle: string) {
   const opacity = clampNumber(options.opacity, 1, 100) / 100;
   const fontSize = clampNumber(options.scale, 12, 160);
   const imageSize = patternDataUri ? Math.round(fontSize * 1.72) : 0;
@@ -245,7 +281,7 @@ function renderWatermarkSvg(width: number, height: number, options: WatermarkOpt
     const textX = x + imageSize + gutter;
     const textY = y + (blockHeight - textHeight) / 2 + fontSize;
     const text = hasText
-      ? `<text x="${textX}" y="${textY}" fill="#0d1117" font-family="Source Han Sans CN, Microsoft YaHei, PingFang SC, sans-serif" font-size="${fontSize}" font-weight="700" letter-spacing="0">${lines
+      ? `<text x="${textX}" y="${textY}" fill="#0d1117" font-family="${embeddedCjkFontFamily}, sans-serif" font-size="${fontSize}" font-weight="700" letter-spacing="0">${lines
           .map((line, index) => `<tspan x="${textX}" dy="${index === 0 ? 0 : lineHeight}">${xmlEscape(line)}</tspan>`)
           .join("")}</text>`
       : "";
@@ -278,12 +314,13 @@ function renderWatermarkSvg(width: number, height: number, options: WatermarkOpt
     content = placedMark(clampNumber(x, 0, Math.max(0, width - blockWidth)), clampNumber(y, 0, Math.max(0, height - blockHeight)));
   }
 
-  return Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">${content}</svg>`);
+  return Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">${fontStyle}${content}</svg>`);
 }
 
 async function watermarkOverlay(width: number, height: number, options: WatermarkOptions, patternDataUri: string) {
-  const svg = renderWatermarkSvg(Math.max(1, Math.round(width)), Math.max(1, Math.round(height)), options, patternDataUri);
-  return sharp(svg, { limitInputPixels: false }).png().toBuffer();
+  const fontStyle = await embeddedCjkFontStyle(options.text);
+  const svg = renderWatermarkSvg(Math.max(1, Math.round(width)), Math.max(1, Math.round(height)), options, patternDataUri, fontStyle);
+  return sharp(svg).png().toBuffer();
 }
 
 function formatImageOutput(pipeline: sharp.Sharp, format: RasterFormat, quality: number) {
@@ -295,9 +332,9 @@ function formatImageOutput(pipeline: sharp.Sharp, format: RasterFormat, quality:
 }
 
 async function writeByInputFormat(inputPath: string, inputBuffer: Buffer, outputPath: string, quality: number, keepMetadata = false) {
-  const metadata = await sharp(inputBuffer, { limitInputPixels: false }).metadata();
-  const format = metadata.format ?? path.extname(inputPath).slice(1).toLowerCase();
-  let pipeline = sharp(inputBuffer, { limitInputPixels: false }).rotate();
+  const metadata = await sharp(inputBuffer).metadata();
+  const format = normalizeRasterFormat(path.extname(inputPath)) ?? normalizeRasterFormat(metadata.format) ?? "webp";
+  let pipeline = sharp(inputBuffer).rotate();
 
   if (keepMetadata) {
     pipeline = pipeline.withMetadata();
@@ -316,7 +353,7 @@ async function writeByInputFormat(inputPath: string, inputBuffer: Buffer, output
       colors: Math.max(8, Math.min(256, Math.round((quality / 100) * 256))),
       dither: 1
     });
-  } else if (format === "jpg" || format === "jpeg") {
+  } else if (format === "jpeg") {
     pipeline = pipeline.jpeg({
       quality,
       mozjpeg: true,
@@ -331,7 +368,7 @@ async function writeByInputFormat(inputPath: string, inputBuffer: Buffer, output
   } else if (format === "avif") {
     pipeline = pipeline.avif({ quality, effort: 6 });
   } else {
-    pipeline = pipeline.webp({ quality, effort: 6 });
+    pipeline = pipeline.tiff({ quality, compression: "lzw" });
   }
 
   await pipeline.toFile(outputPath);
@@ -341,6 +378,8 @@ export async function compressImages(options: ImageCompressOptions, history: His
   const id = uniqueId("image-compress");
   const logs: string[] = [];
   const files: string[] = [];
+  const failures: string[] = [];
+  const items: ConversionItemResult[] = [];
 
   await history.startTask({
     id,
@@ -354,29 +393,37 @@ export async function compressImages(options: ImageCompressOptions, history: His
     await ensureDir(options.outputDir);
 
     for (const inputPath of options.inputPaths) {
-      const inputBuffer = await readImageInput(inputPath);
-      const metadata = await sharp(inputBuffer, { limitInputPixels: false }).metadata();
-      const detectedFormat = metadata.format ?? (path.extname(inputPath).slice(1).toLowerCase() || "webp");
-      const ext = outputExtension(detectedFormat);
-      const fileName = options.keepOriginalName
-        ? `${safeBaseName(inputPath)}.${ext}`
-        : `${safeBaseName(inputPath)}-compressed.${ext}`;
-      const output = await uniqueOutputPath(options.outputDir, fileName);
-      await writeByInputFormat(inputPath, inputBuffer, output, options.quality, options.keepMetadata);
-      files.push(output);
+      let tempOutput = "";
       try {
+        const inputBuffer = await readImageInput(inputPath);
+        const metadata = await sharp(inputBuffer).metadata();
+        const detectedFormat = normalizeRasterFormat(path.extname(inputPath)) ?? normalizeRasterFormat(metadata.format) ?? "webp";
+        const ext = imageExtension(detectedFormat);
+        const fileName = options.keepOriginalName
+          ? `${safeBaseName(inputPath)}.${ext}`
+          : `${safeBaseName(inputPath)}-compressed.${ext}`;
+        const output = await uniqueOutputPath(options.outputDir, fileName);
+        tempOutput = temporaryOutputPath(output);
+        await writeByInputFormat(inputPath, inputBuffer, tempOutput, options.quality, options.keepMetadata);
+        await commitTemporaryFile(tempOutput, output);
+        files.push(output);
+        items.push({ inputPath, outputPath: output, status: "success" });
         const [src, dst] = await Promise.all([fs.stat(inputPath), fs.stat(output)]);
         const ratio = src.size > 0 ? Math.round(((src.size - dst.size) / src.size) * 100) : 0;
-        logs.push(
-          `${path.basename(inputPath)}: ${(src.size / 1024).toFixed(1)} KB → ${(dst.size / 1024).toFixed(1)} KB (-${ratio}%)`
-        );
-      } catch {
-        logs.push(`Compressed ${path.basename(inputPath)}.`);
+        logs.push(`${path.basename(inputPath)}: ${(src.size / 1024).toFixed(1)} KB -> ${(dst.size / 1024).toFixed(1)} KB (-${ratio}%)`);
+      } catch (error) {
+        if (tempOutput) await removeTemporaryFile(tempOutput);
+        const message = `${path.basename(inputPath)}: ${error instanceof Error ? error.message : String(error)}`;
+        failures.push(message);
+        items.push({ inputPath, status: "error", errorMessage: message });
+        logs.push(`Failed ${message}`);
       }
     }
 
-    await history.finishTask(id, "success");
-    return { id, status: "success", files, outputPath: options.outputDir, logs };
+    const errorMessage = failures.length ? `${failures.length} of ${options.inputPaths.length} image(s) failed.` : undefined;
+    const status = failures.length ? (files.length ? "partial" : "error") : "success";
+    await history.finishTask(id, status, errorMessage);
+    return { id, status, files, outputPath: options.outputDir, logs, errorMessage, items };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     await history.finishTask(id, "error", message);
@@ -388,6 +435,8 @@ export async function resizeImages(options: ImageResizeOptions, history: History
   const id = uniqueId("image-resize");
   const logs: string[] = [];
   const files: string[] = [];
+  const failures: string[] = [];
+  const items: ConversionItemResult[] = [];
 
   await history.startTask({
     id,
@@ -401,27 +450,41 @@ export async function resizeImages(options: ImageResizeOptions, history: History
     await ensureDir(options.outputDir);
 
     for (const inputPath of options.inputPaths) {
-      const inputBuffer = await readImageInput(inputPath);
-      const metadata = await sharp(inputBuffer, { limitInputPixels: false }).metadata();
-      const detectedFormat = metadata.format ?? (path.extname(inputPath).slice(1).toLowerCase() || "png");
-      const ext = outputExtension(detectedFormat);
-      const baseWidth = metadata.width ?? options.width;
-      const baseHeight = metadata.height ?? options.height;
-      const width = options.mode === "scale" && baseWidth ? Math.max(1, Math.round(baseWidth * ((options.scale ?? 100) / 100))) : options.width;
-      const height = options.mode === "scale" && baseHeight ? Math.max(1, Math.round(baseHeight * ((options.scale ?? 100) / 100))) : options.height;
-      const output = path.join(options.outputDir, `${safeBaseName(inputPath)}-resized.${ext}`);
+      let tempOutput = "";
+      try {
+        const inputBuffer = await readImageInput(inputPath);
+        const metadata = await sharp(inputBuffer).metadata();
+        const detectedFormat = normalizeRasterFormat(path.extname(inputPath)) ?? normalizeRasterFormat(metadata.format) ?? "png";
+        const ext = imageExtension(detectedFormat);
+        const baseWidth = metadata.width ?? options.width;
+        const baseHeight = metadata.height ?? options.height;
+        const width = options.mode === "scale" && baseWidth ? Math.max(1, Math.round(baseWidth * ((options.scale ?? 100) / 100))) : options.width;
+        const height = options.mode === "scale" && baseHeight ? Math.max(1, Math.round(baseHeight * ((options.scale ?? 100) / 100))) : options.height;
+        const output = await uniqueOutputPath(options.outputDir, `${safeBaseName(inputPath)}-resized.${ext}`);
+        tempOutput = temporaryOutputPath(output);
 
-      await sharp(inputBuffer, { limitInputPixels: false })
-        .rotate()
-        .resize({ width, height, fit: "inside", withoutEnlargement: false })
-        .toFile(output);
+        await sharp(inputBuffer)
+          .rotate()
+          .resize({ width, height, fit: "inside", withoutEnlargement: false })
+          .toFile(tempOutput);
+        await commitTemporaryFile(tempOutput, output);
 
-      files.push(output);
-      logs.push(`Resized ${path.basename(inputPath)}.`);
+        files.push(output);
+        items.push({ inputPath, outputPath: output, status: "success" });
+        logs.push(`Resized ${path.basename(inputPath)}.`);
+      } catch (error) {
+        if (tempOutput) await removeTemporaryFile(tempOutput);
+        const message = `${path.basename(inputPath)}: ${error instanceof Error ? error.message : String(error)}`;
+        failures.push(message);
+        items.push({ inputPath, status: "error", errorMessage: message });
+        logs.push(`Failed ${message}`);
+      }
     }
 
-    await history.finishTask(id, "success");
-    return { id, status: "success", files, outputPath: options.outputDir, logs };
+    const errorMessage = failures.length ? `${failures.length} of ${options.inputPaths.length} image(s) failed.` : undefined;
+    const status = failures.length ? (files.length ? "partial" : "error") : "success";
+    await history.finishTask(id, status, errorMessage);
+    return { id, status, files, outputPath: options.outputDir, logs, errorMessage, items };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     await history.finishTask(id, "error", message);
@@ -445,7 +508,7 @@ export async function cropImage(options: ImageCropOptions, history: HistoryServi
   try {
     await ensureDir(options.outputDir);
     const inputBuffer = await readImageInput(options.inputPath);
-    const metadata = await sharp(inputBuffer, { limitInputPixels: false }).metadata();
+    const metadata = await sharp(inputBuffer).metadata();
     const imageWidth = metadata.width ?? 0;
     const imageHeight = metadata.height ?? 0;
     if (!imageWidth || !imageHeight) {
@@ -457,9 +520,10 @@ export async function cropImage(options: ImageCropOptions, history: HistoryServi
     const width = Math.max(1, Math.min(imageWidth - left, Math.round(options.width)));
     const height = Math.max(1, Math.min(imageHeight - top, Math.round(options.height)));
     const ext = outputExtension(options.outputFormat);
-    const output = path.join(options.outputDir, `${safeBaseName(options.inputPath)}-cropped.${ext}`);
+    const output = await uniqueOutputPath(options.outputDir, `${safeBaseName(options.inputPath)}-cropped.${ext}`);
+    const tempOutput = temporaryOutputPath(output);
 
-    let pipeline = sharp(inputBuffer, { limitInputPixels: false }).extract({ left, top, width, height });
+    let pipeline = sharp(inputBuffer).extract({ left, top, width, height });
     if (options.outputFormat === "webp") {
       pipeline = pipeline.webp({ quality: options.quality });
     } else if (options.outputFormat === "png") {
@@ -470,7 +534,13 @@ export async function cropImage(options: ImageCropOptions, history: HistoryServi
       pipeline = pipeline.avif({ quality: options.quality });
     }
 
-    await pipeline.toFile(output);
+    try {
+      await pipeline.toFile(tempOutput);
+      await commitTemporaryFile(tempOutput, output);
+    } catch (error) {
+      await removeTemporaryFile(tempOutput);
+      throw error;
+    }
     files.push(output);
     logs.push(`Cropped ${path.basename(options.inputPath)} to ${width}x${height}.`);
     await history.finishTask(id, "success");
@@ -486,6 +556,8 @@ export async function applyWatermark(options: WatermarkOptions, history: History
   const id = uniqueId("watermark");
   const logs: string[] = [];
   const files: string[] = [];
+  const failures: string[] = [];
+  const items: ConversionItemResult[] = [];
 
   await history.startTask({
     id,
@@ -504,57 +576,66 @@ export async function applyWatermark(options: WatermarkOptions, history: History
     const patternDataUri = await patternToDataUri(options.patternPath, clampNumber(options.scale, 12, 160) * 2);
 
     for (const inputPath of options.inputPaths) {
-      if (isPdf(inputPath)) {
-        const pdf = await PDFDocument.load(await fs.readFile(inputPath));
-        const pages = pdf.getPages();
+      let tempOutput = "";
+      try {
+        if (isPdf(inputPath)) {
+          const pdf = await PDFDocument.load(await fs.readFile(inputPath));
+          const pages = pdf.getPages();
 
-        for (const page of pages) {
-          const { width, height } = page.getSize();
-          const overlay = await watermarkOverlay(width, height, options, patternDataUri);
-          const watermarkImage = await pdf.embedPng(overlay);
-          page.drawImage(watermarkImage, { x: 0, y: 0, width, height });
+          for (const page of pages) {
+            const { width, height } = page.getSize();
+            const overlay = await watermarkOverlay(width, height, options, patternDataUri);
+            const watermarkImage = await pdf.embedPng(overlay);
+            page.drawImage(watermarkImage, { x: 0, y: 0, width, height });
+          }
+
+          const output = await uniqueOutputPath(options.outputDir, `${safeBaseName(inputPath)}-watermarked.pdf`);
+          tempOutput = temporaryOutputPath(output);
+          await fs.writeFile(tempOutput, await pdf.save(), { flag: "wx" });
+          await commitTemporaryFile(tempOutput, output);
+          files.push(output);
+          items.push({ inputPath, outputPath: output, status: "success" });
+          logs.push(`Watermarked ${path.basename(inputPath)} (${pages.length} page${pages.length > 1 ? "s" : ""}).`);
+          continue;
         }
 
-        const output = path.join(options.outputDir, `${safeBaseName(inputPath)}-watermarked.pdf`);
-        await fs.writeFile(output, await pdf.save());
+        if (!isRasterImage(inputPath)) throw new Error(`Unsupported file format: ${path.extname(inputPath) || "unknown"}`);
+
+        const inputBuffer = await readImageInput(inputPath);
+        const sourceBuffer = await sharp(inputBuffer).rotate().toBuffer();
+        const metadata = await sharp(sourceBuffer).metadata();
+        const width = metadata.width ?? 0;
+        const height = metadata.height ?? 0;
+        if (!width || !height) throw new Error("Unable to read image dimensions.");
+
+        const detectedFormat = normalizeRasterFormat(path.extname(inputPath)) ?? normalizeRasterFormat(metadata.format);
+        const targetFormat = options.outputFormat === "same" ? detectedFormat : normalizeRasterFormat(options.outputFormat);
+        if (!targetFormat) throw new Error("Unable to determine output format.");
+
+        const overlay = await watermarkOverlay(width, height, options, patternDataUri);
+        let pipeline = sharp(sourceBuffer).composite([{ input: overlay, left: 0, top: 0 }]);
+        if (options.keepMetadata) pipeline = pipeline.withMetadata();
+
+        const output = await uniqueOutputPath(options.outputDir, `${safeBaseName(inputPath)}-watermarked.${imageExtension(targetFormat)}`);
+        tempOutput = temporaryOutputPath(output);
+        await formatImageOutput(pipeline, targetFormat, options.quality).toFile(tempOutput);
+        await commitTemporaryFile(tempOutput, output);
         files.push(output);
-        logs.push(`Watermarked ${path.basename(inputPath)} (${pages.length} page${pages.length > 1 ? "s" : ""}).`);
-        continue;
+        items.push({ inputPath, outputPath: output, status: "success" });
+        logs.push(`Watermarked ${path.basename(inputPath)} (${width}x${height}).`);
+      } catch (error) {
+        if (tempOutput) await removeTemporaryFile(tempOutput);
+        const message = `${path.basename(inputPath)}: ${error instanceof Error ? error.message : String(error)}`;
+        failures.push(message);
+        items.push({ inputPath, status: "error", errorMessage: message });
+        logs.push(`Failed ${message}`);
       }
-
-      if (!isRasterImage(inputPath)) {
-        throw new Error(`不支持的文件格式：${path.basename(inputPath)}`);
-      }
-
-      const inputBuffer = await readImageInput(inputPath);
-      const sourceBuffer = await sharp(inputBuffer, { limitInputPixels: false }).rotate().toBuffer();
-      const metadata = await sharp(sourceBuffer).metadata();
-      const width = metadata.width ?? 0;
-      const height = metadata.height ?? 0;
-      if (!width || !height) {
-        throw new Error(`无法读取图片尺寸：${path.basename(inputPath)}`);
-      }
-
-      const detectedFormat = normalizeRasterFormat(metadata.format ?? path.extname(inputPath));
-      const targetFormat = options.outputFormat === "same" ? detectedFormat : normalizeRasterFormat(options.outputFormat);
-      if (!targetFormat) {
-        throw new Error(`无法确定输出格式：${path.basename(inputPath)}`);
-      }
-
-      const overlay = await watermarkOverlay(width, height, options, patternDataUri);
-      let pipeline = sharp(sourceBuffer, { limitInputPixels: false }).composite([{ input: overlay, left: 0, top: 0 }]);
-      if (options.keepMetadata) {
-        pipeline = pipeline.withMetadata();
-      }
-
-      const output = path.join(options.outputDir, `${safeBaseName(inputPath)}-watermarked.${imageExtension(targetFormat)}`);
-      await formatImageOutput(pipeline, targetFormat, options.quality).toFile(output);
-      files.push(output);
-      logs.push(`Watermarked ${path.basename(inputPath)} (${width}x${height}).`);
     }
 
-    await history.finishTask(id, "success");
-    return { id, status: "success", files, outputPath: options.outputDir, logs };
+    const errorMessage = failures.length ? `${failures.length} of ${options.inputPaths.length} file(s) failed.` : undefined;
+    const status = failures.length ? (files.length ? "partial" : "error") : "success";
+    await history.finishTask(id, status, errorMessage);
+    return { id, status, files, outputPath: options.outputDir, logs, errorMessage, items };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     await history.finishTask(id, "error", message);

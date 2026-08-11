@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { motion } from "motion-v";
+import { gsap } from "gsap";
+import { onBeforeUnmount, onMounted, ref, watch } from "vue";
 
 const props = withDefaults(defineProps<{
   modelValue: boolean;
@@ -18,6 +19,34 @@ const emit = defineEmits<{
   "update:modelValue": [value: boolean];
 }>();
 
+const boxRef = ref<HTMLElement | null>(null);
+
+function prefersReducedMotion() {
+  return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+}
+
+watch(() => props.modelValue, (checked) => {
+  if (!boxRef.value) return;
+  if (prefersReducedMotion()) {
+    gsap.set(boxRef.value, { scale: checked ? 1 : 0.96 });
+    return;
+  }
+  gsap.to(boxRef.value, {
+    scale: checked ? 1 : 0.96,
+    duration: 0.2,
+    ease: "back.out(2.2)",
+    overwrite: true
+  });
+});
+
+onMounted(() => {
+  if (boxRef.value) gsap.set(boxRef.value, { scale: props.modelValue ? 1 : 0.96 });
+});
+
+onBeforeUnmount(() => {
+  if (boxRef.value) gsap.killTweensOf(boxRef.value);
+});
+
 function toggle() {
   if (props.disabled) return;
   emit("update:modelValue", !props.modelValue);
@@ -35,9 +64,9 @@ function toggle() {
     :disabled="disabled"
     @click="toggle"
   >
-    <motion.span class="checkbox-box" :animate="{ scale: modelValue ? 1 : 0.96 }" :transition="{ type: 'spring', stiffness: 520, damping: 32, mass: 0.6 }">
+    <span ref="boxRef" class="checkbox-box">
       <i v-if="modelValue" class="ri-check-line" aria-hidden="true"></i>
-    </motion.span>
+    </span>
     <span v-if="label || $slots.default" class="checkbox-label">
       <slot>{{ label }}</slot>
     </span>

@@ -1,58 +1,4 @@
 import { createRouter, createWebHashHistory } from "vue-router";
-import FaviconTool from "../pages/FaviconTool.vue";
-import WebpTool from "../pages/WebpTool.vue";
-import FontWoff2Tool from "../pages/FontWoff2Tool.vue";
-import VideoBackgroundTool from "../pages/VideoBackgroundTool.vue";
-import Base64ImageTool from "../pages/Base64ImageTool.vue";
-import VideoAnimationTool from "../pages/VideoAnimationTool.vue";
-import SequenceAnimationTool from "../pages/SequenceAnimationTool.vue";
-import VideoMuteTool from "../pages/VideoMuteTool.vue";
-import VideoCompressTool from "../pages/VideoCompressTool.vue";
-import AudioCompressTool from "../pages/AudioCompressTool.vue";
-import CodeMinifyTool from "../pages/CodeMinifyTool.vue";
-import VideoLoopTool from "../pages/VideoLoopTool.vue";
-import MarkdownExportTool from "../pages/MarkdownExportTool.vue";
-import UrlCodecTool from "../pages/UrlCodecTool.vue";
-import TimestampTool from "../pages/TimestampTool.vue";
-import UuidTool from "../pages/UuidTool.vue";
-import RenameTool from "../pages/RenameTool.vue";
-import ImageCompressTool from "../pages/ImageCompressTool.vue";
-import ImageResizeTool from "../pages/ImageResizeTool.vue";
-import ImageCropTool from "../pages/ImageCropTool.vue";
-import WatermarkTool from "../pages/WatermarkTool.vue";
-import SpriteTool from "../pages/SpriteTool.vue";
-import ImagePlaceholderTool from "../pages/ImagePlaceholderTool.vue";
-import MarkManTool from "../pages/MarkManTool.vue";
-import SharedDiskTool from "../pages/SharedDiskTool.vue";
-import IpQueryTool from "../pages/IpQueryTool.vue";
-import QrCodeTool from "../pages/QrCodeTool.vue";
-import AudioConvertTool from "../pages/AudioConvertTool.vue";
-import RegexTesterTool from "../pages/RegexTesterTool.vue";
-import FontPreviewTool from "../pages/FontPreviewTool.vue";
-import FontSubsetTool from "../pages/FontSubsetTool.vue";
-import FontFaceGeneratorTool from "../pages/FontFaceGeneratorTool.vue";
-import CssVariablesTool from "../pages/CssVariablesTool.vue";
-import AssetManifestTool from "../pages/AssetManifestTool.vue";
-import SeoFilesTool from "../pages/SeoFilesTool.vue";
-import MetaTagsTool from "../pages/MetaTagsTool.vue";
-import CssClampTool from "../pages/CssClampTool.vue";
-import OgImageTool from "../pages/OgImageTool.vue";
-import LinksTool from "../pages/LinksTool.vue";
-import JwtTool from "../pages/JwtTool.vue";
-import DataConvertTool from "../pages/DataConvertTool.vue";
-import DiffTool from "../pages/DiffTool.vue";
-import ColorPaletteTool from "../pages/ColorPaletteTool.vue";
-import CodeScreenshotTool from "../pages/CodeScreenshotTool.vue";
-import ClipboardHistoryTool from "../pages/ClipboardHistoryTool.vue";
-import Base64TextTool from "../pages/Base64TextTool.vue";
-import HashTool from "../pages/HashTool.vue";
-import ColorConverterTool from "../pages/ColorConverterTool.vue";
-import HttpTesterTool from "../pages/HttpTesterTool.vue";
-import CertificateScanTool from "../pages/CertificateScanTool.vue";
-import CaptureProxyTool from "../pages/CaptureProxyTool.vue";
-import StickyNotesTool from "../pages/StickyNotesTool.vue";
-import HistoryPage from "../pages/HistoryPage.vue";
-import SettingsPage from "../pages/SettingsPage.vue";
 
 const lastRouteStorageKey = "dev-toolbox.last-tool-route.v1";
 
@@ -69,60 +15,61 @@ export const router = createRouter({
   history: createWebHashHistory(),
   routes: [
     { path: "/", redirect: () => getLastToolRoute() },
-    { path: "/favicon", component: FaviconTool },
-    { path: "/webp", component: WebpTool },
-    { path: "/woff2", component: FontWoff2Tool },
-    { path: "/video-background", component: VideoBackgroundTool },
-    { path: "/base64-image", component: Base64ImageTool },
-    { path: "/video-animation", component: VideoAnimationTool },
-    { path: "/sequence-animation", component: SequenceAnimationTool },
-    { path: "/video-mute", component: VideoMuteTool },
-    { path: "/video-compress", component: VideoCompressTool },
-    { path: "/audio-compress", component: AudioCompressTool },
-    { path: "/code-minify", component: CodeMinifyTool },
-    { path: "/video-loop", component: VideoLoopTool },
-    { path: "/markdown-export", component: MarkdownExportTool },
-    { path: "/url-codec", component: UrlCodecTool },
-    { path: "/timestamp", component: TimestampTool },
-    { path: "/uuid", component: UuidTool },
-    { path: "/rename", component: RenameTool },
-    { path: "/shared-disk", component: SharedDiskTool },
-    { path: "/image-compress", component: ImageCompressTool },
-    { path: "/image-resize", component: ImageResizeTool },
-    { path: "/image-crop", component: ImageCropTool },
-    { path: "/watermark", component: WatermarkTool },
-    { path: "/sprite", component: SpriteTool },
-    { path: "/image-placeholder", component: ImagePlaceholderTool },
-    { path: "/mark-man", component: MarkManTool },
-    { path: "/ip-query", component: IpQueryTool },
-    { path: "/qr-code", component: QrCodeTool },
-    { path: "/audio-convert", component: AudioConvertTool },
-    { path: "/regex-tester", component: RegexTesterTool },
-    { path: "/font-preview", component: FontPreviewTool },
-    { path: "/font-subset", component: FontSubsetTool },
-    { path: "/font-face", component: FontFaceGeneratorTool },
-    { path: "/css-variables", component: CssVariablesTool },
-    { path: "/asset-manifest", component: AssetManifestTool },
-    { path: "/seo-files", component: SeoFilesTool },
-    { path: "/meta-tags", component: MetaTagsTool },
-    { path: "/css-clamp", component: CssClampTool },
-    { path: "/og-image", component: OgImageTool },
-    { path: "/links", component: LinksTool },
-    { path: "/jwt", component: JwtTool },
-    { path: "/data-convert", component: DataConvertTool },
-    { path: "/diff", component: DiffTool },
-    { path: "/color-palette", component: ColorPaletteTool },
-    { path: "/code-screenshot", component: CodeScreenshotTool },
-    { path: "/clipboard-history", component: ClipboardHistoryTool },
-    { path: "/base64-text", component: Base64TextTool },
-    { path: "/hash", component: HashTool },
-    { path: "/color-converter", component: ColorConverterTool },
-    { path: "/http-tester", component: HttpTesterTool },
-    { path: "/certificate-scan", component: CertificateScanTool },
-    { path: "/capture-proxy", component: CaptureProxyTool },
-    { path: "/sticky-notes", component: StickyNotesTool },
-    { path: "/history", component: HistoryPage },
-    { path: "/settings", component: SettingsPage }
+    { path: "/workbench/:id", component: () => import("../pages/WorkbenchPage.vue"), props: true },
+    { path: "/favicon", component: () => import("../pages/FaviconTool.vue") },
+    { path: "/webp", component: () => import("../pages/WebpTool.vue") },
+    { path: "/woff2", component: () => import("../pages/FontWoff2Tool.vue") },
+    { path: "/video-background", component: () => import("../pages/VideoBackgroundTool.vue") },
+    { path: "/base64-image", component: () => import("../pages/Base64ImageTool.vue") },
+    { path: "/video-animation", component: () => import("../pages/VideoAnimationTool.vue") },
+    { path: "/sequence-animation", component: () => import("../pages/SequenceAnimationTool.vue") },
+    { path: "/video-mute", component: () => import("../pages/VideoMuteTool.vue") },
+    { path: "/video-compress", component: () => import("../pages/VideoCompressTool.vue") },
+    { path: "/audio-compress", component: () => import("../pages/AudioCompressTool.vue") },
+    { path: "/code-minify", component: () => import("../pages/CodeMinifyTool.vue") },
+    { path: "/video-loop", component: () => import("../pages/VideoLoopTool.vue") },
+    { path: "/markdown-export", component: () => import("../pages/MarkdownExportTool.vue") },
+    { path: "/url-codec", component: () => import("../pages/UrlCodecTool.vue") },
+    { path: "/timestamp", component: () => import("../pages/TimestampTool.vue") },
+    { path: "/uuid", component: () => import("../pages/UuidTool.vue") },
+    { path: "/rename", component: () => import("../pages/RenameTool.vue") },
+    { path: "/shared-disk", component: () => import("../pages/SharedDiskTool.vue") },
+    { path: "/image-compress", component: () => import("../pages/ImageCompressTool.vue") },
+    { path: "/image-resize", component: () => import("../pages/ImageResizeTool.vue") },
+    { path: "/image-crop", component: () => import("../pages/ImageCropTool.vue") },
+    { path: "/watermark", component: () => import("../pages/WatermarkTool.vue") },
+    { path: "/sprite", component: () => import("../pages/SpriteTool.vue") },
+    { path: "/image-placeholder", component: () => import("../pages/ImagePlaceholderTool.vue") },
+    { path: "/mark-man", component: () => import("../pages/MarkManTool.vue") },
+    { path: "/ip-query", component: () => import("../pages/IpQueryTool.vue") },
+    { path: "/qr-code", component: () => import("../pages/QrCodeTool.vue") },
+    { path: "/audio-convert", component: () => import("../pages/AudioConvertTool.vue") },
+    { path: "/regex-tester", component: () => import("../pages/RegexTesterTool.vue") },
+    { path: "/font-preview", component: () => import("../pages/FontPreviewTool.vue") },
+    { path: "/font-subset", component: () => import("../pages/FontSubsetTool.vue") },
+    { path: "/font-face", component: () => import("../pages/FontFaceGeneratorTool.vue") },
+    { path: "/css-variables", component: () => import("../pages/CssVariablesTool.vue") },
+    { path: "/asset-manifest", component: () => import("../pages/AssetManifestTool.vue") },
+    { path: "/seo-files", component: () => import("../pages/SeoFilesTool.vue") },
+    { path: "/meta-tags", component: () => import("../pages/MetaTagsTool.vue") },
+    { path: "/css-clamp", component: () => import("../pages/CssClampTool.vue") },
+    { path: "/og-image", component: () => import("../pages/OgImageTool.vue") },
+    { path: "/links", component: () => import("../pages/LinksTool.vue") },
+    { path: "/jwt", component: () => import("../pages/JwtTool.vue") },
+    { path: "/data-convert", component: () => import("../pages/DataConvertTool.vue") },
+    { path: "/diff", component: () => import("../pages/DiffTool.vue") },
+    { path: "/color-palette", component: () => import("../pages/ColorPaletteTool.vue") },
+    { path: "/code-screenshot", component: () => import("../pages/CodeScreenshotTool.vue") },
+    { path: "/clipboard-history", component: () => import("../pages/ClipboardHistoryTool.vue") },
+    { path: "/base64-text", component: () => import("../pages/Base64TextTool.vue") },
+    { path: "/hash", component: () => import("../pages/HashTool.vue") },
+    { path: "/color-converter", component: () => import("../pages/ColorConverterTool.vue") },
+    { path: "/http-tester", component: () => import("../pages/HttpTesterTool.vue") },
+    { path: "/certificate-scan", component: () => import("../pages/CertificateScanTool.vue") },
+    { path: "/capture-proxy", component: () => import("../pages/CaptureProxyTool.vue") },
+    { path: "/sticky-notes", component: () => import("../pages/StickyNotesTool.vue") },
+    { path: "/history", component: () => import("../pages/HistoryPage.vue") },
+    { path: "/settings", component: () => import("../pages/SettingsPage.vue") }
   ]
 });
 

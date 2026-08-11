@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { computed, ref, watch } from "vue";
-import yaml from "js-yaml";
+import { computed, ref } from "vue";
+import { dump as dumpYaml, load as loadYaml } from "js-yaml";
 import * as toml from "smol-toml";
 
 type Format = "json" | "yaml" | "toml";
@@ -22,7 +22,7 @@ const parsed = computed<{ data?: unknown; error?: string }>(() => {
   if (!text) return { data: undefined };
   try {
     if (sourceFormat.value === "json") return { data: JSON.parse(text) };
-    if (sourceFormat.value === "yaml") return { data: yaml.load(text) };
+    if (sourceFormat.value === "yaml") return { data: loadYaml(text) };
     return { data: toml.parse(text) };
   } catch (error) {
     return { error: error instanceof Error ? error.message : String(error) };
@@ -34,7 +34,7 @@ const targetText = computed(() => {
   if (parsed.value.data === undefined) return "";
   try {
     if (targetFormat.value === "json") return JSON.stringify(parsed.value.data, null, 2);
-    if (targetFormat.value === "yaml") return yaml.dump(parsed.value.data, { indent: 2, lineWidth: 120 });
+    if (targetFormat.value === "yaml") return dumpYaml(parsed.value.data, { indent: 2, lineWidth: 120 });
     if (parsed.value.data === null || typeof parsed.value.data !== "object" || Array.isArray(parsed.value.data)) {
       return "# TOML 仅支持顶级表（对象）。请提供对象作为根节点。";
     }
@@ -59,9 +59,17 @@ async function copyTarget() {
 
 function swap() {
   const oldSrc = sourceFormat.value;
+  const converted = targetText.value;
   sourceFormat.value = targetFormat.value;
   targetFormat.value = oldSrc;
-  sourceText.value = targetText.value || sourceText.value;
+  if (converted) sourceText.value = converted;
+}
+
+function setSourceFormat(format: Format) {
+  if (format === sourceFormat.value) return;
+  const previous = sourceFormat.value;
+  sourceFormat.value = format;
+  if (targetFormat.value === format) targetFormat.value = previous;
 }
 
 function loadSample() {
@@ -74,7 +82,6 @@ function loadSample() {
   }
 }
 
-watch(sourceFormat, () => loadSample());
 </script>
 
 <template>
@@ -111,7 +118,7 @@ watch(sourceFormat, () => loadSample());
                 :key="fmt.value"
                 type="button"
                 :class="{ selected: fmt.value === sourceFormat }"
-                @click="sourceFormat = fmt.value"
+                @click="setSourceFormat(fmt.value)"
               >
                 <i :class="fmt.icon" aria-hidden="true"></i>
                 {{ fmt.label }}

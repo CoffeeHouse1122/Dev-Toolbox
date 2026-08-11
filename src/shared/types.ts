@@ -30,14 +30,17 @@ export type ToolType =
   | "capture-proxy"
   | "sticky-notes";
 
-export type TaskStatus = "success" | "error";
+export type TaskStatus = "success" | "partial" | "error" | "cancelled";
+
+export type TextFileEncoding = "auto" | "utf8" | "utf16le" | "utf16be" | "gb18030" | "big5" | "shift_jis" | "latin1";
+export type HistoryTaskStatus = TaskStatus | "running" | "interrupted";
 
 export interface ConversionRecord {
   id: string;
   toolType: ToolType;
   sourcePath: string;
   outputPath: string;
-  status: TaskStatus;
+  status: HistoryTaskStatus;
   optionsJson: string;
   errorMessage: string | null;
   createdAt: string;
@@ -50,6 +53,14 @@ export interface ConversionResult {
   files: string[];
   outputPath: string;
   logs: string[];
+  errorMessage?: string;
+  items?: ConversionItemResult[];
+}
+
+export interface ConversionItemResult {
+  inputPath: string;
+  outputPath?: string;
+  status: "success" | "error" | "skipped";
   errorMessage?: string;
 }
 
@@ -191,6 +202,10 @@ export interface VideoLoopInfo extends MediaInfo {
   firstFrameDataUrl?: string;
   lastFrameDataUrl?: string;
   frameDiffScore: number | null;
+  frameDiffSamples?: number[];
+  frameDiffMean?: number | null;
+  frameDiffStdDev?: number | null;
+  hasAudio?: boolean;
   loopRisk: "low" | "medium" | "high" | "unknown";
   summary: string;
 }
@@ -241,6 +256,7 @@ export interface RenameOptions {
   start: number;
   replaceFrom?: string;
   replaceTo?: string;
+  dryRun?: boolean;
 }
 
 export interface QrCodeOptions {
@@ -280,6 +296,25 @@ export interface DomainIpLookupResult {
   addresses: DomainIpAddress[];
   status: "success" | "error";
   errorMessage?: string;
+}
+
+export interface HttpRequestInput {
+  url: string;
+  method: string;
+  headers: Record<string, string>;
+  body?: string;
+  timeoutMs: number;
+  multipartFields?: Array<{ name: string; value: string }>;
+}
+
+export interface HttpRequestOutput {
+  status: number;
+  statusText: string;
+  headers: Record<string, string>;
+  body: string;
+  elapsedMs: number;
+  bodyEncoding: "text" | "base64";
+  truncated: boolean;
 }
 
 export interface CertificateScanOptions {
@@ -559,6 +594,7 @@ export interface DevToolboxApi {
   generateQrCode(options: QrCodeOptions): Promise<ConversionResult>;
   getIpInfo(): Promise<IpInfo>;
   lookupDomainIp(domain: string): Promise<DomainIpLookupResult>;
+  sendHttpRequest(input: HttpRequestInput): Promise<HttpRequestOutput>;
   scanCertificates(options: CertificateScanOptions): Promise<CertificateScanResult[]>;
   startCaptureProxy(options: CaptureProxyStartOptions): Promise<CaptureProxyStatus>;
   stopCaptureProxy(): Promise<CaptureProxyStatus>;
@@ -581,7 +617,7 @@ export interface DevToolboxApi {
   clearHistory(): Promise<void>;
   revealPath(filePath: string): Promise<void>;
   openExternal(url: string): Promise<void>;
-  readTextFile(filePath: string): Promise<string>;
+  readTextFile(filePath: string, encoding?: TextFileEncoding): Promise<string>;
   writeTextFile(outputDir: string, fileName: string, content: string): Promise<string>;
   startClipboardWatcher(): Promise<ClipboardWatcherStatus>;
   stopClipboardWatcher(): Promise<ClipboardWatcherStatus>;
@@ -613,6 +649,8 @@ export interface DevToolboxApi {
   toggleMaximizeWindow(): Promise<WindowFrameState>;
   closeWindow(): Promise<void>;
   reloadWindow(): Promise<void>;
+  /** Flush renderer-owned drafts before reload, close, or update install. */
+  onBeforeWindowAction(handler: () => void | Promise<void>): () => void;
   onWindowStateChange(handler: (state: WindowFrameState) => void): () => void;
   getAlwaysOnTop(): Promise<boolean>;
   setAlwaysOnTop(enabled: boolean): Promise<boolean>;

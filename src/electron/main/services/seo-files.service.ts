@@ -4,13 +4,39 @@ import type { HistoryService } from "./history.service";
 import { ensureDir, uniqueId, writeTextFile } from "./file-utils";
 
 function normalizeSiteUrl(siteUrl: string) {
-  return siteUrl.trim().replace(/\/+$/g, "");
+  const raw = siteUrl.trim();
+  if (!raw) throw new Error("站点 URL 不能为空");
+  const parsed = new URL(raw);
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+    throw new Error("站点 URL 仅支持 http 或 https");
+  }
+  if (!parsed.hostname || parsed.username || parsed.password) {
+    throw new Error("请输入不包含账号信息的有效站点 URL");
+  }
+  parsed.hash = "";
+  parsed.search = "";
+  parsed.pathname = parsed.pathname.replace(/\/+$/g, "");
+  return parsed.toString().replace(/\/+$/g, "");
 }
 
 function normalizePath(page: string) {
   const trimmed = page.trim();
   if (!trimmed) return "";
-  return trimmed.startsWith("/") ? trimmed : `/${trimmed}`;
+  if (/^[a-z][a-z0-9+.-]*:\/\//i.test(trimmed)) {
+    throw new Error(`页面路径不能是完整 URL：${trimmed}`);
+  }
+  const normalized = trimmed.startsWith("/") ? trimmed : `/${trimmed}`;
+  return encodeURI(normalized).replace(/#/g, "%23");
+}
+
+const allowedChangefreq = new Set(["always", "hourly", "daily", "weekly", "monthly", "yearly", "never"]);
+
+function normalizePriority(value: string) {
+  const priority = Number(value);
+  if (!Number.isFinite(priority) || priority < 0 || priority > 1) {
+    throw new Error("Sitemap priority 必须是 0 到 1 之间的数字");
+  }
+  return String(Math.round(priority * 10) / 10);
 }
 
 function escapeXml(value: string) {
@@ -33,10 +59,11 @@ export async function generateSeoFiles(options: SeoFilesOptions, history: Histor
   try {
     await ensureDir(options.outputDir);
     const siteUrl = normalizeSiteUrl(options.siteUrl);
-    const pages = options.pages
-      .split(/\r?\n/)
-      .map(normalizePath)
-      .filter(Boolean);
+    if (!allowedChangefreq.has(options.changefreq)) {
+      throw new Error(`不支持的 changefreq：${options.changefreq}`);
+    }
+    const priority = normalizePriority(options.priority);
+    const pages = [...new Set(options.pages.split(/\r?\n/).map(normalizePath).filter(Boolean))];
 
     if (options.includeRobots) {
       const robotsPath = path.join(options.outputDir, "robots.txt");
@@ -64,7 +91,7 @@ Sitemap: ${siteUrl}/sitemap.xml
     <loc>${escapeXml(`${siteUrl}${page}`)}</loc>
     <lastmod>${now}</lastmod>
     <changefreq>${escapeXml(options.changefreq)}</changefreq>
-    <priority>${escapeXml(options.priority)}</priority>
+    <priority>${priority}</priority>
   </url>`
       );
       await writeTextFile(

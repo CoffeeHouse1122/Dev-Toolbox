@@ -16,6 +16,7 @@ const currentVersion = ref("");
 const updateStatus = ref<UpdateStatus | null>(null);
 const updateChecking = ref(false);
 const updateDownloading = ref(false);
+const updateInstalling = ref(false);
 let unsubUpdate: (() => void) | null = null;
 const openProvidedNavEditor = inject<() => void>("openNavEditor");
 
@@ -81,9 +82,20 @@ async function handleDownloadUpdate() {
   }
 }
 
-// 安装更新
-function handleInstallUpdate() {
-  window.devToolbox.installUpdate();
+// Keep the action locked after a successful request because the main process
+// intentionally waits for the installer spawn event before quitting the app.
+async function handleInstallUpdate() {
+  if (updateInstalling.value) return;
+  updateInstalling.value = true;
+  try {
+    await window.devToolbox.installUpdate();
+  } catch (error) {
+    updateInstalling.value = false;
+    updateStatus.value = {
+      status: "error",
+      message: error instanceof Error ? error.message : String(error)
+    };
+  }
 }
 
 onMounted(async () => {
@@ -108,6 +120,7 @@ onMounted(async () => {
     } else {
       updateDownloading.value = false;
     }
+    if (s.status === "error") updateInstalling.value = false;
   });
 });
 
@@ -252,10 +265,11 @@ onUnmounted(() => {
             v-if="updateStatus?.status === 'downloaded'"
             type="button"
             class="primary-button"
+            :disabled="updateInstalling"
             @click="handleInstallUpdate"
           >
-            <i class="ri-restart-line" aria-hidden="true" style="margin-right:6px;"></i>
-            安装更新并重启
+            <i :class="updateInstalling ? 'ri-loader-4-line ri-spin' : 'ri-restart-line'" aria-hidden="true" style="margin-right:6px;"></i>
+            {{ updateInstalling ? '正在启动安装...' : '安装更新并重启' }}
           </button>
         </div>
       </div>

@@ -8,11 +8,15 @@ const text = ref("Hello Dev Toolbox\nRegex Tester");
 const state = computed(() => {
   try {
     const regex = new RegExp(pattern.value, flags.value);
-    const matches = [...text.value.matchAll(regex)].map((match) => ({
-      value: match[0],
-      index: match.index ?? 0,
-      groups: match.slice(1)
-    }));
+    const matches: { value: string; index: number; groups: string[] }[] = [];
+    if (regex.global) {
+      for (const match of text.value.matchAll(regex)) {
+        matches.push({ value: match[0], index: match.index, groups: match.slice(1) });
+      }
+    } else {
+      const match = regex.exec(text.value);
+      if (match) matches.push({ value: match[0], index: match.index, groups: match.slice(1) });
+    }
     return { ok: true, matches, error: "" };
   } catch (error) {
     return { ok: false, matches: [], error: error instanceof Error ? error.message : String(error) };

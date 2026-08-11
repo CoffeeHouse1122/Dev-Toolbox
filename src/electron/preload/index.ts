@@ -39,12 +39,31 @@ import type {
   VideoCompressOptions,
   VideoLoopAnalyzeOptions,
   WebpOptions,
-  UpdateStatus
+  UpdateStatus,
+  TextFileEncoding,
+  HttpRequestInput
 } from "../../shared/types";
 
 function toPlain<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
 }
+
+const beforeWindowActionHandlers = new Set<() => void | Promise<void>>();
+
+ipcRenderer.on("window:before-action", async (_event, payload: { requestId?: string }) => {
+  const requestId = String(payload?.requestId || "");
+  if (!requestId) return;
+  try {
+    await Promise.all(Array.from(beforeWindowActionHandlers, (handler) => Promise.resolve().then(handler)));
+    ipcRenderer.send("window:action-ready", { requestId, ok: true });
+  } catch (error) {
+    ipcRenderer.send("window:action-ready", {
+      requestId,
+      ok: false,
+      error: error instanceof Error ? error.message : String(error)
+    });
+  }
+});
 
 const api: DevToolboxApi = {
   selectFiles: (filters?: DialogFileFilter[], multiSelections = true) =>
@@ -80,6 +99,7 @@ const api: DevToolboxApi = {
   generateQrCode: (options: QrCodeOptions) => ipcRenderer.invoke("qr:generate", toPlain(options)),
   getIpInfo: () => ipcRenderer.invoke("network:ip-info"),
   lookupDomainIp: (domain: string) => ipcRenderer.invoke("network:domain-ip", domain),
+  sendHttpRequest: (input: HttpRequestInput) => ipcRenderer.invoke("network:http-request", toPlain(input)),
   scanCertificates: (options: CertificateScanOptions) => ipcRenderer.invoke("network:certificate-scan", toPlain(options)),
   startCaptureProxy: (options: CaptureProxyStartOptions) => ipcRenderer.invoke("capture-proxy:start", toPlain(options)),
   stopCaptureProxy: () => ipcRenderer.invoke("capture-proxy:stop"),
@@ -90,8 +110,10 @@ const api: DevToolboxApi = {
   generateAssetManifest: (options: AssetManifestOptions) => ipcRenderer.invoke("assets:manifest", toPlain(options)),
   generateSeoFiles: (options: SeoFilesOptions) => ipcRenderer.invoke("seo:files", toPlain(options)),
   generateOgImage: (options: OgImageOptions) => ipcRenderer.invoke("seo:og-image", toPlain(options)),
-  getDroppedFilePaths: (files: unknown[]) =>
-    files.map((file) => webUtils.getPathForFile(file as File)).filter(Boolean),
+  getDroppedFilePaths: (files: unknown[]) => {
+    const paths = files.map((file) => webUtils.getPathForFile(file as File)).filter(Boolean);
+    return ipcRenderer.sendSync("paths:authorize-dropped", paths) === true ? paths : [];
+  },
   loadSharedDiskConfig: () => ipcRenderer.invoke("shared-disk:load"),
   saveSharedDiskConfig: (config: SharedDiskConfig) => ipcRenderer.invoke("shared-disk:save", toPlain(config)),
   connectSharedDisk: (config: SharedDiskConfig) => ipcRenderer.invoke("shared-disk:connect", toPlain(config)),
@@ -105,7 +127,7 @@ const api: DevToolboxApi = {
   clearHistory: () => ipcRenderer.invoke("history:clear"),
   revealPath: (filePath: string) => ipcRenderer.invoke("shell:reveal-path", filePath),
   openExternal: (url: string) => ipcRenderer.invoke("shell:open-external", url),
-  readTextFile: (filePath: string) => ipcRenderer.invoke("file:read-text", filePath),
+  readTextFile: (filePath: string, encoding: TextFileEncoding = "auto") => ipcRenderer.invoke("file:read-text", filePath, encoding),
   writeTextFile: (outputDir: string, fileName: string, content: string) =>
     ipcRenderer.invoke("file:write-text", outputDir, fileName, content),
   startClipboardWatcher: () => ipcRenderer.invoke("clipboard:start"),
@@ -140,6 +162,10 @@ const api: DevToolboxApi = {
   toggleMaximizeWindow: () => ipcRenderer.invoke("window:toggle-maximize"),
   closeWindow: () => ipcRenderer.invoke("window:close"),
   reloadWindow: () => ipcRenderer.invoke("window:reload"),
+  onBeforeWindowAction: (handler: () => void | Promise<void>) => {
+    beforeWindowActionHandlers.add(handler);
+    return () => beforeWindowActionHandlers.delete(handler);
+  },
   onWindowStateChange: (handler: (state: WindowFrameState) => void) => {
     const listener = (_event: unknown, state: WindowFrameState) => handler(state);
     ipcRenderer.on("window:state-changed", listener);

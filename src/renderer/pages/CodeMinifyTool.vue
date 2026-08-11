@@ -49,7 +49,7 @@ async function run() {
     <div class="tool-header">
       <div>
         <h2>CSS / JS 压缩</h2>
-        <p>CSS 自动前缀，JS 兼容转换、压缩与 console.log 移除</p>
+        <p>CSS 自动前缀，JS 兼容转换、压缩与所有 console.* 调用移除</p>
       </div>
       <button type="button" class="primary-button" :disabled="!canRun" @click="run">
         <i class="ri-braces-line" aria-hidden="true"></i>
@@ -71,7 +71,7 @@ async function run() {
             <span>兼容目标</span>
             <SelectMenu v-model="target" :options="targetOptions" />
           </div>
-          <Checkbox v-model="removeConsole" class="check-row video-check-row" label="移除 console.log" />
+          <Checkbox v-model="removeConsole" class="check-row video-check-row" label="移除所有 console.*" />
           <Checkbox v-model="beautify" class="check-row video-check-row" label="保留可读格式" />
         </div>
       </section>

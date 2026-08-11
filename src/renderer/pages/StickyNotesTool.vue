@@ -1,8 +1,10 @@
 <script setup lang="ts">
-import { AnimatePresence, motion } from "motion-v";
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from "vue";
+import { onBeforeRouteLeave } from "vue-router";
 import { toPng } from "html-to-image";
 import type { DevToolboxApi, StickyNote, StickyNoteExportFormat, StickyNoteStyle, StickyNotesPreferences, StickyNotesState } from "../../shared/types";
+import { flushRevisionBarrier } from "../../shared/revision-flush";
+import GsapTransition from "../components/GsapTransition.vue";
 
 type NoteView = "active" | "archived" | "trash";
 type ToastTone = "success" | "error" | "info";
@@ -77,16 +79,15 @@ const toast = ref({ visible: false, message: "", tone: "info" as ToastTone });
 const noteToastEnter = { opacity: 0, y: 14, scale: 0.975 };
 const noteToastVisible = { opacity: 1, y: 0, scale: 1 };
 const noteToastExit = { opacity: 0, y: 10, scale: 0.985 };
-const noteMaskEnter = { opacity: 0 };
-const noteMaskVisible = { opacity: 1 };
-const noteMaskExit = { opacity: 0 };
 const noteDialogEnter = { opacity: 0, y: 16, scale: 0.975 };
 const noteDialogVisible = { opacity: 1, y: 0, scale: 1 };
 const noteDialogExit = { opacity: 0, y: 8, scale: 0.985 };
-const noteDialogTransition = { type: "spring", stiffness: 420, damping: 34, mass: 0.75 } as const;
-
 let saveTimer: ReturnType<typeof setTimeout> | null = null;
 let toastTimer: ReturnType<typeof setTimeout> | null = null;
+let saveQueue: Promise<void> = Promise.resolve();
+let lastSaveError: unknown = null;
+let draftRevision = 0;
+let stopBeforeWindowAction: (() => void) | null = null;
 let suppressSave = false;
 let applyingHistory = false;
 let savedEditorRange: Range | null = null;
@@ -240,6 +241,7 @@ function restoreHistoryContent(content: string) {
   applyingHistory = true;
   editorRef.value.innerHTML = contentToEditorHtml(content);
   draftContent.value = content;
+  draftRevision += 1;
   scheduleSave();
   requestAnimationFrame(() => {
     applyingHistory = false;
@@ -274,6 +276,85 @@ function imageToken(src: string) {
 function normalizeLinkHref(value: string) {
   if (/^www\./i.test(value)) return `https://${value}`;
   return value;
+}
+
+const allowedEditorTags = new Set([
+  "A", "B", "BLOCKQUOTE", "BR", "CODE", "DIV", "EM", "H1", "H2", "H3", "H4", "H5", "H6", "I", "IMG",
+  "LI", "OL", "P", "PRE", "S", "SPAN", "STRIKE", "STRONG", "U", "UL"
+]);
+const removedEditorTags = new Set(["SCRIPT", "STYLE", "IFRAME", "OBJECT", "EMBED", "SVG", "MATH", "FORM", "META", "LINK"]);
+const allowedEditorClasses = new Set(["note-inline-image", "note-todo-box", "todo-line"]);
+const allowedEditorStyleProperties = [
+  "background-color", "color", "font-family", "font-size", "font-style", "font-weight", "line-height", "text-decoration"
+] as const;
+
+function sanitizeEditorUrl(value: string) {
+  try {
+    const url = new URL(normalizeLinkHref(value));
+    return ["http:", "https:", "mailto:"].includes(url.protocol.toLowerCase()) ? url.toString() : "";
+  } catch {
+    return "";
+  }
+}
+
+/** DOMParser documents are inert; rebuild attributes before returning HTML. */
+function sanitizeEditorRichHtml(source: string) {
+  const parsed = new DOMParser().parseFromString(source, "text/html");
+  const elements = Array.from(parsed.body.querySelectorAll("*"));
+  for (const element of elements) {
+    if (removedEditorTags.has(element.tagName)) {
+      element.remove();
+      continue;
+    }
+    if (!allowedEditorTags.has(element.tagName)) {
+      element.replaceWith(...Array.from(element.childNodes));
+      continue;
+    }
+
+    const originalClassNames = Array.from(element.classList).filter((name) => allowedEditorClasses.has(name));
+    const originalStyle = element instanceof HTMLElement
+      ? allowedEditorStyleProperties
+          .map((property) => [property, element.style.getPropertyValue(property).trim()] as const)
+          .filter(([, value]) => value && !/url\s*\(|expression\s*\(|@import|[<>]/i.test(value))
+      : [];
+    const href = element instanceof HTMLAnchorElement ? sanitizeEditorUrl(element.getAttribute("href") || element.dataset.noteLink || "") : "";
+    const imageSrc = element instanceof HTMLImageElement ? element.getAttribute("src") || element.dataset.noteSrc || "" : "";
+    const validImageSrc = /^data:image\/(?:png|jpe?g|gif|webp);base64,[a-z0-9+/\s]+=*$/i.test(imageSrc) ? imageSrc : "";
+    const isTodo = element instanceof HTMLSpanElement && (element.dataset.noteTodo === "true" || originalClassNames.includes("note-todo-box"));
+    const isChecked = isTodo && (element.dataset.checked === "true" || element.getAttribute("aria-checked") === "true");
+    const isStyled = element instanceof HTMLSpanElement && element.dataset.noteStyled === "true";
+
+    for (const attribute of Array.from(element.attributes)) element.removeAttribute(attribute.name);
+    if (originalClassNames.length) element.className = originalClassNames.join(" ");
+    if (element instanceof HTMLElement) {
+      for (const [property, value] of originalStyle) element.style.setProperty(property, value);
+    }
+    if (element instanceof HTMLAnchorElement && href) {
+      element.href = href;
+      element.dataset.noteLink = href;
+      element.rel = "noopener noreferrer";
+    }
+    if (element instanceof HTMLImageElement) {
+      if (!validImageSrc) {
+        element.remove();
+        continue;
+      }
+      element.src = validImageSrc;
+      element.dataset.noteSrc = validImageSrc;
+      element.alt = "粘贴图片";
+    }
+    if (isTodo && element instanceof HTMLSpanElement) {
+      element.classList.add("note-todo-box");
+      element.dataset.noteTodo = "true";
+      element.dataset.checked = String(isChecked);
+      element.setAttribute("aria-checked", String(isChecked));
+      element.setAttribute("role", "checkbox");
+      element.setAttribute("tabindex", "0");
+      element.setAttribute("contenteditable", "false");
+    }
+    if (isStyled && element instanceof HTMLSpanElement) element.dataset.noteStyled = "true";
+  }
+  return parsed.body.innerHTML;
 }
 
 function linkifyPlainText(value: string) {
@@ -311,7 +392,7 @@ function noteTextToEditorHtml(content: string) {
 }
 
 function contentToEditorHtml(content: string) {
-  const html = content.startsWith(richNoteMarker) ? content.slice(richNoteMarker.length) : noteTextToEditorHtml(content);
+  const html = content.startsWith(richNoteMarker) ? sanitizeEditorRichHtml(content.slice(richNoteMarker.length)) : noteTextToEditorHtml(content);
   const container = document.createElement("div");
   container.innerHTML = html;
   normalizeTodoControls(container);
@@ -347,7 +428,7 @@ function normalizeTodoControls(root: HTMLElement) {
 function contentToPlainText(content: string) {
   if (!content.startsWith(richNoteMarker)) return content.replace(imageTokenPattern, "[图片]");
   const container = document.createElement("div");
-  container.innerHTML = content.slice(richNoteMarker.length);
+  container.innerHTML = sanitizeEditorRichHtml(content.slice(richNoteMarker.length));
   return container.innerText.replace(/\u200b/g, "").trim();
 }
 
@@ -672,29 +753,56 @@ function linkifyEditorUrls() {
   placeCaretAtOffset(root, caretOffset);
 }
 
-async function saveNoteContent(id: string, content: string) {
-  const wasActive = activeId.value === id;
-  const saved = await devToolbox.saveStickyNote(id, content);
+function applySavedNote(saved: StickyNote) {
+  const id = saved.id;
   notes.value = saved.status === "active" ? sortNotes([...notes.value.filter((note) => note.id !== id), saved]) : notes.value.filter((note) => note.id !== id);
   archivedNotes.value = saved.status === "archived" ? sortNotes([...archivedNotes.value.filter((note) => note.id !== id), saved]) : archivedNotes.value.filter((note) => note.id !== id);
   trashNotes.value = saved.status === "trashed" ? sortNotes([...trashNotes.value.filter((note) => note.id !== id), saved]) : trashNotes.value.filter((note) => note.id !== id);
-  if (wasActive) {
-    activeId.value = saved.id;
-    draftContent.value = saved.content;
-    saveState.value = "已保存";
-    storeEditorPosition();
-  }
-  return saved;
 }
 
+function saveNoteContent(id: string, content: string, revision: number) {
+  // Serialize writes so an older request can never finish after a newer one.
+  // Revision checks also prevent a completed response from replacing newer UI state.
+  saveQueue = saveQueue
+    .catch(() => undefined)
+    .then(async () => {
+      try {
+        const saved = await devToolbox.saveStickyNote(id, content);
+        applySavedNote(saved);
+        lastSaveError = null;
+        if (activeId.value === id && draftRevision === revision) {
+          saveState.value = "已保存";
+          storeEditorPosition();
+        }
+      } catch (error) {
+        lastSaveError = error;
+        if (activeId.value === id && draftRevision === revision) saveState.value = "保存失败";
+        throw error;
+      }
+    });
+  // Keep the queue usable after an error while preserving lastSaveError for a
+  // close/reload handshake to report and block the destructive action.
+  saveQueue = saveQueue.catch(() => undefined);
+  return saveQueue;
+}
 async function flushPendingSave() {
-  if (saveTimer) {
-    clearTimeout(saveTimer);
-    saveTimer = null;
-  }
-  if (activeId.value && saveState.value === "待保存") {
-    await saveNoteContent(activeId.value, draftContent.value);
-  }
+  await flushRevisionBarrier(
+    () => draftRevision,
+    async (revision) => {
+      if (saveTimer) {
+        clearTimeout(saveTimer);
+        saveTimer = null;
+      }
+      if (activeId.value && saveState.value === "待保存") {
+        const id = activeId.value;
+        const content = draftContent.value;
+        saveState.value = "保存中";
+        await saveNoteContent(id, content, revision);
+      }
+      await saveQueue;
+      if (lastSaveError) throw lastSaveError;
+    }
+  );
 }
 
 async function loadNotes() {
@@ -724,6 +832,7 @@ async function selectNote(note: StickyNote | null, restorePosition = false) {
   redoStack.length = 0;
   activeId.value = note?.id ?? "";
   draftContent.value = note?.content ?? "";
+  draftRevision += 1;
   draftStyle.value = note?.style ?? { ...preferences.value };
   fontSize.value = draftStyle.value.fontSize;
   fontColor.value = draftStyle.value.color || preferences.value.color || "#1f2328";
@@ -851,7 +960,7 @@ async function saveActiveNote() {
     saveTimer = null;
   }
   saveState.value = "保存中";
-  await saveNoteContent(activeId.value, draftContent.value);
+  await saveNoteContent(activeId.value, draftContent.value, draftRevision);
 }
 
 function scheduleSave() {
@@ -866,6 +975,7 @@ function scheduleSave() {
 function syncEditorContent() {
   if (!editorRef.value) return;
   draftContent.value = editorDomToStoredContent(editorRef.value);
+  draftRevision += 1;
   storeEditorPosition();
   scheduleSave();
 }
@@ -1560,13 +1670,28 @@ async function exportActiveAsImage() {
 
 onMounted(async () => {
   document.addEventListener("pointerdown", handleDocumentPointerDown, true);
+  stopBeforeWindowAction = devToolbox.onBeforeWindowAction(async () => {
+    if (editorRef.value && activeId.value) syncEditorContent();
+    await flushPendingSave();
+  });
   await loadNotes();
+});
+
+onBeforeRouteLeave(async () => {
+  try {
+    await flushPendingSave();
+    return true;
+  } catch (error) {
+    showToast(`保存失败，已取消离开：${error instanceof Error ? error.message : String(error)}`, "error");
+    return false;
+  }
 });
 
 onBeforeUnmount(() => {
   document.removeEventListener("pointerdown", handleDocumentPointerDown, true);
+  stopBeforeWindowAction?.();
+  stopBeforeWindowAction = null;
   if (toastTimer) clearTimeout(toastTimer);
-  void flushPendingSave();
 });
 </script>
 
@@ -1838,23 +1963,19 @@ onBeforeUnmount(() => {
       </section>
     </div>
 
-    <AnimatePresence>
-      <motion.div
+    <GsapTransition :from="noteToastEnter" :to="noteToastVisible" :leave="noteToastExit" :duration="0.18">
+      <div
         v-if="toast.visible"
         key="note-toast"
         class="note-toast"
         :class="toast.tone"
         role="status"
         aria-live="polite"
-        :initial="noteToastEnter"
-        :animate="noteToastVisible"
-        :exit="noteToastExit"
-        :transition="{ duration: 0.18 }"
       >
         <i :class="toast.tone === 'error' ? 'ri-error-warning-line' : toast.tone === 'success' ? 'ri-checkbox-circle-line' : 'ri-information-line'" aria-hidden="true"></i>
         <span>{{ toast.message }}</span>
-      </motion.div>
-    </AnimatePresence>
+      </div>
+    </GsapTransition>
 
     <Teleport to="body">
       <div v-if="contextMenu.visible" class="note-context-scrim" @mousedown="closeContextMenu"></div>
@@ -1887,25 +2008,22 @@ onBeforeUnmount(() => {
         </div>
       </div>
 
-      <AnimatePresence>
-      <motion.div
+      <GsapTransition
+        child-selector=".note-link-dialog"
+        :from="{ opacity: 0 }" :to="{ opacity: 1 }" :leave="{ opacity: 0 }"
+        :child-from="noteDialogEnter" :child-to="noteDialogVisible" :child-leave="noteDialogExit"
+        :duration="0.2"
+      >
+      <div
         v-if="pendingLinkEdit"
         key="note-link-dialog"
         class="note-link-mask"
-        :initial="noteMaskEnter"
-        :animate="noteMaskVisible"
-        :exit="noteMaskExit"
-        :transition="{ duration: 0.16 }"
         @mousedown.self="closeLinkEditor"
       >
-        <motion.div
+        <div
           class="note-link-dialog"
           role="dialog"
           aria-modal="true"
-          :initial="noteDialogEnter"
-          :animate="noteDialogVisible"
-          :exit="noteDialogExit"
-          :transition="noteDialogTransition"
           @mousedown.stop
         >
           <header class="note-link-head">
@@ -1938,26 +2056,25 @@ onBeforeUnmount(() => {
               保存
             </button>
           </footer>
-        </motion.div>
-      </motion.div>
+        </div>
+      </div>
+      </GsapTransition>
 
-      <motion.div
+      <GsapTransition
+        child-selector=".note-preview-dialog"
+        :from="{ opacity: 0 }" :to="{ opacity: 1 }" :leave="{ opacity: 0 }"
+        :child-from="noteDialogEnter" :child-to="noteDialogVisible" :child-leave="noteDialogExit"
+        :duration="0.2"
+      >
+      <div
         v-if="previewImage"
         key="note-preview-dialog"
         class="note-preview-mask"
-        :initial="noteMaskEnter"
-        :animate="noteMaskVisible"
-        :exit="noteMaskExit"
-        :transition="{ duration: 0.16 }"
       >
-        <motion.div
+        <div
           class="note-preview-dialog"
           role="dialog"
           aria-modal="true"
-          :initial="noteDialogEnter"
-          :animate="noteDialogVisible"
-          :exit="noteDialogExit"
-          :transition="noteDialogTransition"
         >
           <header class="note-preview-head">
             <strong>图片预览</strong>
@@ -1999,26 +2116,25 @@ onBeforeUnmount(() => {
               />
             </div>
           </div>
-        </motion.div>
-      </motion.div>
+        </div>
+      </div>
+      </GsapTransition>
 
-      <motion.div
+      <GsapTransition
+        child-selector=".note-confirm-dialog"
+        :from="{ opacity: 0 }" :to="{ opacity: 1 }" :leave="{ opacity: 0 }"
+        :child-from="noteDialogEnter" :child-to="noteDialogVisible" :child-leave="noteDialogExit"
+        :duration="0.2"
+      >
+      <div
         v-if="pendingDeleteNote"
         key="note-delete-dialog"
         class="note-confirm-mask"
-        :initial="noteMaskEnter"
-        :animate="noteMaskVisible"
-        :exit="noteMaskExit"
-        :transition="{ duration: 0.16 }"
       >
-        <motion.div
+        <div
           class="note-confirm-dialog"
           role="dialog"
           aria-modal="true"
-          :initial="noteDialogEnter"
-          :animate="noteDialogVisible"
-          :exit="noteDialogExit"
-          :transition="noteDialogTransition"
         >
           <h3>移入回收站</h3>
           <p>确认将“{{ pendingDeleteNote.title }}”移入回收站？之后仍可恢复，清空回收站才会彻底删除。</p>
@@ -2029,9 +2145,9 @@ onBeforeUnmount(() => {
               移入回收站
             </button>
           </div>
-        </motion.div>
-      </motion.div>
-      </AnimatePresence>
+        </div>
+      </div>
+      </GsapTransition>
     </Teleport>
   </section>
 </template>

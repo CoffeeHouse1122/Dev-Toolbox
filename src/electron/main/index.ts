@@ -1,9 +1,20 @@
-import { app, BrowserWindow, Menu, Tray, net, protocol, nativeImage, ipcMain } from "electron";
+import { app, BrowserWindow, Menu, Tray, net, protocol, nativeImage, screen, session } from "electron";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { registerIpc } from "./ipc";
 import { loadAppSettings, getCachedSettings } from "./services/settings.service";
 import { getPreloadEntryPath, getRendererIndexPath, getRuntimeIconPath } from "./utils/app-paths";
+import {
+  assertAuthorizedPath,
+  handleTrustedIpc,
+  initializePathAuthorization,
+  isAllowedRendererPermission,
+  isTrustedRendererUrl,
+  onTrustedIpc,
+  parseBooleanPayload,
+  parseTitleBarThemePayload,
+  parseWindowActionReadyPayload
+} from "./utils/ipc-security";
 import { initAutoUpdater, checkForUpdates, downloadUpdate, installUpdate } from "./services/autoUpdater.service";
 import type { ThemeTitleBarPayload, WindowFrameState } from "../../shared/types";
 import fs from "node:fs";
@@ -20,6 +31,39 @@ if (!gotLock) {
 let mainWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
 let quitting = false;
+const closeAfterFlush = new WeakSet<BrowserWindow>();
+const rendererFlushRequests = new Map<
+  string,
+  { senderId: number; resolve: (ok: boolean) => void; timeout: ReturnType<typeof setTimeout> }
+>();
+
+onTrustedIpc("window:action-ready", (event, raw: unknown) => {
+  const parsed = parseWindowActionReadyPayload(raw);
+  if (!parsed.success) return;
+  const payload = parsed.data;
+  const request = rendererFlushRequests.get(payload.requestId);
+  if (!request || request.senderId !== event.sender.id) return;
+  clearTimeout(request.timeout);
+  rendererFlushRequests.delete(payload.requestId);
+  request.resolve(payload.ok === true);
+});
+
+function flushRendererBeforeAction(win: BrowserWindow, reason: "reload" | "close" | "install-update") {
+  if (win.isDestroyed() || win.webContents.isDestroyed() || win.webContents.isCrashed() || win.webContents.isLoadingMainFrame()) {
+    return Promise.resolve(true);
+  }
+  const requestId = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  return new Promise<boolean>((resolve) => {
+    const timeout = setTimeout(() => {
+      rendererFlushRequests.delete(requestId);
+      // Do not silently proceed while a live renderer may still own unsaved
+      // drafts. A crashed renderer is handled by the early return above.
+      resolve(false);
+    }, 10_000);
+    rendererFlushRequests.set(requestId, { senderId: win.webContents.id, resolve, timeout });
+    win.webContents.send("window:before-action", { requestId, reason });
+  });
+}
 
 type PreviewCacheEntry = {
   sourcePath: string;
@@ -30,6 +74,11 @@ type PreviewCacheEntry = {
 
 const previewCache = new Map<string, PreviewCacheEntry>();
 const previewCopyTasks = new Map<string, Promise<string>>();
+const previewExtensions = new Set([
+  ".apng", ".avif", ".bmp", ".gif", ".ico", ".jpeg", ".jpg", ".png", ".svg", ".tif", ".tiff", ".webp",
+  ".aac", ".avi", ".flac", ".m4a", ".m4v", ".mkv", ".mov", ".mp3", ".mp4", ".mpeg", ".mpg", ".ogg", ".ts", ".wav", ".webm",
+  ".eot", ".otf", ".ttf", ".woff", ".woff2"
+]);
 
 const DEFAULT_TITLEBAR_THEME: ThemeTitleBarPayload = {
   accentColor: "#0969da",
@@ -56,7 +105,12 @@ function registerPreviewProtocol() {
     const legacyPath = url.pathname ? decodeURIComponent(url.pathname.slice(1)) : "";
     const filePath = queryPath || legacyPath;
     if (!filePath) throw new Error("Preview file path is empty.");
-    const previewPath = url.searchParams.get("cache") === "1" ? await resolvePreviewCachePath(filePath) : filePath;
+    const resolvedFilePath = path.resolve(filePath);
+    assertAuthorizedPath(resolvedFilePath);
+    if (!previewExtensions.has(path.extname(resolvedFilePath).toLowerCase())) throw new Error("This file type cannot be previewed.");
+    const stat = await fsp.stat(resolvedFilePath);
+    if (!stat.isFile()) throw new Error("Preview path is not a file.");
+    const previewPath = url.searchParams.get("cache") === "1" ? await resolvePreviewCachePath(resolvedFilePath) : resolvedFilePath;
     return net.fetch(pathToFileURL(previewPath).toString());
   });
 }
@@ -145,11 +199,14 @@ function emitWindowState() {
 
 function createWindow() {
   const iconPath = getRuntimeIconPath();
+  const workArea = screen.getPrimaryDisplay().workAreaSize;
+  const minWidth = Math.min(900, workArea.width);
+  const minHeight = Math.min(600, workArea.height);
   const win = new BrowserWindow({
-    width: 1280,
-    height: 820,
-    minWidth: 1280,
-    minHeight: 820,
+    width: Math.min(1280, workArea.width),
+    height: Math.min(820, workArea.height),
+    minWidth,
+    minHeight,
     title: "Dev Toolbox",
     frame: false,
     backgroundColor: DEFAULT_TITLEBAR_THEME.surfaceColor,
@@ -159,7 +216,8 @@ function createWindow() {
       preload: getPreloadEntryPath(),
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: false
+      sandbox: true,
+      webSecurity: true
     }
   });
 
@@ -167,6 +225,20 @@ function createWindow() {
 
   win.setMenuBarVisibility(false);
   win.removeMenu();
+  win.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
+  win.webContents.on("will-navigate", (event, targetUrl) => {
+    const currentUrl = win.webContents.getURL();
+    if (!currentUrl) return;
+    try {
+      const current = new URL(currentUrl);
+      const target = new URL(targetUrl);
+      const sameApplication = current.protocol === target.protocol && current.origin === target.origin &&
+        (current.protocol !== "file:" || current.pathname === target.pathname);
+      if (!sameApplication) event.preventDefault();
+    } catch {
+      event.preventDefault();
+    }
+  });
 
   if (isDev && process.env.VITE_DEV_SERVER_URL) {
     void win.loadURL(process.env.VITE_DEV_SERVER_URL);
@@ -176,13 +248,23 @@ function createWindow() {
   }
 
   win.on("close", (event) => {
-    if (quitting) return;
     const settings = getCachedSettings();
-    if (settings.closeBehavior === "minimize-to-tray") {
+    if (!quitting && settings.closeBehavior === "minimize-to-tray") {
       event.preventDefault();
       ensureTray();
       win.hide();
+      return;
     }
+    if (closeAfterFlush.has(win)) {
+      closeAfterFlush.delete(win);
+      return;
+    }
+    event.preventDefault();
+    void flushRendererBeforeAction(win, "close").then((ok) => {
+      if (!ok || win.isDestroyed()) return;
+      closeAfterFlush.add(win);
+      win.close();
+    });
   });
 
   win.on("closed", () => {
@@ -202,25 +284,25 @@ app.on("second-instance", () => {
 
 Menu.setApplicationMenu(null);
 
-ipcMain.handle("app:quit", () => {
+handleTrustedIpc("app:quit", () => {
   quitting = true;
   app.quit();
 });
 
-ipcMain.handle("app:show", () => {
+handleTrustedIpc("app:show", () => {
   showMainWindow();
 });
 
-ipcMain.handle("window:get-state", () => {
+handleTrustedIpc("window:get-state", () => {
   return getWindowState();
 });
 
-ipcMain.handle("window:minimize", () => {
+handleTrustedIpc("window:minimize", () => {
   mainWindow?.minimize();
   return getWindowState();
 });
 
-ipcMain.handle("window:toggle-maximize", () => {
+handleTrustedIpc("window:toggle-maximize", () => {
   if (!mainWindow) return getWindowState();
   if (mainWindow.isMaximized()) {
     mainWindow.unmaximize();
@@ -230,41 +312,47 @@ ipcMain.handle("window:toggle-maximize", () => {
   return getWindowState();
 });
 
-ipcMain.handle("window:close", () => {
+handleTrustedIpc("window:close", () => {
   mainWindow?.close();
 });
 
-ipcMain.handle("window:reload", () => {
-  mainWindow?.webContents.reload();
+handleTrustedIpc("window:reload", async () => {
+  const win = mainWindow;
+  if (!win || !(await flushRendererBeforeAction(win, "reload"))) return;
+  win.webContents.reload();
 });
 
-ipcMain.handle("window:get-always-on-top", () => {
+handleTrustedIpc("window:get-always-on-top", () => {
   return Boolean(mainWindow?.isAlwaysOnTop());
 });
 
-ipcMain.handle("window:set-always-on-top", (_event, enabled: boolean) => {
-  mainWindow?.setAlwaysOnTop(Boolean(enabled));
+handleTrustedIpc("window:set-always-on-top", (_event, enabled: unknown) => {
+  const requestedState = parseBooleanPayload(enabled);
+  mainWindow?.setAlwaysOnTop(requestedState);
   emitWindowState();
   return Boolean(mainWindow?.isAlwaysOnTop());
 });
 
 // 渲染进程手动触发更新检查
-ipcMain.handle("update:check", async () => {
+handleTrustedIpc("update:check", async () => {
   await checkForUpdates();
 });
 
 // 渲染进程手动触发更新下载
-ipcMain.handle("update:download", async () => {
+handleTrustedIpc("update:download", async () => {
   await downloadUpdate();
 });
 
 // 渲染进程手动触发更新安装
-ipcMain.handle("update:install", () => {
+handleTrustedIpc("update:install", async () => {
+  if (mainWindow && !(await flushRendererBeforeAction(mainWindow, "install-update"))) {
+    throw new Error("便签或草稿保存失败，已取消安装更新");
+  }
   installUpdate();
 });
 
 // 获取当前版本号
-ipcMain.handle("update:current-version", () => {
+handleTrustedIpc("update:current-version", () => {
   try {
     if (app.isPackaged) return app.getVersion();
     const pkg = JSON.parse(fs.readFileSync(path.resolve(__dirname, "..", "..", "..", "..", "package.json"), "utf8"));
@@ -275,13 +363,21 @@ ipcMain.handle("update:current-version", () => {
 });
 
 // 渲染进程通知主题变化 → 更新标题栏颜色
-ipcMain.on("theme:background", (_event, payload: ThemeTitleBarPayload) => {
-  const surfaceColor = payload?.surfaceColor || DEFAULT_TITLEBAR_THEME.surfaceColor;
-
-  mainWindow?.setBackgroundColor(surfaceColor);
+onTrustedIpc("theme:background", (_event, raw: unknown) => {
+  const parsed = parseTitleBarThemePayload(raw);
+  if (!parsed.success) return;
+  mainWindow?.setBackgroundColor(parsed.data.surfaceColor);
 });
 
 app.whenReady().then(async () => {
+  initializePathAuthorization(app.getPath("userData"));
+  session.defaultSession.setPermissionCheckHandler((webContents, permission) =>
+    Boolean(webContents && isTrustedRendererUrl(webContents.getURL()) && isAllowedRendererPermission(permission))
+  );
+  session.defaultSession.setPermissionRequestHandler((webContents, permission, callback) => {
+    callback(isTrustedRendererUrl(webContents.getURL()) && isAllowedRendererPermission(permission));
+  });
+  session.defaultSession.setDevicePermissionHandler(() => false);
   await loadAppSettings();
   await clearPreviewCache();
   registerPreviewProtocol();

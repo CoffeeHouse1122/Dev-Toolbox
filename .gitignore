@@ -11,4 +11,3 @@ Thumbs.db
 .env
 .env.*
 !.env.example
-DOCUMENTATION.md

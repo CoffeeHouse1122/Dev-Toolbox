@@ -19,6 +19,27 @@ const previewUrl = ref("");
 const previewVideoRef = ref<HTMLVideoElement | null>(null);
 let previewRequestId = 0;
 
+function extensionOf(filePath: string) {
+  const name = filePath.split(/[\\/]/).pop() ?? "";
+  const dot = name.lastIndexOf(".");
+  return dot >= 0 ? name.slice(dot + 1).toLowerCase() : "";
+}
+
+function acceptsPath(filePath: string) {
+  const extensions = props.filters?.flatMap((filter) => filter.extensions).map((item) => item.replace(/^\./, "").toLowerCase()) ?? [];
+  return !extensions.length || extensions.includes("*") || extensions.includes(extensionOf(filePath));
+}
+
+function uniquePaths(paths: string[]) {
+  const seen = new Set<string>();
+  return paths.filter((item) => {
+    const key = item.normalize("NFC").toLocaleLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
 function previewFileUrl(filePath: string, time = 0.1) {
   const params = new URLSearchParams({ path: filePath, cache: "1" });
   return `devtoolbox-file://preview?${params.toString()}#t=${time}`;
@@ -75,10 +96,22 @@ function onDrop(event: DragEvent) {
   event.preventDefault();
   isDragging.value = false;
   const files = Array.from(event.dataTransfer?.files ?? []);
-  const paths = window.devToolbox.getDroppedFilePaths(files);
+  const paths = window.devToolbox.getDroppedFilePaths(files).filter(acceptsPath);
   if (paths.length > 0) {
-    emit("update:modelValue", props.multiple === false ? [paths[0]] : paths);
+    emit("update:modelValue", props.multiple === false ? [paths[0]] : uniquePaths([...props.modelValue, ...paths]));
   }
+}
+
+function removeFile(index: number) {
+  emit("update:modelValue", props.modelValue.filter((_item, itemIndex) => itemIndex !== index));
+}
+
+function moveFile(index: number, offset: number) {
+  const target = index + offset;
+  if (target < 0 || target >= props.modelValue.length) return;
+  const paths = [...props.modelValue];
+  [paths[index], paths[target]] = [paths[target], paths[index]];
+  emit("update:modelValue", paths);
 }
 
 function onKeydown(event: KeyboardEvent) {
@@ -90,23 +123,68 @@ function onKeydown(event: KeyboardEvent) {
 </script>
 
 <template>
-  <div
-    class="drop-zone"
-    :class="{ active: isDragging, 'has-preview': Boolean(previewUrl) }"
-    role="button"
-    tabindex="0"
-    @click="pickFiles"
-    @keydown="onKeydown"
-    @dragover.prevent="isDragging = true"
-    @dragleave="isDragging = false"
-    @drop="onDrop"
-  >
-    <div v-if="previewUrl" class="drop-preview">
-      <img v-if="preview === 'image'" class="drop-preview-media" :src="previewUrl" alt="图片预览" />
-      <video ref="previewVideoRef" v-else class="drop-preview-media" :key="previewUrl" :src="previewUrl" muted preload="metadata" playsinline />
+  <div class="drop-zone-wrapper">
+    <div
+      class="drop-zone"
+      :class="{ active: isDragging, 'has-preview': Boolean(previewUrl) }"
+      role="button"
+      tabindex="0"
+      @click="pickFiles"
+      @keydown="onKeydown"
+      @dragover.prevent="isDragging = true"
+      @dragleave="isDragging = false"
+      @drop="onDrop"
+    >
+      <div v-if="previewUrl" class="drop-preview">
+        <img v-if="preview === 'image'" class="drop-preview-media" :src="previewUrl" alt="图片预览" />
+        <video ref="previewVideoRef" v-else class="drop-preview-media" :key="previewUrl" :src="previewUrl" muted preload="metadata" playsinline />
+      </div>
+      <span v-else class="drop-icon"><i class="ri-upload-cloud-2-line" aria-hidden="true"></i></span>
+      <span class="drop-title">{{ title }}</span>
+      <span class="drop-files" :title="fileNames">{{ selectionLabel }}</span>
     </div>
-    <span v-else class="drop-icon"><i class="ri-upload-cloud-2-line" aria-hidden="true"></i></span>
-    <span class="drop-title">{{ title }}</span>
-    <span class="drop-files" :title="fileNames">{{ selectionLabel }}</span>
+    <ol v-if="modelValue.length" class="drop-file-list" aria-label="已选文件与顺序">
+      <li v-for="(filePath, index) in modelValue" :key="filePath" class="drop-file-item">
+        <span :title="filePath">{{ index + 1 }}. {{ filePath.split(/[\\/]/).pop() }}</span>
+        <span class="drop-file-actions">
+          <button v-if="multiple !== false" type="button" class="icon-button" :disabled="index === 0" title="上移" @click="moveFile(index, -1)"><i class="ri-arrow-up-line"></i></button>
+          <button v-if="multiple !== false" type="button" class="icon-button" :disabled="index === modelValue.length - 1" title="下移" @click="moveFile(index, 1)"><i class="ri-arrow-down-line"></i></button>
+          <button type="button" class="icon-button" title="移除" @click="removeFile(index)"><i class="ri-close-line"></i></button>
+        </span>
+      </li>
+    </ol>
   </div>
 </template>
+
+<style scoped>
+.drop-file-list {
+  display: grid;
+  gap: 4px;
+  max-height: 220px;
+  margin: 8px 0 0;
+  padding: 0;
+  overflow: auto;
+  list-style: none;
+}
+
+.drop-file-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 8px;
+  border: 1px solid var(--borderColor-default, #d0d7de);
+  border-radius: 6px;
+}
+
+.drop-file-item > span:first-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.drop-file-actions {
+  display: flex;
+  gap: 2px;
+}
+</style>

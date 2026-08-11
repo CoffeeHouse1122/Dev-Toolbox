@@ -93,26 +93,56 @@ async function md5(data: Uint8Array): Promise<string> {
 
 // ---- AES-GCM 加解密 ---- //
 
-async function getKeyMaterial(password: string): Promise<CryptoKey> {
+const encryptedPayloadPrefix = "DTBX1.";
+const pbkdf2Iterations = 310_000;
+
+function bytesToBase64(bytes: Uint8Array) {
+  let binary = "";
+  const chunkSize = 0x8000;
+  for (let index = 0; index < bytes.length; index += chunkSize) {
+    binary += String.fromCharCode(...bytes.subarray(index, index + chunkSize));
+  }
+  return btoa(binary);
+}
+
+function base64ToBytes(value: string) {
+  const binary = atob(value.replace(/\s+/g, ""));
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index++) bytes[index] = binary.charCodeAt(index);
+  return bytes;
+}
+
+async function deriveKey(password: string, salt: Uint8Array): Promise<CryptoKey> {
   const enc = new TextEncoder();
-  const keyData = enc.encode(password);
-  const hash = await crypto.subtle.digest("SHA-256", keyData);
-  return crypto.subtle.importKey("raw", hash, { name: "AES-GCM" }, false, ["encrypt", "decrypt"]);
+  const material = await crypto.subtle.importKey("raw", enc.encode(password), "PBKDF2", false, ["deriveKey"]);
+  return crypto.subtle.deriveKey(
+    { name: "PBKDF2", salt, iterations: pbkdf2Iterations, hash: "SHA-256" },
+    material,
+    { name: "AES-GCM", length: 256 },
+    false,
+    ["encrypt", "decrypt"]
+  );
+}
+
+async function legacyKey(password: string): Promise<CryptoKey> {
+  const hash = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(password));
+  return crypto.subtle.importKey("raw", hash, { name: "AES-GCM" }, false, ["decrypt"]);
 }
 
 async function doEncrypt() {
   if (!input.value || !encryptKey.value) { output.value = ""; return; }
   busy.value = true;
   try {
-    const key = await getKeyMaterial(encryptKey.value);
+    const salt = crypto.getRandomValues(new Uint8Array(16));
+    const key = await deriveKey(encryptKey.value, salt);
     const iv = crypto.getRandomValues(new Uint8Array(12));
     const encoded = new TextEncoder().encode(input.value);
     const cipher = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, encoded);
-    // 拼接 iv + ciphertext，Base64 编码
-    const combined = new Uint8Array(iv.length + cipher.byteLength);
-    combined.set(iv, 0);
-    combined.set(new Uint8Array(cipher), iv.length);
-    output.value = btoa(String.fromCharCode(...combined));
+    const combined = new Uint8Array(salt.length + iv.length + cipher.byteLength);
+    combined.set(salt, 0);
+    combined.set(iv, salt.length);
+    combined.set(new Uint8Array(cipher), salt.length + iv.length);
+    output.value = `${encryptedPayloadPrefix}${bytesToBase64(combined)}`;
   } catch (e: any) {
     output.value = `加密失败: ${e.message}`;
   } finally {
@@ -124,11 +154,14 @@ async function doDecrypt() {
   if (!input.value || !encryptKey.value) { output.value = ""; return; }
   busy.value = true;
   try {
-    const key = await getKeyMaterial(encryptKey.value);
-    const combined = Uint8Array.from(atob(input.value), (c) => c.charCodeAt(0));
-    if (combined.length < 13) throw new Error("密文格式无效");
-    const iv = combined.slice(0, 12);
-    const cipher = combined.slice(12);
+    const value = input.value.trim();
+    const versioned = value.startsWith(encryptedPayloadPrefix);
+    const combined = base64ToBytes(versioned ? value.slice(encryptedPayloadPrefix.length) : value);
+    if (combined.length < (versioned ? 29 : 13)) throw new Error("密文格式无效");
+    const salt = versioned ? combined.slice(0, 16) : null;
+    const iv = versioned ? combined.slice(16, 28) : combined.slice(0, 12);
+    const cipher = versioned ? combined.slice(28) : combined.slice(12);
+    const key = salt ? await deriveKey(encryptKey.value, salt) : await legacyKey(encryptKey.value);
     const plain = await crypto.subtle.decrypt({ name: "AES-GCM", iv }, key, cipher);
     output.value = new TextDecoder().decode(plain);
   } catch (e: any) {
@@ -151,8 +184,10 @@ const actionLabel = computed(() => {
 
 const resultLabel = computed(() => {
   if (mode.value === "hash") return `${algorithm.value} 结果`;
-  return mode.value === "encrypt" ? "加密结果 (Base64)" : "解密结果 (明文)";
+  return mode.value === "encrypt" ? "加密结果 (DTBX1)" : "解密结果 (明文)";
 });
+
+const weakHashWarning = computed(() => mode.value === "hash" && (algorithm.value === "MD5" || algorithm.value === "SHA-1"));
 </script>
 
 <template>
@@ -197,9 +232,16 @@ const resultLabel = computed(() => {
         </button>
       </div>
 
+      <p v-if="weakHashWarning" class="warning-banner" style="margin-top: 12px;">
+        {{ algorithm }} 已不适合密码、签名或完整性安全场景；兼容用途之外请使用 SHA-256 或 SHA-512。
+      </p>
+      <p v-else-if="mode !== 'hash'" class="empty-state" style="margin: 12px 0 0; text-align: left;">
+        新密文使用 AES-256-GCM + PBKDF2-SHA-256（随机盐，{{ pbkdf2Iterations.toLocaleString() }} 次）；解密仍兼容旧版密文。
+      </p>
+
       <div class="io-pair" style="margin-top:12px;">
         <div class="io-block">
-          <div class="io-label">{{ mode === 'decrypt' ? '输入密文 (Base64)' : '输入文本' }}</div>
+          <div class="io-label">{{ mode === 'decrypt' ? '输入密文 (DTBX1 / 旧版 Base64)' : '输入文本' }}</div>
           <textarea v-model="input" class="tool-textarea" :placeholder="mode === 'decrypt' ? '粘贴 Base64 密文...' : mode === 'hash' ? '输入要计算哈希的文本...' : '输入要加密的文本...'"></textarea>
         </div>
         <div class="io-block">

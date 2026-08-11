@@ -116,7 +116,7 @@ function tokenizeLine(line: string, lang: string, t: typeof themes[keyof typeof 
   const result: Token[] = [];
   const keywords = KEYWORDS[lang] ?? [];
   // Single-pass regex with captures for: comment, string, number, identifier, other.
-  const re = /(\/\/[^\n]*|#[^\n]*)|("(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|`(?:\\.|[^`\\])*`)|(\b\d+(?:\.\d+)?\b)|([A-Za-z_$][\w$]*)|(\s+)|([^\w\s])/g;
+  const re = /(\/\/[^\n]*|#[^\n]*)|("(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|`(?:\\.|[^`\\])*`)|(\b\d+(?:\.\d+)?\b)|([\p{L}\p{Nl}_$][\p{L}\p{Nl}\p{Nd}\p{Mn}\p{Mc}\p{Pc}$\u200C\u200D]*)|(\s+)|([^\p{L}\p{N}_$\s])/gu;
   let m: RegExpExecArray | null;
   while ((m = re.exec(line)) !== null) {
     const [full, comment, str, num, ident, ws, sym] = m;
@@ -165,7 +165,11 @@ async function exportPng() {
     const dataUrl = await toPng(frame.value, { pixelRatio: 2, cacheBust: true });
     const a = document.createElement("a");
     a.href = dataUrl;
-    a.download = `${(fileName.value || "code-shot").replace(/[^\w.\-]/g, "_")}.png`;
+    const safeName = (fileName.value || "code-shot")
+      .normalize("NFC")
+      .replace(/[<>:"/\\|?*\u0000-\u001f]/g, "_")
+      .replace(/[. ]+$/g, "") || "code-shot";
+    a.download = `${safeName}.png`;
     a.click();
     status.value = "已下载 PNG。";
   } catch (error) {

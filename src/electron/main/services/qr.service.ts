@@ -2,7 +2,22 @@ import path from "node:path";
 import QRCode from "qrcode";
 import type { ConversionResult, QrCodeOptions } from "../../../shared/types";
 import type { HistoryService } from "./history.service";
-import { ensureDir, safeBaseName, uniqueId, writeTextFile } from "./file-utils";
+import { ensureDir, safeBaseName, uniqueId, writeFileExclusive } from "./file-utils";
+
+const hexColorPattern = /^#(?:[0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})$/i;
+
+function validateOptions(options: QrCodeOptions) {
+  if (!options.text.trim()) throw new Error("二维码内容不能为空");
+  if (!Number.isInteger(options.size) || options.size < 64 || options.size > 4096) {
+    throw new Error("二维码尺寸必须是 64 到 4096 之间的整数");
+  }
+  if (!Number.isInteger(options.margin) || options.margin < 0 || options.margin > 32) {
+    throw new Error("二维码边距必须是 0 到 32 之间的整数");
+  }
+  if (!hexColorPattern.test(options.darkColor) || !hexColorPattern.test(options.lightColor)) {
+    throw new Error("二维码颜色必须使用 HEX 格式，例如 #1f2328 或 #ffffff");
+  }
+}
 
 export async function generateQrCode(options: QrCodeOptions, history: HistoryService): Promise<ConversionResult> {
   const id = uniqueId("qr-code");
@@ -18,9 +33,10 @@ export async function generateQrCode(options: QrCodeOptions, history: HistorySer
   });
 
   try {
+    validateOptions(options);
     await ensureDir(options.outputDir);
     const base = safeBaseName(options.fileName || "qrcode") || "qrcode";
-    const output = path.join(options.outputDir, `${base}.${options.format}`);
+    const outputName = `${base}.${options.format}`;
     const qrOptions = {
       width: options.size,
       margin: options.margin,
@@ -30,11 +46,13 @@ export async function generateQrCode(options: QrCodeOptions, history: HistorySer
       }
     };
 
+    let output: string;
     if (options.format === "svg") {
       const svg = await QRCode.toString(options.text, { ...qrOptions, type: "svg" });
-      await writeTextFile(output, svg);
+      output = await writeFileExclusive(options.outputDir, outputName, svg);
     } else {
-      await QRCode.toFile(output, options.text, qrOptions);
+      const png = await QRCode.toBuffer(options.text, qrOptions);
+      output = await writeFileExclusive(options.outputDir, outputName, png);
     }
 
     files.push(output);

@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { motion } from "motion-v";
-import { computed, onBeforeUnmount, ref } from "vue";
+import { gsap } from "gsap";
+import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 
 const props = withDefaults(defineProps<{
   modelValue: number;
@@ -24,6 +24,9 @@ const emit = defineEmits<{
 }>();
 
 const trackRef = ref<HTMLElement | null>(null);
+const fillRef = ref<HTMLElement | null>(null);
+const thumbRef = ref<HTMLElement | null>(null);
+const valueRef = ref<HTMLElement | null>(null);
 const isDragging = ref(false);
 const activePointerId = ref<number | null>(null);
 
@@ -36,7 +39,30 @@ const progress = computed(() => {
   return Math.min(100, Math.max(0, ((props.modelValue - numericMin.value) / span) * 100));
 });
 const displayValue = computed(() => `${props.modelValue}${props.unit}`);
-const motionTransition = computed(() => (isDragging.value ? { duration: 0 } : { type: "spring" as const, stiffness: 420, damping: 34, mass: 0.7 }));
+
+function prefersReducedMotion() {
+  return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+}
+
+function renderProgress(immediate = false) {
+  if (prefersReducedMotion()) {
+    if (fillRef.value) gsap.set(fillRef.value, { width: `${progress.value}%` });
+    if (thumbRef.value) gsap.set(thumbRef.value, { left: `${progress.value}%` });
+    return;
+  }
+  const duration = immediate || isDragging.value ? 0 : 0.22;
+  const vars = { duration, ease: "power2.out", overwrite: true };
+  if (fillRef.value) gsap.to(fillRef.value, { width: `${progress.value}%`, ...vars });
+  if (thumbRef.value) gsap.to(thumbRef.value, { left: `${progress.value}%`, ...vars });
+}
+
+watch([progress, isDragging], () => renderProgress());
+watch(() => props.disabled, (disabled) => {
+  if (!valueRef.value) return;
+  if (prefersReducedMotion()) gsap.set(valueRef.value, { scale: disabled ? 0.96 : 1 });
+  else gsap.to(valueRef.value, { scale: disabled ? 0.96 : 1, duration: 0.16, overwrite: true });
+});
+onMounted(() => renderProgress(true));
 
 function clamp(value: number) {
   return Math.min(numericMax.value, Math.max(numericMin.value, value));
@@ -115,6 +141,8 @@ onBeforeUnmount(() => {
   window.removeEventListener("pointercancel", endDrag);
   window.removeEventListener("mousemove", moveMouseDrag);
   window.removeEventListener("mouseup", endMouseDrag);
+  const animatedElements = [fillRef.value, thumbRef.value, valueRef.value].filter((element): element is HTMLElement => Boolean(element));
+  if (animatedElements.length) gsap.killTweensOf(animatedElements);
 });
 
 function handleKeydown(event: KeyboardEvent) {
@@ -162,9 +190,9 @@ function handleKeydown(event: KeyboardEvent) {
     @keydown="handleKeydown"
   >
     <div ref="trackRef" class="slider-track" aria-hidden="true" @pointerdown="startDrag" @mousedown="startMouseDrag">
-      <motion.div class="slider-fill" :animate="{ width: `${progress}%` }" :transition="motionTransition" />
-      <motion.span class="slider-thumb" :animate="{ left: `${progress}%` }" :transition="motionTransition" />
+      <div ref="fillRef" class="slider-fill" />
+      <span ref="thumbRef" class="slider-thumb" />
     </div>
-    <motion.strong class="slider-value" :animate="{ scale: disabled ? 0.96 : 1 }" :transition="{ duration: 0.16 }">{{ displayValue }}</motion.strong>
+    <strong ref="valueRef" class="slider-value">{{ displayValue }}</strong>
   </div>
 </template>

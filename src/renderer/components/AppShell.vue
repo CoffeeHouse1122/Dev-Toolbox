@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { AnimatePresence, motion } from "motion-v";
 import { computed, onBeforeUnmount, onMounted, provide, ref, watch } from "vue";
 import { RouterLink, RouterView } from "vue-router";
 import { useThemeStore } from "../stores/theme";
 import Checkbox from "./Checkbox.vue";
+import GsapTransition from "./GsapTransition.vue";
+import brandIcon from "../../../build/icons/favicon-128x128.png";
 
 type NavTool = {
   id: string;
@@ -40,23 +41,22 @@ const draftGroups = ref<NavGroup[]>([]);
 const draftFavoriteToolIds = ref<string[]>([]);
 const isReloading = ref(false);
 const justReloaded = ref(false);
+const mobileNavOpen = ref(false);
 let stopWindowStateSync: (() => void) | null = null;
+let colorSchemeQuery: MediaQueryList | null = null;
+let reloadTimer: number | null = null;
+let reloadTransitionTimer: number | null = null;
+let isDisposed = false;
 
-const toolRouteEnter = { opacity: 0, y: 4 };
-const toolRouteVisible = { opacity: 1, y: 0 };
-const toolRouteTransition = { duration: 0.14 };
-const modalMaskEnter = { opacity: 0 };
-const modalMaskVisible = { opacity: 1 };
-const modalMaskExit = { opacity: 0 };
 const modalPanelEnter = { opacity: 0, y: 16, scale: 0.975 };
 const modalPanelVisible = { opacity: 1, y: 0, scale: 1 };
 const modalPanelExit = { opacity: 0, y: 8, scale: 0.985 };
-const modalPanelTransition = { type: "spring", stiffness: 420, damping: 34, mass: 0.75 } as const;
+const nonCacheableTools = ["WorkbenchPage", "CaptureProxyTool", "ClipboardHistoryTool", "StickyNotesTool"];
 
 const defaultGroups: NavGroup[] = [
   {
     id: "images",
-    label: "图片",
+    label: "图片工作台",
     tools: [
       { id: "favicon", to: "/favicon", label: "图标生成", icon: "ri-star-smile-line", visible: true },
       { id: "webp", to: "/webp", label: "图片转换", icon: "ri-image-edit-line", visible: true },
@@ -73,7 +73,7 @@ const defaultGroups: NavGroup[] = [
   },
   {
     id: "media",
-    label: "音视频",
+    label: "音视频工作台",
     tools: [
       { id: "video-background", to: "/video-background", label: "视频转化", icon: "ri-movie-2-line", visible: true },
       { id: "video-animation", to: "/video-animation", label: "视频动图", icon: "ri-file-gif-line", visible: true },
@@ -87,7 +87,7 @@ const defaultGroups: NavGroup[] = [
   },
   {
     id: "font",
-    label: "字体",
+    label: "字体工作台",
     tools: [
       { id: "woff2", to: "/woff2", label: "WOFF2 转换", icon: "ri-font-size-2", visible: true },
       { id: "font-preview", to: "/font-preview", label: "字体预览", icon: "ri-font-sans-serif", visible: true },
@@ -97,7 +97,7 @@ const defaultGroups: NavGroup[] = [
   },
   {
     id: "text",
-    label: "文本与 CSS",
+    label: "文本与样式工作台",
     tools: [
       { id: "markdown-export", to: "/markdown-export", label: "Markdown", icon: "ri-markdown-line", visible: true },
       { id: "data-convert", to: "/data-convert", label: "JSON/YAML/TOML", icon: "ri-arrow-left-right-line", visible: true },
@@ -116,7 +116,7 @@ const defaultGroups: NavGroup[] = [
   },
   {
     id: "seo",
-    label: "SEO 与发布",
+    label: "SEO 发布工作台",
     tools: [
       { id: "seo-files", to: "/seo-files", label: "robots / sitemap", icon: "ri-road-map-line", visible: true },
       { id: "meta-tags", to: "/meta-tags", label: "HTML Meta", icon: "ri-meta-line", visible: true },
@@ -125,7 +125,7 @@ const defaultGroups: NavGroup[] = [
   },
   {
     id: "system-files",
-    label: "文件与网络",
+    label: "文件与网络工作台",
     tools: [
       { id: "links", to: "/links", label: "网站与文档", icon: "ri-bookmark-3-line", visible: true },
       { id: "ip-query", to: "/ip-query", label: "IP 查询", icon: "ri-router-line", visible: true },
@@ -139,7 +139,7 @@ const defaultGroups: NavGroup[] = [
   },
   {
     id: "assist",
-    label: "开发辅助",
+    label: "开发者快捷工作台",
     tools: [
       { id: "timestamp", to: "/timestamp", label: "时间戳", icon: "ri-time-line", visible: true },
       { id: "uuid", to: "/uuid", label: "UUID", icon: "ri-fingerprint-line", visible: true },
@@ -157,6 +157,26 @@ const defaultGroups: NavGroup[] = [
     ]
   }
 ];
+
+const legacyDefaultGroupLabels: Record<string, string> = {
+  images: "图片",
+  media: "音视频",
+  font: "字体",
+  text: "文本与 CSS",
+  seo: "SEO 与发布",
+  "system-files": "文件与网络",
+  assist: "开发辅助"
+};
+
+const workbenchRoutes: Record<string, string> = {
+  images: "/workbench/images",
+  media: "/workbench/media",
+  font: "/workbench/font",
+  text: "/workbench/text",
+  seo: "/workbench/seo",
+  "system-files": "/workbench/system",
+  assist: "/workbench/assist"
+};
 
 const groups = ref<NavGroup[]>(loadNavGroups());
 const collapsedGroups = ref<Record<string, boolean>>(loadCollapsedState());
@@ -186,6 +206,10 @@ const visibleGroups = computed(() =>
 function toggleGroupCollapse(id: string) {
   collapsedGroups.value = { ...collapsedGroups.value, [id]: !collapsedGroups.value[id] };
   saveNavConfig();
+}
+
+function workbenchRoute(groupId: string) {
+  return workbenchRoutes[groupId] ?? "";
 }
 
 function loadCollapsedState(): Record<string, boolean> {
@@ -224,7 +248,11 @@ function mergeGroups(saved: NavGroup[]) {
       usedToolIds.add(savedTool.id);
       tools.push({ ...sourceTool, label: savedTool.label || sourceTool.label, visible: savedTool.visible !== false });
     }
-    merged.push({ ...sourceGroup, label: savedGroup.label || sourceGroup.label, tools });
+    const savedLabel = savedGroup.label?.trim();
+    const label = !savedLabel || savedLabel === legacyDefaultGroupLabels[savedGroup.id]
+      ? sourceGroup.label
+      : savedLabel;
+    merged.push({ ...sourceGroup, label, tools });
   }
 
   for (const defaultGroup of defaultGroups) {
@@ -546,13 +574,27 @@ async function reloadWindow() {
   if (isReloading.value) return;
   isReloading.value = true;
   sessionStorage.setItem("dev-toolbox.reload-transition", "1");
-  window.setTimeout(() => {
+  reloadTimer = window.setTimeout(() => {
+    reloadTimer = null;
+    if (isDisposed) return;
     void window.devToolbox.reloadWindow();
   }, 180);
 }
 
+function onColorSchemeChange() {
+  theme.sync();
+}
+
 function toggleTheme() {
   theme.setMode(theme.resolvedTheme === "dark" ? "light" : "dark");
+}
+
+function toggleMobileNav() {
+  mobileNavOpen.value = !mobileNavOpen.value;
+}
+
+function closeMobileNav() {
+  mobileNavOpen.value = false;
 }
 
 function moveFavoriteTool(index: number, direction: -1 | 1) {
@@ -596,23 +638,39 @@ onMounted(async () => {
   if (sessionStorage.getItem("dev-toolbox.reload-transition") === "1") {
     sessionStorage.removeItem("dev-toolbox.reload-transition");
     justReloaded.value = true;
-    window.setTimeout(() => {
+    reloadTransitionTimer = window.setTimeout(() => {
+      reloadTransitionTimer = null;
+      if (isDisposed) return;
       justReloaded.value = false;
     }, 320);
   }
   await loadNavConfig();
+  if (isDisposed) return;
   await syncWindowState();
+  if (isDisposed) return;
   stopWindowStateSync = window.devToolbox.onWindowStateChange((state) => {
     alwaysOnTop.value = state.isAlwaysOnTop;
     isWindowMaximized.value = state.isMaximized;
   });
   theme.sync();
-  window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", theme.sync);
+  colorSchemeQuery = window.matchMedia("(prefers-color-scheme: dark)");
+  colorSchemeQuery.addEventListener("change", onColorSchemeChange);
 });
 
 onBeforeUnmount(() => {
+  isDisposed = true;
   stopWindowStateSync?.();
   stopWindowStateSync = null;
+  colorSchemeQuery?.removeEventListener("change", onColorSchemeChange);
+  colorSchemeQuery = null;
+  if (reloadTimer !== null) {
+    window.clearTimeout(reloadTimer);
+    reloadTimer = null;
+  }
+  if (reloadTransitionTimer !== null) {
+    window.clearTimeout(reloadTransitionTimer);
+    reloadTransitionTimer = null;
+  }
 });
 
 </script>
@@ -620,6 +678,16 @@ onBeforeUnmount(() => {
 <template>
   <div class="app-shell" :class="{ 'is-reloading': isReloading, 'just-reloaded': justReloaded }">
     <div class="window-drag-strip">
+      <button
+        type="button"
+        class="titlebar-window-button titlebar-mobile-menu"
+        title="打开工具工作台"
+        aria-label="打开工具工作台"
+        :aria-expanded="mobileNavOpen"
+        @click="toggleMobileNav"
+      >
+        <i :class="mobileNavOpen ? 'ri-close-line' : 'ri-terminal-box-line'" aria-hidden="true"></i>
+      </button>
       <div class="titlebar-drag-area" aria-hidden="true" @dblclick="toggleMaximizeWindow"></div>
       <div class="titlebar-control-group">
         <button type="button" class="titlebar-window-button" title="刷新页面" aria-label="刷新页面" @click="reloadWindow">
@@ -662,12 +730,16 @@ onBeforeUnmount(() => {
         </button>
       </div>
     </div>
-    <aside class="sidebar">
+    <GsapTransition :from="{ opacity: 0 }" :to="{ opacity: 1 }" :leave="{ opacity: 0 }" :duration="0.14">
+      <button v-if="mobileNavOpen" type="button" class="mobile-nav-scrim" aria-label="关闭工具工作台" @click="closeMobileNav"></button>
+    </GsapTransition>
+
+    <aside class="sidebar" :class="{ 'mobile-open': mobileNavOpen }">
       <div class="brand">
-        <div class="brand-mark"><img src="/icons/favicon-128x128.png" alt="Dev Toolbox" width="30" height="30" /></div>
+        <div class="brand-mark"><img :src="brandIcon" alt="Dev Toolbox" width="30" height="30" /></div>
         <div>
           <strong>Dev Toolbox</strong>
-          <span>开发工具箱</span>
+          <span>Frontend / Full-stack Console</span>
         </div>
       </div>
 
@@ -681,8 +753,18 @@ onBeforeUnmount(() => {
             </button>
             <div v-show="!collapsedGroups[group.id]" class="nav-group-items">
               <p v-if="group.id === 'favorites' && !group.tools.length" class="nav-group-empty">点击工具右侧图钉加入置顶</p>
+              <RouterLink
+                v-if="workbenchRoute(group.id)"
+                :to="workbenchRoute(group.id)"
+                class="workbench-overview-link"
+                @click="closeMobileNav"
+              >
+                <i class="ri-terminal-box-line" aria-hidden="true"></i>
+                <span>工作台总览</span>
+                <i class="ri-arrow-right-s-line" aria-hidden="true"></i>
+              </RouterLink>
               <div v-for="tool in group.tools" :key="`${group.id}:${tool.id}`" class="nav-item-row">
-                <RouterLink :to="tool.to" class="nav-item">
+                <RouterLink :to="tool.to" class="nav-item" @click="closeMobileNav">
                   <i class="nav-icon" :class="tool.icon" aria-hidden="true"></i>
                   <span>{{ tool.label }}</span>
                 </RouterLink>
@@ -708,38 +790,35 @@ onBeforeUnmount(() => {
 
       <div class="workspace-body dt-simplebar">
         <RouterView v-slot="{ Component, route }">
-          <motion.div
-            :key="route.path"
-            class="tool-route-motion"
-            :initial="toolRouteEnter"
-            :animate="toolRouteVisible"
-            :transition="toolRouteTransition"
-          >
-            <component :is="Component" />
-          </motion.div>
+          <GsapTransition mode="out-in" :from="{ opacity: 0, y: 4 }" :to="{ opacity: 1, y: 0 }" :duration="0.14">
+            <KeepAlive :max="64" :exclude="nonCacheableTools">
+              <component :is="Component" :key="route.path" />
+            </KeepAlive>
+          </GsapTransition>
         </RouterView>
       </div>
     </main>
 
     <Teleport to="body">
-      <AnimatePresence>
-      <motion.div
+      <GsapTransition
+        child-selector=".nav-editor-modal"
+        :from="{ opacity: 0 }"
+        :to="{ opacity: 1 }"
+        :leave="{ opacity: 0 }"
+        :child-from="modalPanelEnter"
+        :child-to="modalPanelVisible"
+        :child-leave="modalPanelExit"
+        :duration="0.2"
+      >
+      <div
         v-if="editingNav"
         key="nav-editor-modal"
         class="dt-modal-mask"
-        :initial="modalMaskEnter"
-        :animate="modalMaskVisible"
-        :exit="modalMaskExit"
-        :transition="{ duration: 0.16 }"
       >
-        <motion.div
+        <div
           class="dt-modal nav-editor-modal"
           role="dialog"
           aria-modal="true"
-          :initial="modalPanelEnter"
-          :animate="modalPanelVisible"
-          :exit="modalPanelExit"
-          :transition="modalPanelTransition"
         >
           <header class="dt-modal-head">
             <div>
@@ -865,15 +944,9 @@ onBeforeUnmount(() => {
               完成
             </button>
           </footer>
-        </motion.div>
-      </motion.div>
-      </AnimatePresence>
+        </div>
+      </div>
+      </GsapTransition>
     </Teleport>
   </div>
 </template>
-
-<style scoped>
-.tool-route-motion {
-  min-width: 0;
-}
-</style>

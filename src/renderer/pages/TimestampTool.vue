@@ -42,6 +42,15 @@ function useNow() {
   dateText.value = toDatetimeLocal(current);
 }
 
+function setTimestampUnit(nextUnit: "ms" | "s") {
+  if (nextUnit === timestampUnit.value) return;
+  const raw = Number(timestamp.value.trim());
+  if (Number.isFinite(raw)) {
+    timestamp.value = String(nextUnit === "s" ? raw / 1000 : raw * 1000);
+  }
+  timestampUnit.value = nextUnit;
+}
+
 function syncDateFromTimestamp() {
   if (!timestampDate.value) return;
   dateText.value = toDatetimeLocal(timestampDate.value);
@@ -67,8 +76,8 @@ function syncTimestampFromDate() {
       <div class="field">
         <span>时间戳</span>
         <div class="segmented">
-          <button type="button" :class="{ selected: timestampUnit === 'ms' }" @click="timestampUnit = 'ms'">毫秒</button>
-          <button type="button" :class="{ selected: timestampUnit === 's' }" @click="timestampUnit = 's'">秒</button>
+          <button type="button" :class="{ selected: timestampUnit === 'ms' }" @click="setTimestampUnit('ms')">毫秒</button>
+          <button type="button" :class="{ selected: timestampUnit === 's' }" @click="setTimestampUnit('s')">秒</button>
         </div>
         <input v-model="timestamp" inputmode="numeric" @change="syncDateFromTimestamp" />
         <textarea class="tool-textarea compact" readonly :value="parsedDate"></textarea>
@@ -81,4 +90,3 @@ function syncTimestampFromDate() {
     </div>
   </section>
 </template>
-

@@ -7,13 +7,23 @@ const minViewport = ref(375);
 const maxViewport = ref(1440);
 const property = ref("font-size");
 
+const validationError = computed(() => {
+  const values = [minSize.value, maxSize.value, minViewport.value, maxViewport.value];
+  if (!values.every((value) => Number.isFinite(value) && value > 0)) return "字号和视口必须是大于 0 的有限数值";
+  if (maxSize.value < minSize.value) return "最大字号不能小于最小字号";
+  if (maxViewport.value <= minViewport.value) return "最大视口必须大于最小视口";
+  if (!/^(?:--[a-z0-9-_]+|[a-z][a-z0-9-]*)$/i.test(property.value.trim())) return "请输入有效的 CSS 属性名";
+  return "";
+});
+
 const clampValue = computed(() => {
+  if (validationError.value) return "";
   const slope = (maxSize.value - minSize.value) / (maxViewport.value - minViewport.value);
   const vw = slope * 100;
   const rem = (minSize.value - slope * minViewport.value) / 16;
   return `clamp(${minSize.value / 16}rem, ${rem.toFixed(4)}rem + ${vw.toFixed(4)}vw, ${maxSize.value / 16}rem)`;
 });
-const css = computed(() => `${property.value}: ${clampValue.value};`);
+const css = computed(() => validationError.value ? "" : `${property.value.trim()}: ${clampValue.value};`);
 </script>
 
 <template>
@@ -53,8 +63,9 @@ const css = computed(() => `${property.value}: ${clampValue.value};`);
       <aside class="result-panel">
         <div class="section-title">
           <h2>CSS</h2>
-          <span class="status-pill success">READY</span>
+          <span class="status-pill" :class="validationError ? 'error' : 'success'">{{ validationError ? "INVALID" : "READY" }}</span>
         </div>
+        <p v-if="validationError" class="error-banner">{{ validationError }}</p>
         <textarea class="tool-textarea code-output" readonly :value="css"></textarea>
       </aside>
     </div>

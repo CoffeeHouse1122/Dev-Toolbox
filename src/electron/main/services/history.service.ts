@@ -4,6 +4,7 @@ import initSqlJs, { type Database, type SqlJsStatic } from "sql.js";
 import path from "node:path";
 import type { ConversionRecord, TaskStatus, ToolType } from "../../../shared/types";
 import { ensureDir } from "./file-utils";
+import { writeFileAtomic } from "./atomic-file";
 
 export interface HistoryService {
   startTask(args: {
@@ -23,6 +24,7 @@ export function createHistoryService(): HistoryService {
   const dbDir = path.join(userData, "data");
   const dbPath = path.join(dbDir, "dev-toolbox.sqlite");
   let dbPromise: Promise<Database> | null = null;
+  let mutationQueue: Promise<void> = Promise.resolve();
 
   function unpackedPath(filePath: string) {
     return filePath.replace("app.asar", "app.asar.unpacked");
@@ -34,8 +36,19 @@ export function createHistoryService(): HistoryService {
         locateFile: (file) => unpackedPath(path.join(path.dirname(require.resolve("sql.js/dist/sql-wasm.wasm")), file))
       }).then(async (SQL: SqlJsStatic) => {
         await ensureDir(dbDir);
-        const existing = fs.existsSync(dbPath) ? fs.readFileSync(dbPath) : undefined;
-        const db = existing ? new SQL.Database(existing) : new SQL.Database();
+        let db: Database;
+        if (!fs.existsSync(dbPath)) {
+          db = new SQL.Database();
+        } else {
+          try {
+            db = new SQL.Database(fs.readFileSync(dbPath));
+          } catch (primaryError) {
+            const backupPath = `${dbPath}.bak`;
+            if (!fs.existsSync(backupPath)) throw primaryError;
+            db = new SQL.Database(fs.readFileSync(backupPath));
+            fs.renameSync(dbPath, `${dbPath}.corrupt-${Date.now()}`);
+          }
+        }
         db.run(`
           create table if not exists conversion_tasks (
             id text primary key,
@@ -49,7 +62,14 @@ export function createHistoryService(): HistoryService {
             finished_at text
           );
         `);
-        persist(db);
+        const interruptedAt = new Date().toISOString();
+        db.run(
+          `update conversion_tasks
+           set status = 'interrupted', error_message = coalesce(error_message, '应用在任务完成前退出'), finished_at = ?
+           where status = 'running';`,
+          [interruptedAt]
+        );
+        await persist(db);
         return db;
       });
     }
@@ -57,14 +77,23 @@ export function createHistoryService(): HistoryService {
     return dbPromise;
   }
 
-  function persist(db: Database) {
-    fs.writeFileSync(dbPath, Buffer.from(db.export()));
+  async function persist(db: Database) {
+    await writeFileAtomic(dbPath, Buffer.from(db.export()));
+  }
+
+  function mutate(operation: (db: Database) => Promise<void> | void) {
+    const task = mutationQueue.then(async () => {
+      const db = await openDb();
+      await operation(db);
+      await persist(db);
+    });
+    mutationQueue = task.catch(() => undefined);
+    return task;
   }
 
   return {
     async startTask(args) {
-      const db = await openDb();
-      db.run(
+      await mutate((db) => { db.run(
         `
           insert into conversion_tasks (
             id, tool_type, source_path, output_path, status, options_json, error_message, created_at, finished_at
@@ -75,16 +104,14 @@ export function createHistoryService(): HistoryService {
           args.toolType,
           args.sourcePath,
           args.outputPath,
-          "success",
+          "running",
           JSON.stringify(args.options),
           new Date().toISOString()
         ]
-      );
-      persist(db);
+      ); });
     },
     async finishTask(id, status, errorMessage) {
-      const db = await openDb();
-      db.run(
+      await mutate((db) => { db.run(
         `
           update conversion_tasks
           set status = ?,
@@ -98,10 +125,10 @@ export function createHistoryService(): HistoryService {
           new Date().toISOString(),
           id
         ]
-      );
-      persist(db);
+      ); });
     },
     async list(limit = 80) {
+      await mutationQueue;
       const db = await openDb();
       const result = db.exec(
         `
@@ -132,9 +159,7 @@ export function createHistoryService(): HistoryService {
       });
     },
     async clear() {
-      const db = await openDb();
-      db.run("delete from conversion_tasks");
-      persist(db);
+      await mutate((db) => { db.run("delete from conversion_tasks"); });
     }
   };
 }

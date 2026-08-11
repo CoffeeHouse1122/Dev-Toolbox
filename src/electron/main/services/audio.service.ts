@@ -2,9 +2,9 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { spawn } from "node:child_process";
 import ffmpegPath from "ffmpeg-static";
-import type { AudioCompressOptions, AudioConvertOptions, ConversionResult } from "../../../shared/types";
+import type { AudioCompressOptions, AudioConvertOptions, ConversionItemResult, ConversionResult } from "../../../shared/types";
 import type { HistoryService } from "./history.service";
-import { ensureDir, safeBaseName, uniqueId, uniqueOutputPath } from "./file-utils";
+import { commitTemporaryFile, ensureDir, removeTemporaryFile, safeBaseName, temporaryOutputPath, uniqueId, uniqueOutputPath } from "./file-utils";
 
 function unpackedPath(filePath: string) {
   return filePath.replace("app.asar", "app.asar.unpacked");
@@ -51,6 +51,8 @@ export async function convertAudio(options: AudioConvertOptions, history: Histor
   const id = uniqueId("audio-convert");
   const logs: string[] = [];
   const files: string[] = [];
+  const failures: string[] = [];
+  const items: ConversionItemResult[] = [];
 
   await history.startTask({
     id,
@@ -64,21 +66,31 @@ export async function convertAudio(options: AudioConvertOptions, history: Histor
     await ensureDir(options.outputDir);
 
     for (const inputPath of options.inputPaths) {
-      const output = path.join(options.outputDir, `${safeBaseName(inputPath)}.${options.outputFormat}`);
-      const args = ["-y", "-i", inputPath, "-vn", ...codecArgs(options.outputFormat)];
-      if (options.bitrate && options.outputFormat !== "wav" && options.outputFormat !== "flac") {
-        args.push("-b:a", options.bitrate);
+      let tempOutput = "";
+      try {
+        const output = await uniqueOutputPath(options.outputDir, `${safeBaseName(inputPath)}.${options.outputFormat}`);
+        tempOutput = temporaryOutputPath(output);
+        const args = ["-y", "-i", inputPath, "-vn", ...codecArgs(options.outputFormat)];
+        if (options.bitrate && options.outputFormat !== "wav" && options.outputFormat !== "flac") args.push("-b:a", options.bitrate);
+        if (options.sampleRate) args.push("-ar", String(options.sampleRate));
+        args.push(tempOutput);
+        await runFfmpeg(args, logs);
+        await commitTemporaryFile(tempOutput, output);
+        files.push(output);
+        items.push({ inputPath, outputPath: output, status: "success" });
+      } catch (error) {
+        if (tempOutput) await removeTemporaryFile(tempOutput);
+        const message = `${path.basename(inputPath)}: ${error instanceof Error ? error.message : String(error)}`;
+        failures.push(message);
+        items.push({ inputPath, status: "error", errorMessage: message });
+        logs.push(`Failed ${message}`);
       }
-      if (options.sampleRate) {
-        args.push("-ar", String(options.sampleRate));
-      }
-      args.push(output);
-      await runFfmpeg(args, logs);
-      files.push(output);
     }
 
-    await history.finishTask(id, "success");
-    return { id, status: "success", files, outputPath: options.outputDir, logs };
+    const errorMessage = failures.length ? `${failures.length} of ${options.inputPaths.length} audio file(s) failed.` : undefined;
+    const status = failures.length ? (files.length ? "partial" : "error") : "success";
+    await history.finishTask(id, status, errorMessage);
+    return { id, status, files, outputPath: options.outputDir, logs, errorMessage, items };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     await history.finishTask(id, "error", message);
@@ -102,6 +114,8 @@ export async function compressAudio(options: AudioCompressOptions, history: Hist
   const id = uniqueId("audio-compress");
   const logs: string[] = [];
   const files: string[] = [];
+  const failures: string[] = [];
+  const items: ConversionItemResult[] = [];
 
   await history.startTask({
     id,
@@ -115,20 +129,34 @@ export async function compressAudio(options: AudioCompressOptions, history: Hist
     await ensureDir(options.outputDir);
 
     for (const inputPath of options.inputPaths) {
-      const output = await uniqueOutputPath(options.outputDir, `${safeBaseName(inputPath)}-compressed.${options.outputFormat}`);
-      const args = ["-y", "-i", inputPath, "-vn", ...codecArgs(options.outputFormat), "-b:a", options.bitrate];
-      if (options.sampleRate) args.push("-ar", String(options.sampleRate));
-      args.push(output);
-      await runFfmpeg(args, logs);
-      files.push(output);
+      let tempOutput = "";
+      try {
+        const output = await uniqueOutputPath(options.outputDir, `${safeBaseName(inputPath)}-compressed.${options.outputFormat}`);
+        tempOutput = temporaryOutputPath(output);
+        const args = ["-y", "-i", inputPath, "-vn", ...codecArgs(options.outputFormat), "-b:a", options.bitrate];
+        if (options.sampleRate) args.push("-ar", String(options.sampleRate));
+        args.push(tempOutput);
+        await runFfmpeg(args, logs);
+        await commitTemporaryFile(tempOutput, output);
+        files.push(output);
+        items.push({ inputPath, outputPath: output, status: "success" });
 
-      const [sourceStat, outputStat] = await Promise.all([fs.stat(inputPath), fs.stat(output)]);
-      const ratio = sourceStat.size > 0 ? Math.max(0, 100 - (outputStat.size / sourceStat.size) * 100) : 0;
-      logs.push(`${path.basename(inputPath)}: ${formatSize(sourceStat.size)} -> ${formatSize(outputStat.size)} (${ratio.toFixed(1)}% smaller)`);
+        const [sourceStat, outputStat] = await Promise.all([fs.stat(inputPath), fs.stat(output)]);
+        const ratio = sourceStat.size > 0 ? Math.max(0, 100 - (outputStat.size / sourceStat.size) * 100) : 0;
+        logs.push(`${path.basename(inputPath)}: ${formatSize(sourceStat.size)} -> ${formatSize(outputStat.size)} (${ratio.toFixed(1)}% smaller)`);
+      } catch (error) {
+        if (tempOutput) await removeTemporaryFile(tempOutput);
+        const message = `${path.basename(inputPath)}: ${error instanceof Error ? error.message : String(error)}`;
+        failures.push(message);
+        items.push({ inputPath, status: "error", errorMessage: message });
+        logs.push(`Failed ${message}`);
+      }
     }
 
-    await history.finishTask(id, "success");
-    return { id, status: "success", files, outputPath: options.outputDir, logs };
+    const errorMessage = failures.length ? `${failures.length} of ${options.inputPaths.length} audio file(s) failed.` : undefined;
+    const status = failures.length ? (files.length ? "partial" : "error") : "success";
+    await history.finishTask(id, status, errorMessage);
+    return { id, status, files, outputPath: options.outputDir, logs, errorMessage, items };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     await history.finishTask(id, "error", message);

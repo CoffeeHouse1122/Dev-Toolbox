@@ -3,7 +3,22 @@ import fs from "node:fs/promises";
 import sharp from "sharp";
 import type { ConversionResult, SpriteOptions } from "../../../shared/types";
 import type { HistoryService } from "./history.service";
-import { ensureDir, safeBaseName, uniqueId, writeTextFile } from "./file-utils";
+import {
+  commitTemporaryFile,
+  ensureDir,
+  mapWithConcurrency,
+  removeTemporaryFile,
+  safeBaseName,
+  temporaryOutputPath,
+  uniqueId,
+  uniqueOutputPath,
+  writeTextFile
+} from "./file-utils";
+
+function cssIdentifier(value: string) {
+  const clean = value.normalize("NFC").replace(/[^\p{L}\p{N}_-]+/gu, "-").replace(/^-+|-+$/g, "") || "image";
+  return /^\d/.test(clean) ? `image-${clean}` : clean;
+}
 
 export async function generateSprite(options: SpriteOptions, history: HistoryService): Promise<ConversionResult> {
   const id = uniqueId("sprite");
@@ -20,10 +35,18 @@ export async function generateSprite(options: SpriteOptions, history: HistorySer
 
   try {
     await ensureDir(options.outputDir);
-    const images = await Promise.all(
-      options.inputPaths.map(async (inputPath) => {
+    const inputStats = await mapWithConcurrency(options.inputPaths, 4, async (inputPath) => ({ inputPath, stat: await fs.stat(inputPath) }));
+    for (const { inputPath, stat } of inputStats) {
+      if (!stat.isFile() || stat.size > 256 * 1024 * 1024) throw new Error(`${path.basename(inputPath)} exceeds the image safety limit.`);
+    }
+    const totalInputSize = inputStats.reduce((sum, item) => sum + item.stat.size, 0);
+    if (totalInputSize > 512 * 1024 * 1024) throw new Error("Selected images exceed the 512 MiB sprite input safety limit.");
+    const images = await mapWithConcurrency(
+      options.inputPaths,
+      3,
+      async (inputPath) => {
         const inputBuffer = await fs.readFile(inputPath);
-        const metadata = await sharp(inputBuffer, { limitInputPixels: false }).metadata();
+        const metadata = await sharp(inputBuffer).metadata();
         return {
           inputPath,
           inputBuffer,
@@ -31,7 +54,7 @@ export async function generateSprite(options: SpriteOptions, history: HistorySer
           width: metadata.width ?? 1,
           height: metadata.height ?? 1
         };
-      })
+      }
     );
 
     const columns = Math.max(1, Math.min(options.columns || images.length, images.length));
@@ -41,24 +64,31 @@ export async function generateSprite(options: SpriteOptions, history: HistorySer
     const rows = Math.ceil(images.length / columns);
     const spriteWidth = columns * cellWidth + Math.max(0, columns - 1) * padding;
     const spriteHeight = rows * cellHeight + Math.max(0, rows - 1) * padding;
+    if (spriteWidth > 32_000 || spriteHeight > 32_000 || spriteWidth * spriteHeight > 100_000_000) {
+      throw new Error(`Sprite dimensions ${spriteWidth}x${spriteHeight} exceed the safety limit.`);
+    }
 
-    const composites = await Promise.all(
-      images.map(async (item, index) => {
+    const composites = await mapWithConcurrency(
+      images,
+      3,
+      async (item, index) => {
         const column = index % columns;
         const row = Math.floor(index / columns);
         const left = column * (cellWidth + padding);
         const top = row * (cellHeight + padding);
         return {
-          input: await sharp(item.inputBuffer, { limitInputPixels: false }).png().toBuffer(),
+          input: await sharp(item.inputBuffer).png().toBuffer(),
           left,
           top
         };
-      })
+      }
     );
 
     const base = safeBaseName(options.spriteName || "sprite") || "sprite";
-    const spritePath = path.join(options.outputDir, `${base}.png`);
-    await sharp({
+    const spritePath = await uniqueOutputPath(options.outputDir, `${base}.png`);
+    const tempSpritePath = temporaryOutputPath(spritePath);
+    try {
+      await sharp({
       create: {
         width: spriteWidth,
         height: spriteHeight,
@@ -68,7 +98,12 @@ export async function generateSprite(options: SpriteOptions, history: HistorySer
     })
       .composite(composites)
       .png()
-      .toFile(spritePath);
+      .toFile(tempSpritePath);
+      await commitTemporaryFile(tempSpritePath, spritePath);
+    } catch (error) {
+      await removeTemporaryFile(tempSpritePath);
+      throw error;
+    }
 
     const css = images
       .map((item, index) => {
@@ -76,7 +111,7 @@ export async function generateSprite(options: SpriteOptions, history: HistorySer
         const row = Math.floor(index / columns);
         const left = column * (cellWidth + padding);
         const top = row * (cellHeight + padding);
-        return `.${options.classPrefix || "sprite"}-${item.name} {
+        return `.${cssIdentifier(options.classPrefix || "sprite")}-${cssIdentifier(item.name)} {
   width: ${item.width}px;
   height: ${item.height}px;
   background-image: url("./${path.basename(spritePath)}");
@@ -84,7 +119,7 @@ export async function generateSprite(options: SpriteOptions, history: HistorySer
 }`;
       })
       .join("\n\n");
-    const cssPath = path.join(options.outputDir, `${base}.css`);
+    const cssPath = await uniqueOutputPath(options.outputDir, `${base}.css`);
     await writeTextFile(cssPath, `${css}\n`);
 
     files.push(spritePath, cssPath);

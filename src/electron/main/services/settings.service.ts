@@ -2,6 +2,7 @@ import { app } from "electron";
 import fs from "node:fs/promises";
 import path from "node:path";
 import type { AppSettings } from "../../../shared/types";
+import { readJsonWithBackup, writeFileAtomic } from "./atomic-file";
 
 const defaultSettings: AppSettings = {
   closeBehavior: "minimize-to-tray",
@@ -37,8 +38,7 @@ function syncAutoLaunch(enabled: boolean) {
 export async function loadAppSettings(): Promise<AppSettings> {
   if (cache) return cache;
   try {
-    const raw = await fs.readFile(settingsPath(), "utf8");
-    const parsed = JSON.parse(raw) as Partial<AppSettings>;
+    const parsed = await readJsonWithBackup<Partial<AppSettings>>(settingsPath());
     cache = { ...defaultSettings, ...parsed };
   } catch {
     cache = { ...defaultSettings, autoLaunch: systemAutoLaunchEnabled() };
@@ -50,7 +50,7 @@ export async function loadAppSettings(): Promise<AppSettings> {
 export async function saveAppSettings(next: AppSettings): Promise<AppSettings> {
   const merged: AppSettings = { ...defaultSettings, ...next };
   await fs.mkdir(path.dirname(settingsPath()), { recursive: true });
-  await fs.writeFile(settingsPath(), `${JSON.stringify(merged, null, 2)}\n`, "utf8");
+  await writeFileAtomic(settingsPath(), `${JSON.stringify(merged, null, 2)}\n`);
   cache = merged;
   syncAutoLaunch(merged.autoLaunch);
   return merged;

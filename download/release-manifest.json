@@ -1,4 +1,5 @@
 {
+  "manifestVersion": 1,
   "appName": "Dev Toolbox",
   "title": "Dev Toolbox 开发工具箱",
   "heroDescription": "本地优先的前端资源转换桌面工具箱，支持图片、字体、音视频、CSS、文本等常见开发资产的格式转换与处理。页面会根据更新清单自动展示当前版本号、下载入口和更新日志。",
@@ -11,15 +12,19 @@
     {
       "label": "下载 Windows x64",
       "url": "./release/Dev Toolbox-0.1.2-x64.exe",
+      "platform": "win32",
+      "arch": "x64",
+      "size": 154387932,
+      "sha256": "c2329b979ddfad3011f62b8a7e33c08d31634e2fcfa89362caac77f5a9b86efc",
       "note": "适用于 64 位 Windows 桌面环境",
       "primary": true
     }
   ],
   "features": [
     "图片（11 项）：图标生成、格式转换、图片压缩、尺寸调整、自由裁剪、添加水印、雪碧图、图片占位符、Base64 图片、二维码生成、Mark Man",
-    "音视频（5 项）：视频格式转化、视频转 GIF 动图、序列帧动图、视频去音频、音频格式转换",
+    "音视频（8 项）：视频格式转化、视频转 GIF / WebP 动图、序列帧动图、视频去音频、视频压缩、视频循环分析、音频格式转换、音频压缩",
     "字体（4 项）：WOFF2 转换、字体预览、字体子集化、@font-face 生成器",
-    "文本与 CSS（12 项）：Markdown 导出、JSON/YAML/TOML 互转、文本 Diff、JWT 解析、URL 编解码、正则测试器、CSS 变量提取、Clamp 字号计算、配色生成器、代码截图、Base64 文本编解码、颜色转换器",
+    "文本与 CSS（13 项）：Markdown 导出、JSON/YAML/TOML 互转、文本 Diff、JWT 解析、URL 编解码、CSS / JS 压缩、正则测试器、CSS 变量提取、Clamp 字号计算、配色生成器、代码截图、Base64 文本编解码、颜色转换器",
     "SEO 与发布（3 项）：robots.txt / sitemap 生成、HTML Meta 标签、OG 图片生成",
     "文件与网络（8 项）：网站与文档、IP 查询、共享盘登录、文件批量重命名、资源清单生成、HTTP 请求测试器、证书扫描、抓包工具",
     "开发辅助（5 项）：时间戳转换、UUID 生成、Hash / AES-GCM 加解密、剪贴板历史、桌面便签",
@@ -48,6 +53,10 @@
         {
           "label": "下载 Windows x64",
           "url": "./release/Dev Toolbox-0.1.2-x64.exe",
+          "platform": "win32",
+          "arch": "x64",
+          "size": 154387932,
+          "sha256": "c2329b979ddfad3011f62b8a7e33c08d31634e2fcfa89362caac77f5a9b86efc",
           "note": "适用于 64 位 Windows 桌面环境",
           "primary": true
         }

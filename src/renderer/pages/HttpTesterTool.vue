@@ -8,6 +8,7 @@ const headersText = ref("");
 const bodyText = ref("");
 const timeoutSecs = ref(10);
 const headerPreset = ref("");
+const multipartFieldsText = ref("name=dev-toolbox\nrole=frontend");
 
 const busy = ref(false);
 const statusCode = ref<number | null>(null);
@@ -16,12 +17,14 @@ const responseHeaders = ref<Record<string, string>>({});
 const responseBody = ref("");
 const responseTimeMs = ref(0);
 const errorMessage = ref("");
+const responseBodyEncoding = ref<"text" | "base64">("text");
+const responseTruncated = ref(false);
 
 // 常用 Content-Type 快捷预设
 const presetHeaders: Record<string, string> = {
   "application/json": "Content-Type: application/json\nAccept: application/json",
   "application/x-www-form-urlencoded": "Content-Type: application/x-www-form-urlencoded",
-  "multipart/form-data": "Content-Type: multipart/form-data",
+  "multipart/form-data": "Accept: application/json",
   "text/plain": "Content-Type: text/plain",
   "application/xml": "Content-Type: application/xml\nAccept: application/xml",
 };
@@ -31,6 +34,7 @@ const headerPresetOptions = computed(() => [
   { label: "手动输入", value: "" },
   ...Object.keys(presetHeaders).map((value) => ({ label: value, value }))
 ]);
+const usesMultipart = computed(() => headerPreset.value === "multipart/form-data" && method.value !== "GET" && method.value !== "HEAD");
 
 function setPresetHeaders(type: string) {
   headerPreset.value = type;
@@ -39,15 +43,25 @@ function setPresetHeaders(type: string) {
 
 function parseHeaders(raw: string): Record<string, string> {
   const result: Record<string, string> = {};
-  raw.split("\n").forEach((line) => {
+  raw.split("\n").forEach((line, index) => {
+    if (!line.trim()) return;
     const idx = line.indexOf(":");
-    if (idx > 0) {
-      const key = line.substring(0, idx).trim();
-      const val = line.substring(idx + 1).trim();
-      if (key) result[key] = val;
-    }
+    if (idx <= 0) throw new Error(`请求头第 ${index + 1} 行格式无效，请使用 Header: value`);
+    const key = line.substring(0, idx).trim();
+    const val = line.substring(idx + 1).trim();
+    if (key) result[key] = val;
   });
   return result;
+}
+
+function parseMultipartFields(raw: string) {
+  const fields = raw.split("\n").map((line) => line.trim()).filter(Boolean).map((line, index) => {
+    const separator = line.indexOf("=");
+    if (separator <= 0) throw new Error(`multipart 第 ${index + 1} 行格式无效，请使用 name=value`);
+    return { name: line.slice(0, separator).trim(), value: line.slice(separator + 1) };
+  });
+  if (!fields.length) throw new Error("multipart 请求至少需要一个 name=value 字段");
+  return fields;
 }
 
 async function sendRequest() {
@@ -59,35 +73,43 @@ async function sendRequest() {
   responseBody.value = "";
   responseTimeMs.value = 0;
   errorMessage.value = "";
+  responseBodyEncoding.value = "text";
+  responseTruncated.value = false;
 
   const startTime = performance.now();
   try {
     const headers = parseHeaders(headersText.value);
-    const fetchOptions: RequestInit = {
-      method: method.value,
-      headers: headers as any,
-      signal: AbortSignal.timeout(timeoutSecs.value * 1000)
-    };
-    if (method.value !== "GET" && method.value !== "HEAD" && bodyText.value) {
-      fetchOptions.body = bodyText.value;
+    const hasBody = method.value !== "GET" && method.value !== "HEAD";
+    const isMultipart = usesMultipart.value;
+    if (isMultipart) {
+      Object.keys(headers).forEach((key) => {
+        if (key.toLowerCase() === "content-type") delete headers[key];
+      });
     }
+    timeoutSecs.value = Math.min(60, Math.max(1, Number(timeoutSecs.value) || 10));
+    const response = await window.devToolbox.sendHttpRequest({
+      url: url.value.trim(),
+      method: method.value,
+      headers,
+      body: hasBody && !isMultipart && bodyText.value ? bodyText.value : undefined,
+      multipartFields: isMultipart ? parseMultipartFields(multipartFieldsText.value) : undefined,
+      timeoutMs: timeoutSecs.value * 1000
+    });
 
-    const res = await fetch(url.value, fetchOptions);
-
-    statusCode.value = res.status;
-    statusText.value = res.statusText;
-    responseTimeMs.value = Math.round(performance.now() - startTime);
-
-    const resHeaders: Record<string, string> = {};
-    res.headers.forEach((val, key) => { resHeaders[key] = val; });
-    responseHeaders.value = resHeaders;
-
-    const contentType = res.headers.get("content-type") || "";
-    if (contentType.includes("application/json")) {
-      const json = await res.json();
-      responseBody.value = JSON.stringify(json, null, 2);
+    statusCode.value = response.status;
+    statusText.value = response.statusText;
+    responseTimeMs.value = response.elapsedMs || Math.round(performance.now() - startTime);
+    responseHeaders.value = response.headers;
+    responseBodyEncoding.value = response.bodyEncoding;
+    responseTruncated.value = response.truncated;
+    if (response.bodyEncoding === "text" && (response.headers["content-type"] ?? "").includes("application/json")) {
+      try {
+        responseBody.value = JSON.stringify(JSON.parse(response.body), null, 2);
+      } catch {
+        responseBody.value = response.body;
+      }
     } else {
-      responseBody.value = await res.text();
+      responseBody.value = response.body;
     }
   } catch (err: any) {
     errorMessage.value = err.message || String(err);
@@ -102,7 +124,7 @@ async function sendRequest() {
     <div class="tool-header">
       <div>
         <h2>HTTP 请求测试器</h2>
-        <p>发送 HTTP 请求，查看响应头与响应体（轻量 Postman 替代）</p>
+        <p>通过主进程发送 HTTP 请求，不受浏览器 CORS 限制；支持原始请求体与 multipart 字段</p>
       </div>
       <div class="header-actions">
         <button type="button" class="primary-button" :disabled="busy || !url" @click="sendRequest">
@@ -136,8 +158,15 @@ async function sendRequest() {
         </div>
 
         <div class="io-block">
-          <div class="io-label">请求体（仅 POST/PUT/PATCH 发送）</div>
-          <textarea v-model="bodyText" class="tool-textarea" placeholder='{"key": "value"}' style="height:120px;"></textarea>
+          <div class="io-label">{{ usesMultipart ? 'Multipart 字段（每行 name=value）' : '请求体（GET / HEAD 不发送）' }}</div>
+          <textarea
+            v-if="usesMultipart"
+            v-model="multipartFieldsText"
+            class="tool-textarea"
+            placeholder="name=value&#10;description=Dev Toolbox"
+            style="height:120px;"
+          ></textarea>
+          <textarea v-else v-model="bodyText" class="tool-textarea" placeholder='{"key": "value"}' style="height:120px;"></textarea>
         </div>
       </div>
 
@@ -152,6 +181,7 @@ async function sendRequest() {
         </div>
 
         <div v-if="errorMessage" class="response-error">{{ errorMessage }}</div>
+        <p v-if="responseTruncated" class="warning-banner">响应体超过 10 MiB，当前仅显示截断预览。</p>
 
         <div v-if="Object.keys(responseHeaders).length" class="response-headers">
           <div class="io-label" style="font-size:12px;">响应头</div>
@@ -163,7 +193,7 @@ async function sendRequest() {
         </div>
 
         <div class="io-block" style="margin-top:12px;" v-if="responseBody">
-          <div class="io-label">响应体</div>
+          <div class="io-label">{{ responseBodyEncoding === 'base64' ? '二进制响应（Base64 预览）' : '响应体' }}</div>
           <textarea class="tool-textarea" readonly :value="responseBody" style="min-height:200px;font-family:var(--font-mono, monospace);font-size:13px;"></textarea>
         </div>
       </div>

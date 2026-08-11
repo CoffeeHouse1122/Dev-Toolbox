@@ -1,5 +1,6 @@
 import os from "node:os";
 import dns from "node:dns/promises";
+import { isIP } from "node:net";
 import { net } from "electron";
 import type { DomainIpLookupResult, IpInfo } from "../../../shared/types";
 
@@ -33,7 +34,7 @@ const ipSources: IpSource[] = [
 ];
 
 function isLikelyIp(value: string) {
-  return /^(\d{1,3}\.){3}\d{1,3}$/.test(value) || /^[a-f0-9:]+$/i.test(value);
+  return isIP(value) !== 0;
 }
 
 async function requestWithTimeout(url: string, transport: "fetch" | "electron", timeout = 6000) {
@@ -56,7 +57,7 @@ async function getExternalIp() {
   const errors: string[] = [];
 
   for (const transport of ["fetch", "electron"] as const) {
-    for (const source of ipSources) {
+    const attempts = ipSources.map(async (source) => {
       try {
         const body = await requestWithTimeout(source.url, transport);
         const ip = source.parse(body);
@@ -66,12 +67,22 @@ async function getExternalIp() {
         throw new Error("response did not contain an IP address");
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
-        errors.push(`${source.name}(${transport}): ${message}`);
+        throw new Error(`${source.name}(${transport}): ${message}`);
+      }
+    });
+
+    try {
+      return await Promise.any(attempts);
+    } catch (error) {
+      if (error instanceof AggregateError) {
+        errors.push(...error.errors.map((item) => (item instanceof Error ? item.message : String(item))));
+      } else {
+        errors.push(error instanceof Error ? error.message : String(error));
       }
     }
   }
 
-  return { externalIp: "", externalError: errors.at(-1) ?? "外网 IP 获取失败" };
+  return { externalIp: "", externalError: errors.join("; ") || "外网 IP 获取失败" };
 }
 
 export async function getIpInfo(): Promise<IpInfo> {

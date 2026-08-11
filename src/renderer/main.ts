@@ -2,7 +2,7 @@ import { createApp } from "vue";
 import { createPinia } from "pinia";
 import SimpleBar from "simplebar";
 import App from "./App.vue";
-import { installMotion } from "./plugins/motion";
+import { installGsap } from "./plugins/gsap";
 import { router } from "./router";
 import "remixicon/fonts/remixicon.css";
 import "simplebar/dist/simplebar.css";
@@ -64,11 +64,6 @@ function scheduleSimpleBarRecalculation(root: ParentNode = document) {
 	});
 }
 
-function isEditableTarget(target: EventTarget | null) {
-	if (!(target instanceof HTMLElement)) return false;
-	return Boolean(target.closest("input, textarea, [contenteditable='true']"));
-}
-
 function disableSpellcheck(target: EventTarget | null) {
 	if (!(target instanceof HTMLElement)) return;
 	const field = target.closest("input, textarea, [contenteditable='true']");
@@ -83,15 +78,9 @@ function disableSpellcheckIn(root: ParentNode = document) {
 	});
 }
 
-window.addEventListener("keydown", (event) => {
-	if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "a" && !isEditableTarget(event.target)) {
-		event.preventDefault();
-	}
-});
-
 window.addEventListener("focusin", (event) => disableSpellcheck(event.target));
 
-createApp(App).use(createPinia()).use(router).use(installMotion).mount("#app");
+createApp(App).use(createPinia()).use(router).use(installGsap).mount("#app");
 disableSpellcheckIn();
 initSimpleBars();
 scheduleSimpleBarRecalculation();

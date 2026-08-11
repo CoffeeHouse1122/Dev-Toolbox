@@ -7,6 +7,8 @@ const leftText = ref("");
 const rightText = ref("");
 const mode = ref<DiffMode>("side-by-side");
 const contextLines = ref(3);
+const maxMatrixCells = 1_000_000;
+const maxTextLength = 1_000_000;
 
 interface DiffLine {
   type: "added" | "removed" | "unchanged";
@@ -33,24 +35,36 @@ function backtrack(dp: number[][], a: string[], b: string[]): DiffLine[] {
   let j = b.length;
   while (i > 0 || j > 0) {
     if (i > 0 && j > 0 && a[i - 1] === b[j - 1]) {
-      result.unshift({ type: "unchanged", leftNum: i, rightNum: j, content: a[i - 1] });
+      result.push({ type: "unchanged", leftNum: i, rightNum: j, content: a[i - 1] });
       i--;
       j--;
     } else if (j > 0 && (i === 0 || dp[i][j - 1] >= dp[i - 1][j])) {
-      result.unshift({ type: "added", rightNum: j, content: b[j - 1] });
+      result.push({ type: "added", rightNum: j, content: b[j - 1] });
       j--;
     } else {
-      result.unshift({ type: "removed", leftNum: i, content: a[i - 1] });
+      result.push({ type: "removed", leftNum: i, content: a[i - 1] });
       i--;
     }
   }
-  return result;
+  return result.reverse();
 }
+
+const diffInput = computed(() => {
+  if (leftText.value.length + rightText.value.length > maxTextLength) {
+    return { a: [] as string[], b: [] as string[], error: "文本总长度超过 1,000,000 字符，请先缩小对比范围。" };
+  }
+  const a = leftText.value.split("\n");
+  const b = rightText.value.split("\n");
+  if (a.length * b.length > maxMatrixCells) {
+    return { a, b, error: `当前 ${a.length.toLocaleString()} × ${b.length.toLocaleString()} 行会生成过大的比较矩阵，请拆分文件后再比较。` };
+  }
+  return { a, b, error: "" };
+});
 
 const rawDiff = computed<DiffLine[]>(() => {
   if (!leftText.value && !rightText.value) return [];
-  const a = leftText.value.split("\n");
-  const b = rightText.value.split("\n");
+  const { a, b, error } = diffInput.value;
+  if (error) return [];
   const dp = computeLCS(a, b);
   return backtrack(dp, a, b);
 });
@@ -295,7 +309,9 @@ async function pasteRight() {
         </template>
       </div>
 
-      <p v-else-if="leftText || rightText" class="empty-state">
+      <p v-if="diffInput.error" class="warning-banner">{{ diffInput.error }}</p>
+
+      <p v-else-if="(leftText || rightText) && !diffInput.error" class="empty-state">
         左右文本完全一致，没有差异。
       </p>
     </div>

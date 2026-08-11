@@ -73,6 +73,11 @@ function cmykToRgb(cc: number, mm: number, yy: number, kk: number): [number, num
 /** 接收来源标记，防止 watch 循环 */
 type Source = "hex" | "rgb" | "hsl" | "cmyk";
 
+function clampNumber(value: number, min: number, max: number) {
+  const numeric = Number(value);
+  return Math.min(max, Math.max(min, Number.isFinite(numeric) ? numeric : min));
+}
+
 function setAllFromRgb(rr: number, gg: number, bb: number, src: Source) {
   const [hh, ss, ll] = rgbToHsl(rr, gg, bb);
   const [cc, mm, yy, kk] = rgbToCmyk(rr, gg, bb);
@@ -85,17 +90,11 @@ function setAllFromRgb(rr: number, gg: number, bb: number, src: Source) {
 }
 
 let batching = false;
-let pending: (() => void) | null = null;
 
 function batch(fn: () => void) {
   batching = true;
   fn();
   batching = false;
-  if (pending) {
-    const cb = pending;
-    pending = null;
-    cb();
-  }
 }
 
 // ---- watch：任一颜色空间变化 → 通过 RGB 桥接同步其余 ---- //
@@ -111,24 +110,34 @@ watch(hex, (val) => {
   const gg = parseInt(hx.substring(2, 4), 16);
   const bb = parseInt(hx.substring(4, 6), 16);
   setAllFromRgb(rr, gg, bb, "hex");
-});
-
+}, { flush: "sync" });
 watch([r, g, b], () => {
   if (batching) return;
-  setAllFromRgb(r.value, g.value, b.value, "rgb");
-});
+  const values = [clampNumber(r.value, 0, 255), clampNumber(g.value, 0, 255), clampNumber(b.value, 0, 255)];
+  batch(() => { [r.value, g.value, b.value] = values; });
+  setAllFromRgb(values[0], values[1], values[2], "rgb");
+}, { flush: "sync" });
 
 watch([h, s, l], () => {
   if (batching) return;
-  const [rr, gg, bb] = hslToRgb(h.value, s.value, l.value);
+  const values = [clampNumber(h.value, 0, 360), clampNumber(s.value, 0, 100), clampNumber(l.value, 0, 100)];
+  batch(() => { [h.value, s.value, l.value] = values; });
+  const [rr, gg, bb] = hslToRgb(values[0], values[1], values[2]);
   setAllFromRgb(rr, gg, bb, "hsl");
-});
+}, { flush: "sync" });
 
 watch([c_val, m, y_val, k_val], () => {
   if (batching) return;
-  const [rr, gg, bb] = cmykToRgb(c_val.value, m.value, y_val.value, k_val.value);
+  const values = [
+    clampNumber(c_val.value, 0, 100),
+    clampNumber(m.value, 0, 100),
+    clampNumber(y_val.value, 0, 100),
+    clampNumber(k_val.value, 0, 100)
+  ];
+  batch(() => { [c_val.value, m.value, y_val.value, k_val.value] = values; });
+  const [rr, gg, bb] = cmykToRgb(values[0], values[1], values[2], values[3]);
   setAllFromRgb(rr, gg, bb, "cmyk");
-});
+}, { flush: "sync" });
 
 const previewStyle = computed(() => ({ background: hex.value }));
 

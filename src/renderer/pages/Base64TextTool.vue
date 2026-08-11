@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
+import iconv from "iconv-lite";
+import { Buffer } from "buffer";
 import SelectMenu from "../components/SelectMenu.vue";
 
 const input = ref("");
@@ -17,18 +19,24 @@ const charsetOptions = [
   { label: "Windows-1252", value: "windows-1252" }
 ];
 
+const iconvEncoding = computed(() => ({
+  "shift_jis": "shift-jis",
+  "euc-kr": "euckr"
+}[charset.value] ?? charset.value));
+
 const output = computed(() => {
   const raw = input.value;
   if (!raw) return "";
   try {
     if (mode.value === "encode") {
-      const bytes = new TextEncoder().encode(raw);
-      return btoa(String.fromCharCode(...bytes));
+      if (!iconv.encodingExists(iconvEncoding.value)) throw new Error(`不支持字符编码：${charset.value}`);
+      return iconv.encode(raw, iconvEncoding.value).toString("base64");
     } else {
-      const binary = atob(raw);
-      const bytes = new Uint8Array(binary.length);
-      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-      return new TextDecoder(charset.value).decode(bytes);
+      const normalized = raw.replace(/\s+/g, "");
+      if (!normalized || normalized.length % 4 === 1 || !/^[A-Za-z0-9+/]*={0,2}$/.test(normalized)) {
+        throw new Error("请输入有效的 Base64 字符串");
+      }
+      return iconv.decode(Buffer.from(normalized, "base64"), iconvEncoding.value);
     }
   } catch (error) {
     return error instanceof Error ? `错误: ${error.message}` : String(error);

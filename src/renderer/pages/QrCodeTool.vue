@@ -20,12 +20,26 @@ const formatOptions = [
   { label: "SVG", value: "svg", icon: "ri-code-box-line" }
 ];
 
-const canRun = computed(() => text.value.trim() && outputDir.value && fileName.value.trim() && !busy.value);
+const colorError = computed(() => {
+  const valid = (value: string) => /^#(?:[\da-f]{3,4}|[\da-f]{6}|[\da-f]{8})$/i.test(value.trim());
+  const normalize = (value: string) => {
+    const hex = value.trim().slice(1).toLowerCase();
+    const expanded = hex.length <= 4 ? [...hex].map((char) => char + char).join("") : hex;
+    return expanded.length === 6 ? `${expanded}ff` : expanded;
+  };
+  if (!valid(darkColor.value)) return "前景色必须是 #RGB、#RGBA、#RRGGBB 或 #RRGGBBAA";
+  if (!valid(lightColor.value)) return "背景色必须是 #RGB、#RGBA、#RRGGBB 或 #RRGGBBAA";
+  if (normalize(darkColor.value) === normalize(lightColor.value)) return "前景色与背景色不能相同";
+  return "";
+});
+const canRun = computed(() => Boolean(text.value.trim() && outputDir.value && fileName.value.trim() && !colorError.value && !busy.value));
 const previewPath = computed(() => result.value?.files[0] ?? "");
 const previewUrl = computed(() => (previewPath.value ? `devtoolbox-file://preview/${encodeURIComponent(previewPath.value)}` : ""));
 
 async function run() {
   if (!canRun.value) return;
+  size.value = Math.min(2048, Math.max(128, Math.round(Number(size.value) || 512)));
+  margin.value = Math.min(12, Math.max(0, Math.round(Number(margin.value) || 0)));
   busy.value = true;
   try {
     result.value = await window.devToolbox.generateQrCode({
@@ -83,13 +97,14 @@ async function run() {
           </label>
           <label class="field">
             <span>前景色</span>
-            <input v-model="darkColor" type="text" />
+            <input v-model="darkColor" type="text" :aria-invalid="Boolean(colorError)" />
           </label>
           <label class="field">
             <span>背景色</span>
-            <input v-model="lightColor" type="text" />
+            <input v-model="lightColor" type="text" :aria-invalid="Boolean(colorError)" />
           </label>
         </div>
+        <p v-if="colorError" class="error-banner">{{ colorError }}</p>
         <div v-if="previewUrl" class="qr-preview">
           <img :src="previewUrl" alt="二维码预览" />
         </div>

@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { AnimatePresence, motion } from "motion-v";
 import { computed, onBeforeUnmount, ref, watch, type CSSProperties } from "vue";
+import GsapTransition from "../components/GsapTransition.vue";
 
 type LinkItem = {
   id: string;
@@ -48,15 +48,9 @@ const categoryTones = [
   { background: "#ddf4ff", border: "#80ccff", color: "#0969da" },
   { background: "#e8f7f5", border: "#6ed3cc", color: "#0a6866" }
 ];
-const linkCardTransition = { type: "spring", stiffness: 360, damping: 24, mass: 0.76 };
-const linkCardHover = { y: -4, rotateZ: -0.35, boxShadow: "0 12px 28px rgba(1, 4, 9, 0.12)" };
-const linkCardPress = { y: -1, scale: 0.992, rotateZ: 0 };
 const linkToastEnter = { opacity: 0, y: 12, scale: 0.98 };
 const linkToastVisible = { opacity: 1, y: 0, scale: 1 };
 const linkToastExit = { opacity: 0, y: 8, scale: 0.98 };
-const dialogMaskEnter = { opacity: 0 };
-const dialogMaskVisible = { opacity: 1 };
-const dialogMaskExit = { opacity: 0 };
 const dialogPanelEnter = { opacity: 0, y: 14, scale: 0.975 };
 const dialogPanelVisible = { opacity: 1, y: 0, scale: 1 };
 const dialogPanelExit = { opacity: 0, y: 8, scale: 0.985 };
@@ -131,20 +125,10 @@ function categoryTabStyle(value: string): CSSProperties {
 
 function linkCardEnter(index: number) {
   return {
-    opacity: 0,
-    y: 10,
-    x: index % 2 === 0 ? -8 : 8,
-    rotateZ: index % 2 === 0 ? -0.5 : 0.5
-  };
-}
-
-function linkCardVisible(index: number) {
-  return {
-    opacity: 1,
-    y: 0,
-    x: 0,
-    rotateZ: 0,
-    transition: { ...linkCardTransition, delay: Math.min(index * 0.035, 0.18) }
+    from: { opacity: 0, y: 10, x: index % 2 === 0 ? -8 : 8, rotateZ: index % 2 === 0 ? -0.5 : 0.5 },
+    to: { opacity: 1, y: 0, x: 0, rotateZ: 0 },
+    delay: Math.min(index * 0.035, 0.18),
+    duration: 0.24
   };
 }
 
@@ -363,7 +347,7 @@ watch(
       </div>
 
       <div class="links-grid">
-        <motion.article
+        <article
           v-for="(item, index) in filteredLinks"
           :key="item.id"
           class="link-card"
@@ -372,10 +356,8 @@ watch(
             'drop-before': item.id === dragOverLinkId && dragPlacement === 'before',
             'drop-after': item.id === dragOverLinkId && dragPlacement === 'after'
           }"
-          :initial="linkCardEnter(index)"
-          :animate="linkCardVisible(index)"
-          :whileHover="linkCardHover"
-          :whilePress="linkCardPress"
+          v-gsap-enter="linkCardEnter(index)"
+          v-gsap-lift
           draggable="true"
           @dragstart="startLinkDrag($event, item.id)"
           @dragover="handleLinkDragOver($event, item.id)"
@@ -407,49 +389,46 @@ watch(
               <i class="ri-delete-bin-line" aria-hidden="true"></i>
             </button>
           </div>
-        </motion.article>
+        </article>
         <p v-if="!filteredLinks.length" class="empty-state link-empty">暂无匹配链接，点击右上角"新增链接"开始添加。</p>
       </div>
     </div>
 
-    <AnimatePresence>
-      <motion.div
+    <GsapTransition :from="linkToastEnter" :to="linkToastVisible" :leave="linkToastExit" :duration="0.18">
+      <div
         v-if="toast.visible"
         key="links-toast"
         class="links-toast"
         :class="toast.tone"
         role="status"
         aria-live="polite"
-        :initial="linkToastEnter"
-        :animate="linkToastVisible"
-        :exit="linkToastExit"
-        :transition="{ duration: 0.18, ease: 'easeOut' }"
       >
         <i :class="toast.tone === 'error' ? 'ri-error-warning-line' : toast.tone === 'success' ? 'ri-checkbox-circle-line' : 'ri-information-line'" aria-hidden="true"></i>
         <span>{{ toast.message }}</span>
-      </motion.div>
-    </AnimatePresence>
+      </div>
+    </GsapTransition>
 
     <Teleport to="body">
-      <AnimatePresence>
-      <motion.div
+      <GsapTransition
+        child-selector=".dt-modal"
+        :from="{ opacity: 0 }"
+        :to="{ opacity: 1 }"
+        :leave="{ opacity: 0 }"
+        :child-from="dialogPanelEnter"
+        :child-to="dialogPanelVisible"
+        :child-leave="dialogPanelExit"
+        :duration="0.2"
+      >
+      <div
         v-if="showModal"
         key="link-edit-modal"
         class="dt-modal-mask"
-        :initial="dialogMaskEnter"
-        :animate="dialogMaskVisible"
-        :exit="dialogMaskExit"
-        :transition="{ duration: 0.16 }"
         @keydown.esc="closeModal"
       >
-        <motion.div
+        <div
           class="dt-modal"
           role="dialog"
           aria-modal="true"
-          :initial="dialogPanelEnter"
-          :animate="dialogPanelVisible"
-          :exit="dialogPanelExit"
-          :transition="{ type: 'spring', stiffness: 420, damping: 34, mass: 0.75 }"
         >
           <header class="dt-modal-head">
             <h3>{{ editing ? "编辑链接" : "新增链接" }}</h3>
@@ -503,26 +482,29 @@ watch(
               {{ editing ? "保存修改" : "添加" }}
             </button>
           </footer>
-        </motion.div>
-      </motion.div>
+        </div>
+      </div>
+      </GsapTransition>
 
-      <motion.div
+      <GsapTransition
+        child-selector=".dt-modal"
+        :from="{ opacity: 0 }"
+        :to="{ opacity: 1 }"
+        :leave="{ opacity: 0 }"
+        :child-from="dialogPanelEnter"
+        :child-to="dialogPanelVisible"
+        :child-leave="dialogPanelExit"
+        :duration="0.2"
+      >
+      <div
         v-if="pendingDeleteLink"
         key="link-delete-modal"
         class="dt-modal-mask"
-        :initial="dialogMaskEnter"
-        :animate="dialogMaskVisible"
-        :exit="dialogMaskExit"
-        :transition="{ duration: 0.16 }"
       >
-        <motion.div
+        <div
           class="dt-modal links-confirm-dialog"
           role="dialog"
           aria-modal="true"
-          :initial="dialogPanelEnter"
-          :animate="dialogPanelVisible"
-          :exit="dialogPanelExit"
-          :transition="{ type: 'spring', stiffness: 420, damping: 34, mass: 0.75 }"
         >
           <header class="dt-modal-head">
             <h3>删除链接</h3>
@@ -541,9 +523,9 @@ watch(
               删除
             </button>
           </footer>
-        </motion.div>
-      </motion.div>
-      </AnimatePresence>
+        </div>
+      </div>
+      </GsapTransition>
     </Teleport>
   </section>
 </template>

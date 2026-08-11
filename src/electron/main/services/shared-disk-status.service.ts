@@ -37,6 +37,9 @@ function runNetUse(): Promise<string> {
 }
 
 export async function getSharedDiskStatus(config: SharedDiskConfig): Promise<SharedDiskStatus> {
+  if (process.platform !== "win32") {
+    return { connected: false, shareRoot: "", message: "共享盘登录当前仅支持 Windows" };
+  }
   const shareRoot = buildShareRoot(config);
   if (!shareRoot) {
     return { connected: false, shareRoot: "", message: "未配置共享路径" };

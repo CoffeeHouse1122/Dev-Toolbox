@@ -1,4 +1,4 @@
-import { app, dialog, ipcMain, shell } from "electron";
+import { app, dialog, shell } from "electron";
 import { z } from "zod";
 import { createHistoryService } from "./services/history.service";
 import { applyWatermark, compressImages, createFaviconPackage, convertImages, cropImage, resizeImages } from "./services/image.service";
@@ -11,6 +11,7 @@ import { convertSequenceAnimation } from "./services/sequence.service";
 import { base64ToImage, exportMarkdown, imageToBase64, renameFiles } from "./services/utility.service";
 import { generateQrCode } from "./services/qr.service";
 import { getIpInfo, lookupDomainIp } from "./services/network.service";
+import { sendHttpRequest } from "./services/http-request.service";
 import { scanCertificates } from "./services/certificate.service";
 import {
   clearCaptureProxyRecords,
@@ -53,6 +54,20 @@ import {
 } from "./services/file-utils";
 import fs from "node:fs/promises";
 import path from "node:path";
+import { readDecodedTextFile } from "./services/text-encoding";
+import {
+  assertAuthorizedPath,
+  assertSharedDiskTarget,
+  authorizeDroppedPaths,
+  authorizeExistingPath,
+  authorizeUserSelectedPaths,
+  getSharedDiskBaseRoot,
+  getSharedDiskShareRoot,
+  handleTrustedIpc,
+  isAuthorizedPath,
+  onTrustedIpc,
+  validateExternalUrl
+} from "./utils/ipc-security";
 import {
   connectSharedDisk,
   disconnectSharedDisk,
@@ -103,6 +118,27 @@ const faviconSchema = z.object({
   includePng: z.boolean(),
   includeManifest: z.boolean()
 });
+
+const localPathSchema = z.string().min(1).max(32_768);
+const dialogFiltersSchema = z.array(z.object({
+  name: z.string().min(1).max(100),
+  extensions: z.array(z.string().regex(/^(?:\*|[a-z0-9][a-z0-9+_-]{0,31})$/i)).min(1).max(100)
+}).strict()).max(50).optional();
+
+function assertToolPaths(options: {
+  inputPath?: string;
+  inputPaths?: string[];
+  outputDir?: string;
+  sourceDir?: string;
+  patternPath?: string;
+}) {
+  if ((options.inputPaths?.length ?? 0) > 10_000) throw new Error("一次最多处理 10000 个输入路径");
+  if (options.inputPath) assertAuthorizedPath(options.inputPath);
+  for (const inputPath of options.inputPaths ?? []) assertAuthorizedPath(inputPath);
+  if (options.outputDir) assertAuthorizedPath(options.outputDir);
+  if (options.sourceDir) assertAuthorizedPath(options.sourceDir);
+  if (options.patternPath) assertAuthorizedPath(options.patternPath);
+}
 
 const webpSchema = z.object({
   inputPaths: z.array(z.string().min(1)).min(1),
@@ -195,6 +231,7 @@ async function pathExists(targetPath: string) {
 
 async function openDirectory(targetPath: string): Promise<OpenDirectoryResult> {
   const normalizedPath = path.normalize(targetPath);
+  assertAuthorizedPath(normalizedPath);
   if (!(await pathExists(normalizedPath))) {
     return { status: "missing", path: normalizedPath, message: "目标文件夹不存在。" };
   }
@@ -330,7 +367,14 @@ const renameSchema = z.object({
   pattern: z.string().min(1),
   start: z.number().int().min(0),
   replaceFrom: z.string().optional(),
-  replaceTo: z.string().optional()
+  replaceTo: z.string().optional(),
+  dryRun: z.boolean().optional()
+});
+
+const base64ImageSchema = z.object({
+  data: z.string().min(1).max(70 * 1024 * 1024),
+  outputDir: z.string().min(1).max(32_768),
+  fileName: z.string().max(255)
 });
 
 const qrCodeSchema = z.object({
@@ -413,17 +457,23 @@ const appSettingsSchema = z.object({
 const toolConfigKeySchema = z.enum(["navigation", "capture-proxy", "output-picker"]);
 
 const sharedDiskSchema = z.object({
-  url: z.string().min(1),
+  url: z.string().min(1).max(2_048),
   username: z.string(),
   password: z.string(),
-  basePath: z.string().min(1),
-  defaultDirectory: z.string(),
+  basePath: z.string().min(1).max(2_048),
+  defaultDirectory: z.string().max(32_768),
   persistent: z.boolean()
 });
 
+function assertSharedDiskConfig(config: SharedDiskConfig) {
+  getSharedDiskShareRoot(config);
+  getSharedDiskBaseRoot(config);
+  if (config.defaultDirectory) assertSharedDiskTarget(config, config.defaultDirectory);
+}
+
 const stickyNoteSaveSchema = z.object({
-  id: z.string().min(1),
-  content: z.string()
+  id: z.string().min(1).max(200),
+  content: z.string().max(8 * 1024 * 1024)
 });
 
 const stickyNoteStyleSchema = z.object({
@@ -447,313 +497,418 @@ export function registerIpc() {
   const history = createHistoryService();
   registerClipboardIpc();
 
-  ipcMain.handle(
+  onTrustedIpc("paths:authorize-dropped", (event, raw: unknown) => {
+    const paths = z.array(localPathSchema).max(2_048).parse(raw);
+    authorizeDroppedPaths(paths);
+    event.returnValue = true;
+  });
+
+  handleTrustedIpc(
     "dialog:select-files",
-    async (_event, filters?: DialogFileFilter[], multiSelections = true): Promise<string[]> => {
+    async (_event, rawFilters?: DialogFileFilter[], rawMultiSelections: unknown = true): Promise<string[]> => {
+      const filters = dialogFiltersSchema.parse(rawFilters);
+      const multiSelections = z.boolean().parse(rawMultiSelections);
       return runWithLocalOpenLock([], async () => {
         const result = await dialog.showOpenDialog({
           properties: multiSelections ? ["openFile", "multiSelections"] : ["openFile"],
           filters
         });
 
-        return result.canceled ? [] : result.filePaths;
+        if (result.canceled) return [];
+        authorizeUserSelectedPaths(result.filePaths);
+        return result.filePaths;
       });
     }
   );
 
-  ipcMain.handle("dialog:select-output-dir", async (_event, defaultPath?: string): Promise<string | null> => {
+  handleTrustedIpc("dialog:select-output-dir", async (_event, rawDefaultPath?: unknown): Promise<string | null> => {
+    const defaultPath = rawDefaultPath === undefined ? undefined : localPathSchema.parse(rawDefaultPath);
     return runWithLocalOpenLock(null, async () => {
       const result = await dialog.showOpenDialog({
         properties: ["openDirectory", "createDirectory"],
-        defaultPath: defaultPath || undefined
+        defaultPath: defaultPath && isAuthorizedPath(defaultPath) ? defaultPath : undefined
       });
 
-      return result.canceled ? null : result.filePaths[0] ?? null;
+      if (result.canceled || !result.filePaths[0]) return null;
+      authorizeUserSelectedPaths([result.filePaths[0]], true);
+      return result.filePaths[0];
     });
   });
 
-  ipcMain.handle("file:path-exists", async (_event, targetPath: string) => pathExists(z.string().min(1).parse(targetPath)));
+  handleTrustedIpc("file:path-exists", async (_event, targetPath: unknown) => {
+    const selectedPath = localPathSchema.parse(targetPath);
+    return isAuthorizedPath(selectedPath) && pathExists(selectedPath);
+  });
 
-  ipcMain.handle("convert:favicon", async (_event, raw: FaviconOptions) => {
+  handleTrustedIpc("convert:favicon", async (_event, raw: FaviconOptions) => {
     const options = faviconSchema.parse(raw);
+    assertToolPaths(options);
     return createFaviconPackage(options, history);
   });
 
-  ipcMain.handle("convert:webp", async (_event, raw: WebpOptions) => {
+  handleTrustedIpc("convert:webp", async (_event, raw: WebpOptions) => {
     const options = webpSchema.parse(raw);
+    assertToolPaths(options);
     return convertImages(options, history);
   });
 
-  ipcMain.handle("convert:image-compress", async (_event, raw: ImageCompressOptions) => {
+  handleTrustedIpc("convert:image-compress", async (_event, raw: ImageCompressOptions) => {
     const options = imageCompressSchema.parse(raw);
+    assertToolPaths(options);
     return compressImages(options, history);
   });
 
-  ipcMain.handle("convert:image-resize", async (_event, raw: ImageResizeOptions) => {
+  handleTrustedIpc("convert:image-resize", async (_event, raw: ImageResizeOptions) => {
     const options = imageResizeSchema.parse(raw);
+    assertToolPaths(options);
     return resizeImages(options, history);
   });
 
-  ipcMain.handle("convert:image-crop", async (_event, raw: ImageCropOptions) => {
+  handleTrustedIpc("convert:image-crop", async (_event, raw: ImageCropOptions) => {
     const options = imageCropSchema.parse(raw);
+    assertToolPaths(options);
     return cropImage(options, history);
   });
 
-  ipcMain.handle("convert:watermark", async (_event, raw: WatermarkOptions) => {
+  handleTrustedIpc("convert:watermark", async (_event, raw: WatermarkOptions) => {
     const options = watermarkSchema.parse(raw);
+    assertToolPaths(options);
     return applyWatermark(options, history);
   });
 
-  ipcMain.handle("convert:font-woff2", async (_event, raw: FontWoff2Options) => {
+  handleTrustedIpc("convert:font-woff2", async (_event, raw: FontWoff2Options) => {
     const options = fontSchema.parse(raw);
+    assertToolPaths(options);
     return convertFontsToWoff2(options, history);
   });
 
-  ipcMain.handle("convert:font-subset", async (_event, raw: FontSubsetOptions) => {
+  handleTrustedIpc("convert:font-subset", async (_event, raw: FontSubsetOptions) => {
     const options = fontSubsetSchema.parse(raw);
+    assertToolPaths(options);
     return subsetFont(options, history);
   });
 
-  ipcMain.handle("convert:video-background", async (_event, raw: VideoBackgroundOptions) => {
+  handleTrustedIpc("convert:video-background", async (_event, raw: VideoBackgroundOptions) => {
     const options = videoSchema.parse(raw);
+    assertToolPaths(options);
     return createVideoBackgroundPack(options, history);
   });
 
-  ipcMain.handle("convert:sequence-animation", async (_event, raw: SequenceAnimationOptions) => {
+  handleTrustedIpc("convert:sequence-animation", async (_event, raw: SequenceAnimationOptions) => {
     const options = sequenceAnimationSchema.parse(raw);
+    assertToolPaths(options);
     return convertSequenceAnimation(options, history);
   });
 
-  ipcMain.handle("convert:video-animation", async (_event, raw: VideoAnimationOptions) => {
+  handleTrustedIpc("convert:video-animation", async (_event, raw: VideoAnimationOptions) => {
     const options = videoAnimationSchema.parse(raw);
+    assertToolPaths(options);
     return convertVideoAnimation(options, history);
   });
 
-  ipcMain.handle("convert:video-mute", async (_event, raw: VideoMuteOptions) => {
+  handleTrustedIpc("convert:video-mute", async (_event, raw: VideoMuteOptions) => {
     const options = videoMuteSchema.parse(raw);
+    assertToolPaths(options);
     return removeVideoAudio(options, history);
   });
 
-  ipcMain.handle("convert:video-compress", async (_event, raw: VideoCompressOptions) => {
+  handleTrustedIpc("convert:video-compress", async (_event, raw: VideoCompressOptions) => {
     const options = videoCompressSchema.parse(raw);
+    assertToolPaths(options);
     return compressVideos(options, history);
   });
 
-  ipcMain.handle("media:video-loop", async (_event, raw: VideoLoopAnalyzeOptions) => {
+  handleTrustedIpc("media:video-loop", async (_event, raw: VideoLoopAnalyzeOptions) => {
     const options = videoLoopAnalyzeSchema.parse(raw);
+    assertToolPaths(options);
     return analyzeVideoLoop(options, history);
   });
 
-  ipcMain.handle("media:info", async (_event, inputPath: string) => {
-    return getMediaInfo(z.string().min(1).parse(inputPath));
+  handleTrustedIpc("media:info", async (_event, inputPath: string) => {
+    const selectedPath = localPathSchema.parse(inputPath);
+    assertAuthorizedPath(selectedPath);
+    return getMediaInfo(selectedPath);
   });
 
-  ipcMain.handle("convert:audio", async (_event, raw: AudioConvertOptions) => {
+  handleTrustedIpc("convert:audio", async (_event, raw: AudioConvertOptions) => {
     const options = audioConvertSchema.parse(raw);
+    assertToolPaths(options);
     return convertAudio(options, history);
   });
 
-  ipcMain.handle("convert:audio-compress", async (_event, raw: AudioCompressOptions) => {
+  handleTrustedIpc("convert:audio-compress", async (_event, raw: AudioCompressOptions) => {
     const options = audioCompressSchema.parse(raw);
+    assertToolPaths(options);
     return compressAudio(options, history);
   });
 
-  ipcMain.handle("convert:code-minify", async (_event, raw: CodeMinifyOptions) => {
+  handleTrustedIpc("convert:code-minify", async (_event, raw: CodeMinifyOptions) => {
     const options = codeMinifySchema.parse(raw);
+    assertToolPaths(options);
     return minifyCode(options, history);
   });
 
-  ipcMain.handle("convert:markdown-export", async (_event, raw: MarkdownExportOptions) => {
+  handleTrustedIpc("convert:markdown-export", async (_event, raw: MarkdownExportOptions) => {
     const options = markdownExportSchema.parse(raw);
+    assertToolPaths(options);
     return exportMarkdown(options, history);
   });
 
-  ipcMain.handle("files:rename", async (_event, raw: RenameOptions) => {
+  handleTrustedIpc("files:rename", async (_event, raw: RenameOptions) => {
     const options = renameSchema.parse(raw);
+    assertToolPaths(options);
     return renameFiles(options, history);
   });
 
-  ipcMain.handle("qr:generate", async (_event, raw: QrCodeOptions) => {
+  handleTrustedIpc("qr:generate", async (_event, raw: QrCodeOptions) => {
     const options = qrCodeSchema.parse(raw);
+    assertToolPaths(options);
     return generateQrCode(options, history);
   });
 
-  ipcMain.handle("network:ip-info", async () => {
+  handleTrustedIpc("network:ip-info", async () => {
     return getIpInfo();
   });
 
-  ipcMain.handle("network:domain-ip", async (_event, domain: string) => {
+  handleTrustedIpc("network:domain-ip", async (_event, domain: string) => {
     return lookupDomainIp(z.string().min(1).parse(domain));
   });
 
-  ipcMain.handle("network:certificate-scan", async (_event, raw: CertificateScanOptions) => {
+  handleTrustedIpc("network:http-request", async (_event, input: unknown) => {
+    const options = z
+      .object({
+        url: z.string().min(1).max(8_192),
+        method: z.string().min(1).max(16),
+        headers: z.record(z.string().max(8_192)),
+        body: z.string().max(5 * 1024 * 1024).optional(),
+        timeoutMs: z.number().int().min(100).max(60_000),
+        multipartFields: z
+          .array(z.object({ name: z.string().min(1).max(256), value: z.string().max(5 * 1024 * 1024) }))
+          .max(200)
+          .optional()
+      })
+      .strict()
+      .parse(input);
+    return sendHttpRequest(options);
+  });
+
+  handleTrustedIpc("network:certificate-scan", async (_event, raw: CertificateScanOptions) => {
     const options = certificateScanSchema.parse(raw);
     return scanCertificates(options);
   });
 
-  ipcMain.handle("capture-proxy:start", async (_event, raw: CaptureProxyStartOptions) => {
+  handleTrustedIpc("capture-proxy:start", async (_event, raw: CaptureProxyStartOptions) => {
     const options = captureProxyStartSchema.parse(raw);
     return startCaptureProxy(options);
   });
 
-  ipcMain.handle("capture-proxy:stop", async () => stopCaptureProxy());
-  ipcMain.handle("capture-proxy:status", async () => getCaptureProxyStatus());
-  ipcMain.handle("capture-proxy:list", async () => listCaptureProxyRecords());
-  ipcMain.handle("capture-proxy:clear", async () => clearCaptureProxyRecords());
-  ipcMain.handle("capture-proxy:test", async () => testCaptureProxy());
+  handleTrustedIpc("capture-proxy:stop", async () => stopCaptureProxy());
+  handleTrustedIpc("capture-proxy:status", async () => getCaptureProxyStatus());
+  handleTrustedIpc("capture-proxy:list", async () => listCaptureProxyRecords());
+  handleTrustedIpc("capture-proxy:clear", async () => clearCaptureProxyRecords());
+  handleTrustedIpc("capture-proxy:test", async () => testCaptureProxy());
 
-  ipcMain.handle("assets:manifest", async (_event, raw: AssetManifestOptions) => {
+  handleTrustedIpc("assets:manifest", async (_event, raw: AssetManifestOptions) => {
     const options = assetManifestSchema.parse(raw);
+    assertToolPaths(options);
     return generateAssetManifest(options, history);
   });
 
-  ipcMain.handle("assets:sprite", async (_event, raw: SpriteOptions) => {
+  handleTrustedIpc("assets:sprite", async (_event, raw: SpriteOptions) => {
     const options = spriteSchema.parse(raw);
+    assertToolPaths(options);
     return generateSprite(options, history);
   });
 
-  ipcMain.handle("assets:image-placeholder", async (_event, raw: ImagePlaceholderOptions) => {
+  handleTrustedIpc("assets:image-placeholder", async (_event, raw: ImagePlaceholderOptions) => {
     const options = imagePlaceholderSchema.parse(raw);
+    assertToolPaths(options);
     return generateImagePlaceholders(options, history);
   });
 
-  ipcMain.handle("seo:files", async (_event, raw: SeoFilesOptions) => {
+  handleTrustedIpc("seo:files", async (_event, raw: SeoFilesOptions) => {
     const options = seoFilesSchema.parse(raw);
+    assertToolPaths(options);
     return generateSeoFiles(options, history);
   });
 
-  ipcMain.handle("seo:og-image", async (_event, raw: OgImageOptions) => {
+  handleTrustedIpc("seo:og-image", async (_event, raw: OgImageOptions) => {
     const options = ogImageSchema.parse(raw);
+    assertToolPaths(options);
     return generateOgImage(options, history);
   });
 
-  ipcMain.handle("base64:image-to-base64", async (_event, inputPath: string) => {
-    return imageToBase64(inputPath);
+  handleTrustedIpc("base64:image-to-base64", async (_event, inputPath: string) => {
+    const selectedPath = localPathSchema.parse(inputPath);
+    assertAuthorizedPath(selectedPath);
+    return imageToBase64(selectedPath);
   });
 
-  ipcMain.handle("base64:base64-to-image", async (_event, data: string, outputDir: string, fileName: string) => {
-    return base64ToImage(data, outputDir, fileName);
+  handleTrustedIpc("base64:base64-to-image", async (_event, data: string, outputDir: string, fileName: string) => {
+    const options = base64ImageSchema.parse({ data, outputDir, fileName });
+    assertToolPaths(options);
+    return base64ToImage(options.data, options.outputDir, options.fileName);
   });
 
-  ipcMain.handle("shared-disk:load", async () => {
+  handleTrustedIpc("shared-disk:load", async () => {
     return loadSharedDiskConfig();
   });
 
-  ipcMain.handle("shared-disk:save", async (_event, raw: SharedDiskConfig) => {
+  handleTrustedIpc("shared-disk:save", async (_event, raw: SharedDiskConfig) => {
     const options = sharedDiskSchema.parse(raw);
+    assertSharedDiskConfig(options);
     return saveSharedDiskConfig(options);
   });
 
-  ipcMain.handle("shared-disk:connect", async (_event, raw: SharedDiskConfig) => {
+  handleTrustedIpc("shared-disk:connect", async (_event, raw: SharedDiskConfig) => {
     const options = sharedDiskSchema.parse(raw);
+    assertSharedDiskConfig(options);
     return connectSharedDisk(options);
   });
 
-  ipcMain.handle("shared-disk:disconnect", async (_event, raw: SharedDiskConfig) => {
+  handleTrustedIpc("shared-disk:disconnect", async (_event, raw: SharedDiskConfig) => {
     const options = sharedDiskSchema.parse(raw);
+    assertSharedDiskConfig(options);
     return disconnectSharedDisk(options);
   });
 
-  ipcMain.handle("shared-disk:status", async (_event, raw: SharedDiskConfig) => {
+  handleTrustedIpc("shared-disk:status", async (_event, raw: SharedDiskConfig) => {
     const options = sharedDiskSchema.parse(raw);
+    assertSharedDiskConfig(options);
     return getSharedDiskStatus(options);
   });
 
-  ipcMain.handle("shared-disk:open", async (_event, targetPath: string) => {
-    return openSharedDiskDirectory(targetPath);
+  handleTrustedIpc("shared-disk:open", async (_event, targetPath: string) => {
+    const config = sharedDiskSchema.parse(await loadSharedDiskConfig());
+    const selectedPath = localPathSchema.parse(targetPath);
+    assertSharedDiskTarget(config, selectedPath);
+    return openSharedDiskDirectory(selectedPath);
   });
 
-  ipcMain.handle("settings:load", async () => loadAppSettings());
-  ipcMain.handle("settings:save", async (_event, raw: AppSettings) => saveAppSettings(appSettingsSchema.parse(raw)));
-  ipcMain.handle("diagnostics:get", async () => getAppDiagnostics());
-  ipcMain.handle("config:load", async (_event, key: string) => loadToolConfig(toolConfigKeySchema.parse(key)));
-  ipcMain.handle("config:save", async (_event, key: string, value: unknown) => saveToolConfig(toolConfigKeySchema.parse(key), value));
+  handleTrustedIpc("settings:load", async () => loadAppSettings());
+  handleTrustedIpc("settings:save", async (_event, raw: AppSettings) => saveAppSettings(appSettingsSchema.parse(raw)));
+  handleTrustedIpc("diagnostics:get", async () => getAppDiagnostics());
+  handleTrustedIpc("config:load", async (_event, key: string) => loadToolConfig(toolConfigKeySchema.parse(key)));
+  handleTrustedIpc("config:save", async (_event, key: string, value: unknown) => saveToolConfig(toolConfigKeySchema.parse(key), value));
 
-  ipcMain.handle("notes:load", async () => loadStickyNotes());
-
-  ipcMain.handle("notes:set-directory", async (_event, directory: string) => {
-    return setStickyNotesDirectory(z.string().min(1).parse(directory));
+  handleTrustedIpc("notes:load", async () => {
+    const state = await loadStickyNotes();
+    authorizeUserSelectedPaths([state.directory], true);
+    return state;
   });
 
-  ipcMain.handle("notes:create", async (_event, content?: string) => createStickyNote(content));
+  handleTrustedIpc("notes:set-directory", async (_event, directory: string) => {
+    const selectedPath = localPathSchema.parse(directory);
+    assertAuthorizedPath(selectedPath);
+    return setStickyNotesDirectory(selectedPath);
+  });
 
-  ipcMain.handle("notes:save", async (_event, raw: { id: string; content: string }) => {
+  handleTrustedIpc("notes:create", async (_event, content?: string) => createStickyNote(z.string().max(8 * 1024 * 1024).optional().parse(content)));
+
+  handleTrustedIpc("notes:save", async (_event, raw: { id: string; content: string }) => {
     const payload = stickyNoteSaveSchema.parse(raw);
     return saveStickyNote(payload.id, payload.content);
   });
 
-  ipcMain.handle("notes:pin", async (_event, raw: { id: string; pinned: boolean }) => {
+  handleTrustedIpc("notes:pin", async (_event, raw: { id: string; pinned: boolean }) => {
     const payload = z.object({ id: z.string().min(1), pinned: z.boolean() }).parse(raw);
     return setStickyNotePinned(payload.id, payload.pinned);
   });
 
-  ipcMain.handle("notes:archive", async (_event, raw: { id: string; archived: boolean }) => {
+  handleTrustedIpc("notes:archive", async (_event, raw: { id: string; archived: boolean }) => {
     const payload = z.object({ id: z.string().min(1), archived: z.boolean() }).parse(raw);
     return archiveStickyNote(payload.id, payload.archived);
   });
 
-  ipcMain.handle("notes:delete", async (_event, id: string) => {
+  handleTrustedIpc("notes:delete", async (_event, id: string) => {
     await deleteStickyNote(z.string().min(1).parse(id));
   });
 
-  ipcMain.handle("notes:restore", async (_event, id: string) => {
+  handleTrustedIpc("notes:restore", async (_event, id: string) => {
     return restoreStickyNote(z.string().min(1).parse(id));
   });
 
-  ipcMain.handle("notes:empty-trash", async () => {
+  handleTrustedIpc("notes:empty-trash", async () => {
     return emptyStickyNotesTrash();
   });
 
-  ipcMain.handle("notes:preferences", async (_event, raw: StickyNotesPreferences) => {
+  handleTrustedIpc("notes:preferences", async (_event, raw: StickyNotesPreferences) => {
     return saveStickyNotesPreferences(stickyNoteStyleSchema.parse(raw));
   });
 
-  ipcMain.handle("notes:apply-preset", async (_event, raw: { id: string | null; scope: "current" | "all"; style: StickyNoteStyle }) => {
+  handleTrustedIpc("notes:apply-preset", async (_event, raw: { id: string | null; scope: "current" | "all"; style: StickyNoteStyle }) => {
     const payload = z.object({ id: z.string().min(1).nullable(), scope: z.enum(["current", "all"]), style: stickyNoteStyleSchema }).parse(raw);
     return applyStickyNotePreset(payload.id, payload.scope, payload.style);
   });
 
-  ipcMain.handle("notes:import", async (_event, inputPaths: string[]) => {
-    return importStickyNotes(z.array(z.string().min(1)).min(1).parse(inputPaths));
+  handleTrustedIpc("notes:import", async (_event, inputPaths: string[]) => {
+    const selectedPaths = z.array(localPathSchema).min(1).max(100).parse(inputPaths);
+    for (const selectedPath of selectedPaths) assertAuthorizedPath(selectedPath);
+    return importStickyNotes(selectedPaths);
   });
 
-  ipcMain.handle("notes:export", async (_event, raw: StickyNoteExportOptions | string) => {
+  handleTrustedIpc("notes:export", async (_event, raw: StickyNoteExportOptions | string) => {
     const payload = typeof raw === "string" ? { outputDir: raw, format: "txt" as const } : stickyNoteExportSchema.parse(raw);
+    assertAuthorizedPath(localPathSchema.parse(payload.outputDir));
     return exportStickyNotes(payload);
   });
 
-  ipcMain.handle("history:list", async (_event, limit?: number) => {
-    return history.list(limit);
+  handleTrustedIpc("history:list", async (_event, limit?: number) => {
+    const selectedLimit = z.number().int().min(1).max(1_000).optional().parse(limit);
+    const records = await history.list(selectedLimit);
+    for (const record of records) {
+      if (!record.outputPath) continue;
+      try {
+        authorizeExistingPath(record.outputPath);
+      } catch {
+        // Stale or unavailable history paths remain visible but are not granted.
+      }
+    }
+    return records;
   });
 
-  ipcMain.handle("history:clear", async () => {
+  handleTrustedIpc("history:clear", async () => {
     await history.clear();
   });
 
-  ipcMain.handle("shell:reveal-path", async (_event, filePath: string) => {
-    const normalizedPath = path.normalize(filePath);
+  handleTrustedIpc("shell:reveal-path", async (_event, filePath: string) => {
+    const normalizedPath = path.normalize(localPathSchema.parse(filePath));
+    assertAuthorizedPath(normalizedPath);
     if (!(await pathExists(normalizedPath))) return;
     if (!acquireLocalOpenLock()) return;
     shell.showItemInFolder(normalizedPath);
   });
 
-  ipcMain.handle("shell:open-directory", async (_event, targetPath: string) => {
-    return openDirectory(z.string().min(1).parse(targetPath));
+  handleTrustedIpc("shell:open-directory", async (_event, targetPath: string) => {
+    return openDirectory(localPathSchema.parse(targetPath));
   });
 
-  ipcMain.handle("shell:open-external", async (_event, url: string) => {
-    await shell.openExternal(url);
+  handleTrustedIpc("shell:open-external", async (_event, url: unknown) => {
+    const normalizedUrl = validateExternalUrl(url);
+    await shell.openExternal(normalizedUrl);
   });
 
-  ipcMain.handle("file:read-text", async (_event, filePath: string) => {
-    return fs.readFile(filePath, "utf8");
+  handleTrustedIpc("file:read-text", async (_event, filePath: string, encoding = "auto") => {
+    const normalizedPath = path.normalize(localPathSchema.parse(filePath));
+    assertAuthorizedPath(normalizedPath);
+    const selectedEncoding = z.enum(["auto", "utf8", "utf16le", "utf16be", "gb18030", "big5", "shift_jis", "latin1"]).parse(encoding);
+    const stat = await fs.stat(normalizedPath);
+    if (!stat.isFile()) throw new Error("选择的路径不是文件");
+    if (stat.size > 20 * 1024 * 1024) throw new Error("文本文件不能超过 20 MiB");
+    return (await readDecodedTextFile(normalizedPath, selectedEncoding)).text;
   });
 
-  ipcMain.handle("file:write-text", async (_event, outputDir: string, fileName: string, content: string) => {
-    await ensureDir(outputDir);
-    const extension = path.extname(fileName).replace(/[^.\w-]/g, "") || ".txt";
-    const output = path.join(outputDir, `${safeBaseName(fileName) || "dev-toolbox-config"}${extension}`);
-    await writePlainTextFile(output, content);
+  handleTrustedIpc("file:write-text", async (_event, outputDir: string, fileName: string, content: string) => {
+    const payload = z.object({
+      outputDir: localPathSchema,
+      fileName: z.string().min(1).max(255),
+      content: z.string().max(8 * 1024 * 1024)
+    }).strict().parse({ outputDir, fileName, content });
+    assertAuthorizedPath(payload.outputDir);
+    await ensureDir(payload.outputDir);
+    const extension = path.extname(payload.fileName).replace(/[^.\w-]/g, "") || ".txt";
+    const output = path.join(payload.outputDir, `${safeBaseName(payload.fileName) || "dev-toolbox-config"}${extension}`);
+    await writePlainTextFile(output, payload.content);
     return output;
   });
 }

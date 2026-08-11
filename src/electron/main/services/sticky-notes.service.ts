@@ -3,6 +3,8 @@ import Database from "better-sqlite3";
 import JSZip from "jszip";
 import fs from "node:fs/promises";
 import path from "node:path";
+import type { Readable } from "node:stream";
+import { z } from "zod";
 import type {
   StickyNote,
   StickyNoteExportOptions,
@@ -12,10 +14,17 @@ import type {
   StickyNotesPreferences,
   StickyNotesState
 } from "../../../shared/types";
-
+import { readJsonWithBackup, writeFileAtomic } from "./atomic-file";
 const settingsFileName = "sticky-notes-settings.json";
 const databaseFileName = "sticky-notes.sqlite";
 const richNoteMarker = "<!-- dev-toolbox-note-html:v1 -->";
+const MAX_IMPORT_FILES = 100;
+const MAX_IMPORT_FILE_BYTES = 64 * 1024 * 1024;
+const MAX_IMPORT_JSON_CHARS = 32 * 1024 * 1024;
+const MAX_NOTE_CONTENT_CHARS = 8 * 1024 * 1024;
+const MAX_IMPORTED_NOTES = 2_000;
+const MAX_ZIP_ENTRIES = 2_500;
+const MAX_ZIP_UNCOMPRESSED_BYTES = 128 * 1024 * 1024;
 
 const defaultPreferences: StickyNotesPreferences = {
   fontFamily: '"Source Han Sans CN", "Microsoft YaHei", ui-sans-serif, system-ui, sans-serif',
@@ -58,6 +67,176 @@ type ImportNotePayload = {
   trashedAt?: number | null;
 };
 
+const importedStyleSchema = z
+  .object({
+    fontFamily: z.string().min(1).max(300).optional(),
+    fontSize: z.number().finite().min(10).max(48).optional(),
+    lineHeight: z.number().finite().min(1).max(2.4).optional(),
+    padding: z.number().finite().min(8).max(64).optional(),
+    color: z.string().max(100).optional(),
+    backgroundColor: z.string().max(100).optional()
+  })
+  .strict();
+
+const importNoteSchema = z
+  .object({
+    id: z.string().max(200).optional(),
+    fileName: z.string().max(1_024).optional(),
+    filePath: z.string().max(32_768).optional(),
+    title: z.string().max(200).optional(),
+    content: z.string().min(1).max(MAX_NOTE_CONTENT_CHARS),
+    pinned: z.boolean().optional(),
+    status: z.enum(["active", "archived", "trashed"]).optional(),
+    style: importedStyleSchema.optional(),
+    createdAt: z.number().int().nonnegative().max(8_640_000_000_000).optional(),
+    updatedAt: z.number().int().nonnegative().max(8_640_000_000_000).optional(),
+    archivedAt: z.number().int().nonnegative().max(8_640_000_000_000).nullable().optional(),
+    trashedAt: z.number().int().nonnegative().max(8_640_000_000_000).nullable().optional()
+  })
+  .strict();
+
+const importPayloadSchema = z.union([
+  z.array(importNoteSchema).max(MAX_IMPORTED_NOTES),
+  z.object({
+    version: z.number().int().min(1).max(100).optional(),
+    exportedAt: z.string().datetime().optional(),
+    preferences: importedStyleSchema.optional(),
+    notes: z.array(importNoteSchema).max(MAX_IMPORTED_NOTES)
+  }).strict()
+]);
+
+const allowedRichTags = new Set([
+  "a", "b", "blockquote", "br", "code", "div", "em", "h1", "h2", "h3", "h4", "h5", "h6", "i", "img",
+  "li", "ol", "p", "pre", "s", "span", "strike", "strong", "u", "ul"
+]);
+const voidRichTags = new Set(["br", "img"]);
+const allowedClassNames = new Set(["note-inline-image", "note-todo-box", "todo-line"]);
+const allowedStyleProperties = new Set([
+  "background-color", "color", "font-family", "font-size", "font-style", "font-weight", "line-height", "text-decoration"
+]);
+
+function escapeRichText(value: string) {
+  // Keep existing entities intact so normal editor text is not double encoded.
+  return value.replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+function escapeRichAttribute(value: string) {
+  return value.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+function decodeAttributeEntities(value: string) {
+  return value
+    .replace(/&#x([0-9a-f]+);?/gi, (_match, hex: string) => {
+      const codePoint = Number.parseInt(hex, 16);
+      return codePoint <= 0x10ffff ? String.fromCodePoint(codePoint) : "";
+    })
+    .replace(/&#(\d+);?/g, (_match, decimal: string) => {
+      const codePoint = Number.parseInt(decimal, 10);
+      return codePoint <= 0x10ffff ? String.fromCodePoint(codePoint) : "";
+    })
+    .replace(/&(colon|tab|newline|amp|quot|apos|lt|gt);/gi, (_match, name: string) => ({
+      colon: ":", tab: "\t", newline: "\n", amp: "&", quot: '"', apos: "'", lt: "<", gt: ">"
+    })[name.toLowerCase()] || "");
+}
+
+function safeExternalHref(value: string) {
+  const decoded = decodeAttributeEntities(value).replace(/[\u0000-\u0020\u007f]+/g, "").trim();
+  try {
+    const protocol = new URL(decoded).protocol.toLowerCase();
+    return ["http:", "https:", "mailto:"].includes(protocol) ? decoded : "";
+  } catch {
+    return "";
+  }
+}
+
+function safeInlineImage(value: string) {
+  const decoded = decodeAttributeEntities(value).replace(/\s+/g, "");
+  if (decoded.length > MAX_NOTE_CONTENT_CHARS) return "";
+  return /^data:image\/(?:png|jpe?g|gif|webp);base64,[a-z0-9+/]+=*$/i.test(decoded) ? decoded : "";
+}
+
+function sanitizeInlineStyle(value: string) {
+  value = decodeAttributeEntities(value);
+  const declarations: string[] = [];
+  for (const item of value.split(";")) {
+    const separator = item.indexOf(":");
+    if (separator < 1) continue;
+    const property = item.slice(0, separator).trim().toLowerCase();
+    const styleValue = item.slice(separator + 1).trim();
+    if (!allowedStyleProperties.has(property) || !styleValue || /url\s*\(|expression\s*\(|@import|[<>]/i.test(styleValue)) continue;
+    if (styleValue.length > 300) continue;
+    declarations.push(`${property}: ${styleValue}`);
+  }
+  return declarations.join("; ");
+}
+
+function richAttributes(tagName: string, rawAttributes: string) {
+  const parsed = new Map<string, string>();
+  const pattern = /([^\s=/>]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+)))?/g;
+  let match: RegExpExecArray | null;
+  while ((match = pattern.exec(rawAttributes))) {
+    parsed.set(match[1].toLowerCase(), match[2] ?? match[3] ?? match[4] ?? "");
+  }
+
+  const attributes: string[] = [];
+  const style = sanitizeInlineStyle(parsed.get("style") || "");
+  if (style) attributes.push(`style="${escapeRichAttribute(style)}"`);
+  const classes = (parsed.get("class") || "").split(/\s+/).filter((name) => allowedClassNames.has(name));
+  if (classes.length) attributes.push(`class="${classes.join(" ")}"`);
+
+  if (tagName === "a") {
+    const href = safeExternalHref(parsed.get("href") || parsed.get("data-note-link") || "");
+    if (href) {
+      attributes.push(`href="${escapeRichAttribute(href)}"`, `data-note-link="${escapeRichAttribute(href)}"`, 'rel="noopener noreferrer"');
+    }
+  }
+  if (tagName === "img") {
+    const src = safeInlineImage(parsed.get("src") || parsed.get("data-note-src") || "");
+    if (!src) return null;
+    attributes.push(`src="${escapeRichAttribute(src)}"`, `data-note-src="${escapeRichAttribute(src)}"`, 'alt="粘贴图片"');
+  }
+  if (tagName === "span" && (parsed.get("data-note-todo") === "true" || classes.includes("note-todo-box"))) {
+    const checked = parsed.get("data-checked") === "true" || parsed.get("aria-checked") === "true";
+    attributes.push('data-note-todo="true"', `data-checked="${checked}"`, `aria-checked="${checked}"`, 'role="checkbox"', 'tabindex="0"', 'contenteditable="false"');
+  }
+  if (tagName === "span" && parsed.get("data-note-styled") === "true") attributes.push('data-note-styled="true"');
+  return attributes.length ? ` ${attributes.join(" ")}` : "";
+}
+
+/** Rebuild rich HTML from a small allowlist; no source attribute is copied verbatim. */
+export function sanitizeStickyNoteHtml(source: string) {
+  let output = "";
+  let cursor = 0;
+  const tokenPattern = /<!--[\s\S]*?-->|<\/?[a-z][^>]*>/gi;
+  let match: RegExpExecArray | null;
+  while ((match = tokenPattern.exec(source))) {
+    output += escapeRichText(source.slice(cursor, match.index));
+    cursor = match.index + match[0].length;
+    if (match[0].startsWith("<!--")) continue;
+    const tagMatch = match[0].match(/^<\s*(\/?)\s*([a-z0-9]+)([\s\S]*?)\/?\s*>$/i);
+    if (!tagMatch) continue;
+    const closing = Boolean(tagMatch[1]);
+    const tagName = tagMatch[2].toLowerCase();
+    if (!allowedRichTags.has(tagName)) continue;
+    if (closing) {
+      if (!voidRichTags.has(tagName)) output += `</${tagName}>`;
+      continue;
+    }
+    const attributes = richAttributes(tagName, tagMatch[3]);
+    if (attributes === null) continue;
+    output += `<${tagName}${attributes}>`;
+  }
+  output += escapeRichText(source.slice(cursor));
+  return output;
+}
+
+function sanitizeStoredContent(content: string) {
+  if (content.length > MAX_NOTE_CONTENT_CHARS) throw new Error("单条便签内容不能超过 8 MiB");
+  return content.startsWith(richNoteMarker)
+    ? `${richNoteMarker}${sanitizeStickyNoteHtml(content.slice(richNoteMarker.length))}`
+    : content.replace(/\0/g, "");
+}
+
 function settingsPath() {
   return path.join(app.getPath("userData"), "data", settingsFileName);
 }
@@ -72,8 +251,7 @@ function databasePath() {
 
 async function loadStickyNotesSettings(): Promise<StickyNotesSettings> {
   try {
-    const raw = await fs.readFile(settingsPath(), "utf8");
-    const parsed = JSON.parse(raw) as Partial<StickyNotesSettings>;
+    const parsed = await readJsonWithBackup<Partial<StickyNotesSettings>>(settingsPath());
     return { directory: parsed.directory || defaultNotesDir() };
   } catch {
     return { directory: defaultNotesDir() };
@@ -82,7 +260,7 @@ async function loadStickyNotesSettings(): Promise<StickyNotesSettings> {
 
 async function saveStickyNotesSettings(settings: StickyNotesSettings) {
   await fs.mkdir(path.dirname(settingsPath()), { recursive: true });
-  await fs.writeFile(settingsPath(), `${JSON.stringify(settings, null, 2)}\n`, "utf8");
+  await writeFileAtomic(settingsPath(), `${JSON.stringify(settings, null, 2)}\n`);
 }
 
 function openDatabase() {
@@ -222,12 +400,13 @@ function rowToNote(row: NoteRow): StickyNote {
     style = normalizeStyle();
   }
   const fileName = `${safeFileName(row.title)}-${formatDateName(row.updated_at)}.txt`;
+  const content = sanitizeStoredContent(row.content);
   return {
     id: row.id,
     fileName,
     filePath: `${databasePath()}#${row.id}`,
     title: row.title,
-    content: row.content,
+    content,
     updatedAt: row.updated_at,
     pinned: Boolean(row.pinned),
     status: row.status,
@@ -253,7 +432,7 @@ function createId() {
 
 function upsertNote(db: Database.Database, payload: ImportNotePayload & { sourcePath?: string | null }) {
   const now = Date.now();
-  const content = payload.content || "新便签\n";
+  const content = sanitizeStoredContent(payload.content || "新便签\n");
   const title = resolveTitle(payload.title || "未命名便签", content);
   const id = payload.id || createId();
   const style = normalizeStyle(payload.style);
@@ -329,12 +508,13 @@ export async function saveStickyNote(id: string, content: string): Promise<Stick
   try {
     const row = db.prepare("SELECT * FROM notes WHERE id = ?").get(id) as NoteRow | undefined;
     if (!row) throw new Error("便签不存在或已被移除。");
-    const title = resolveTitle(row.title, content);
+    const sanitizedContent = sanitizeStoredContent(content);
+    const title = resolveTitle(row.title, sanitizedContent);
     const now = Date.now();
     db.prepare("UPDATE notes SET title = ?, content = ?, plain_text = ?, updated_at = ? WHERE id = ?").run(
       title,
-      content,
-      notePlainText(content),
+      sanitizedContent,
+      notePlainText(sanitizedContent),
       now,
       id
     );
@@ -469,7 +649,7 @@ export async function exportStickyNotes(outputDirOrOptions: string | StickyNoteE
     const stamp = new Date().toISOString().replace(/[:.]/g, "-");
     if (options.format === "json") {
       const target = path.join(options.outputDir, `sticky-notes-${stamp}.json`);
-      await fs.writeFile(target, `${JSON.stringify(exportPayload(notes, preferences), null, 2)}\n`, "utf8");
+      await writeFileAtomic(target, `${JSON.stringify(exportPayload(notes, preferences), null, 2)}\n`);
       return [target];
     }
     if (options.format === "zip") {
@@ -481,7 +661,7 @@ export async function exportStickyNotes(outputDirOrOptions: string | StickyNoteE
       }
       const buffer = await zip.generateAsync({ type: "nodebuffer", compression: "DEFLATE" });
       const target = path.join(options.outputDir, `sticky-notes-${stamp}.zip`);
-      await fs.writeFile(target, buffer);
+      await writeFileAtomic(target, buffer);
       return [target];
     }
     const target = path.join(options.outputDir, notes.length === 1 ? notes[0].fileName : `sticky-notes-${stamp}.txt`);
@@ -490,7 +670,7 @@ export async function exportStickyNotes(outputDirOrOptions: string | StickyNoteE
       : notes
           .map((note, index) => [`# ${index + 1}. ${note.title}`, `状态: ${note.status}`, `更新时间: ${new Date(note.updatedAt).toLocaleString()}`, "", notePlainText(note.content)].join("\n"))
           .join("\n\n---\n\n");
-    await fs.writeFile(target, content, "utf8");
+    await writeFileAtomic(target, content);
     return [target];
   } finally {
     db.close();
@@ -498,8 +678,9 @@ export async function exportStickyNotes(outputDirOrOptions: string | StickyNoteE
 }
 
 function parseImportPayload(raw: string): ImportNotePayload[] {
-  const parsed = JSON.parse(raw) as { notes?: ImportNotePayload[] } | ImportNotePayload[];
-  return Array.isArray(parsed) ? parsed : Array.isArray(parsed.notes) ? parsed.notes : [];
+  if (raw.length > MAX_IMPORT_JSON_CHARS) throw new Error("便签 JSON 解压后不能超过 32 MiB");
+  const parsed = importPayloadSchema.parse(JSON.parse(raw));
+  return Array.isArray(parsed) ? parsed : parsed.notes;
 }
 
 function hasDuplicateNote(db: Database.Database, content: string, title?: string, sourcePath?: string | null) {
@@ -519,65 +700,234 @@ function importNoteIfUnique(db: Database.Database, payload: ImportNotePayload & 
   return true;
 }
 
-async function importJsonContent(db: Database.Database, raw: string) {
-  let imported = 0;
-  let skipped = 0;
-  const notes = parseImportPayload(raw);
-  const insert = db.transaction((items: ImportNotePayload[]) => {
-    for (const item of items) {
-      if (!item.content) {
-        skipped += 1;
-        continue;
-      }
-      if (importNoteIfUnique(db, { ...item, id: createId(), status: item.status === "trashed" ? "active" : item.status || "active" })) imported += 1;
-      else skipped += 1;
-    }
+type PreparedImportNote = ImportNotePayload & { content: string; sourcePath?: string | null };
+
+type PreparedImportBatch = {
+  notes: PreparedImportNote[];
+  skipped: number;
+};
+
+function ensureImportCapacity(batch: PreparedImportBatch, additional = 1) {
+  if (batch.notes.length + batch.skipped + additional > MAX_IMPORTED_NOTES) {
+    throw new Error(`一次最多导入 ${MAX_IMPORTED_NOTES} 条便签`);
+  }
+}
+
+function appendPreparedNote(
+  batch: PreparedImportBatch,
+  payload: ImportNotePayload,
+  options: { sourcePath?: string | null; reactivateTrash?: boolean } = {}
+) {
+  ensureImportCapacity(batch);
+  const content = sanitizeStoredContent(payload.content || "");
+  if (!content) {
+    batch.skipped += 1;
+    return;
+  }
+  batch.notes.push({
+    ...payload,
+    id: undefined,
+    content,
+    status: options.reactivateTrash && payload.status === "trashed" ? "active" : payload.status,
+    sourcePath: options.sourcePath
   });
-  insert(notes);
-  return { imported, skipped };
+}
+
+function appendJsonContent(batch: PreparedImportBatch, raw: string) {
+  const notes = parseImportPayload(raw);
+  ensureImportCapacity(batch, notes.length);
+  for (const note of notes) appendPreparedNote(batch, note, { reactivateTrash: true });
+}
+
+async function readImportText(inputPath: string) {
+  const stat = await fs.stat(inputPath);
+  if (!stat.isFile()) throw new Error(`不是可导入的文件：${path.basename(inputPath)}`);
+  if (stat.size > MAX_IMPORT_FILE_BYTES) throw new Error(`导入文件不能超过 64 MiB：${path.basename(inputPath)}`);
+  const content = await fs.readFile(inputPath, "utf8");
+  if (content.length > MAX_IMPORT_JSON_CHARS) throw new Error(`导入文本不能超过 32 MiB：${path.basename(inputPath)}`);
+  return content;
+}
+
+type ZipEntryData = {
+  uncompressedSize?: number;
+  crc32?: number;
+};
+
+function zipEntryData(entry: JSZip.JSZipObject) {
+  return (entry as unknown as { _data?: ZipEntryData })._data;
+}
+
+function zipEntryDeclaredSize(entry: JSZip.JSZipObject) {
+  const size = zipEntryData(entry)?.uncompressedSize;
+  if (entry.dir && size === undefined) return 0;
+  if (!Number.isSafeInteger(size) || (size ?? -1) < 0) throw new Error(`ZIP 条目大小无效：${entry.name}`);
+  return size as number;
+}
+
+const crc32Table = new Uint32Array(256);
+for (let index = 0; index < crc32Table.length; index += 1) {
+  let value = index;
+  for (let bit = 0; bit < 8; bit += 1) value = (value & 1) !== 0 ? 0xedb88320 ^ (value >>> 1) : value >>> 1;
+  crc32Table[index] = value >>> 0;
+}
+
+function calculateCrc32(content: Buffer) {
+  let crc = 0xffffffff;
+  for (const byte of content) crc = crc32Table[(crc ^ byte) & 0xff] ^ (crc >>> 8);
+  return (crc ^ 0xffffffff) >>> 0;
+}
+
+async function readZipEntryBuffer(
+  entry: JSZip.JSZipObject,
+  maxEntryBytes: number,
+  remainingArchiveBytes: number,
+  tooLargeMessage: string
+) {
+  const declaredSize = zipEntryDeclaredSize(entry);
+  if (declaredSize > maxEntryBytes) throw new Error(tooLargeMessage);
+  if (declaredSize > remainingArchiveBytes) throw new Error("ZIP 解压后内容不能超过 128 MiB");
+
+  const stream = entry.nodeStream("nodebuffer") as Readable & { _helper?: { pause(): void } };
+  const content = await new Promise<Buffer>((resolve, reject) => {
+    const chunks: Buffer[] = [];
+    let actualSize = 0;
+    let settled = false;
+
+    const cleanup = () => {
+      stream.removeListener("data", onData);
+      stream.removeListener("error", onError);
+      stream.removeListener("end", onEnd);
+    };
+    const fail = (error: unknown) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      // JSZip's public Node stream adapter does not destroy its underlying
+      // worker. Pause it explicitly and absorb a possible late worker error.
+      stream.pause();
+      stream._helper?.pause();
+      stream.on("error", () => undefined);
+      stream.destroy();
+      reject(error);
+    };
+    const onData = (value: unknown) => {
+      const chunk = Buffer.isBuffer(value) ? value : Buffer.from(value as Uint8Array);
+      actualSize += chunk.length;
+      if (actualSize > maxEntryBytes) {
+        fail(new Error(tooLargeMessage));
+        return;
+      }
+      if (actualSize > remainingArchiveBytes) {
+        fail(new Error("ZIP 解压后内容不能超过 128 MiB"));
+        return;
+      }
+      chunks.push(chunk);
+    };
+    const onError = (error: Error) => fail(error);
+    const onEnd = () => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      resolve(Buffer.concat(chunks, actualSize));
+    };
+
+    stream.on("data", onData);
+    stream.once("error", onError);
+    stream.once("end", onEnd);
+  });
+
+  const expectedCrc32 = zipEntryData(entry)?.crc32;
+  if (Number.isInteger(expectedCrc32) && calculateCrc32(content) !== ((expectedCrc32 as number) >>> 0)) {
+    throw new Error(`ZIP 条目 CRC32 校验失败：${entry.name}`);
+  }
+  return content;
 }
 
 export async function importStickyNotes(inputPaths: string[]): Promise<StickyNotesImportResult> {
-  const db = openDatabase();
-  let imported = 0;
-  let skipped = 0;
-  try {
-    for (const inputPath of inputPaths) {
-      const extension = path.extname(inputPath).toLowerCase();
-      if (extension === ".json") {
-        const result = await importJsonContent(db, await fs.readFile(inputPath, "utf8"));
-        imported += result.imported;
-        skipped += result.skipped;
-        continue;
-      }
-      if (extension === ".zip") {
-        const zip = await JSZip.loadAsync(await fs.readFile(inputPath));
-        const jsonEntry = zip.file("sticky-notes.json");
-        if (jsonEntry) {
-          const result = await importJsonContent(db, await jsonEntry.async("string"));
-          imported += result.imported;
-          skipped += result.skipped;
-          continue;
-        }
-        for (const entry of Object.values(zip.files)) {
-          if (entry.dir || !entry.name.toLowerCase().endsWith(".txt")) continue;
-          if (importNoteIfUnique(db, { title: path.basename(entry.name, ".txt"), content: await entry.async("string") })) imported += 1;
-          else skipped += 1;
-        }
-        continue;
-      }
-      if (extension === ".txt" || extension === ".html") {
-        const fileName = path.basename(inputPath, extension);
-        const payloads = extension === ".txt" ? parseTxtImportPayload(fileName, await fs.readFile(inputPath, "utf8")) : [{ title: fileName, content: await fs.readFile(inputPath, "utf8") }];
-        for (const payload of payloads) {
-          if (importNoteIfUnique(db, { ...payload, sourcePath: payloads.length === 1 ? inputPath : null })) imported += 1;
-          else skipped += 1;
-        }
-        continue;
-      }
-      skipped += 1;
+  if (inputPaths.length > MAX_IMPORT_FILES) throw new Error(`一次最多导入 ${MAX_IMPORT_FILES} 个文件`);
+  const batch: PreparedImportBatch = { notes: [], skipped: 0 };
+
+  // Parse, bound, verify, and sanitize the entire batch before opening a write
+  // transaction. A late malformed file or ZIP entry must not leave earlier data.
+  for (const inputPath of inputPaths) {
+    const extension = path.extname(inputPath).toLowerCase();
+    if (extension === ".json") {
+      appendJsonContent(batch, await readImportText(inputPath));
+      continue;
     }
-    return { imported, skipped, notes: sortNotes(readAllNotes(db).filter((note) => note.status === "active")) };
+    if (extension === ".zip") {
+      const stat = await fs.stat(inputPath);
+      if (!stat.isFile() || stat.size > MAX_IMPORT_FILE_BYTES) throw new Error(`ZIP 文件不能超过 64 MiB：${path.basename(inputPath)}`);
+      // Loading with checkCRC32 would inflate every entry before we can inspect
+      // the central-directory limits. Validate metadata first, then stream and
+      // verify only the entries that are actually imported.
+      const zip = await JSZip.loadAsync(await fs.readFile(inputPath), { checkCRC32: false });
+      const entries = Object.values(zip.files);
+      if (entries.length > MAX_ZIP_ENTRIES) throw new Error(`ZIP 条目不能超过 ${MAX_ZIP_ENTRIES} 个`);
+      let declaredSize = 0;
+      for (const entry of entries) {
+        const entrySize = zipEntryDeclaredSize(entry);
+        if (entrySize > MAX_ZIP_UNCOMPRESSED_BYTES - declaredSize) throw new Error("ZIP 解压后内容不能超过 128 MiB");
+        declaredSize += entrySize;
+      }
+      let expandedSize = 0;
+      const jsonEntry = zip.file("sticky-notes.json");
+      if (jsonEntry) {
+        const content = await readZipEntryBuffer(
+          jsonEntry,
+          MAX_IMPORT_JSON_CHARS,
+          MAX_ZIP_UNCOMPRESSED_BYTES - expandedSize,
+          "便签 JSON 解压后不能超过 32 MiB"
+        );
+        expandedSize += content.length;
+        appendJsonContent(batch, content.toString("utf8"));
+        continue;
+      }
+      for (const entry of entries) {
+        if (entry.dir || !entry.name.toLowerCase().endsWith(".txt")) continue;
+        const contentBuffer = await readZipEntryBuffer(
+          entry,
+          MAX_NOTE_CONTENT_CHARS,
+          MAX_ZIP_UNCOMPRESSED_BYTES - expandedSize,
+          `ZIP 中的便签过大：${entry.name}`
+        );
+        expandedSize += contentBuffer.length;
+        appendPreparedNote(batch, { title: path.basename(entry.name, ".txt"), content: contentBuffer.toString("utf8") });
+      }
+      continue;
+    }
+    if (extension === ".txt" || extension === ".html") {
+      const fileName = path.basename(inputPath, extension);
+      const raw = await readImportText(inputPath);
+      const payloads = extension === ".txt"
+        ? parseTxtImportPayload(fileName, raw)
+        : [{ title: fileName, content: `${richNoteMarker}${sanitizeStickyNoteHtml(raw)}` }];
+      for (const payload of payloads) {
+        appendPreparedNote(batch, payload, { sourcePath: payloads.length === 1 ? inputPath : null });
+      }
+      continue;
+    }
+    ensureImportCapacity(batch);
+    batch.skipped += 1;
+  }
+
+  await fs.mkdir(path.dirname(databasePath()), { recursive: true });
+  const db = openDatabase();
+  try {
+    const commitBatch = db.transaction((notes: PreparedImportNote[]) => {
+      let imported = 0;
+      let skipped = batch.skipped;
+      for (const note of notes) {
+        if (importNoteIfUnique(db, note)) imported += 1;
+        else skipped += 1;
+      }
+      return {
+        imported,
+        skipped,
+        notes: sortNotes(readAllNotes(db).filter((note) => note.status === "active"))
+      };
+    });
+    return commitBatch(batch.notes);
   } finally {
     db.close();
   }
