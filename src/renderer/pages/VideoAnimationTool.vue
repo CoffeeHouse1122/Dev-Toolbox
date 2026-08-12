@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { ref } from "vue";
+import { computed, ref } from "vue";
 import type { ConversionResult } from "../../shared/types";
 import DropZone from "../components/DropZone.vue";
 import OutputPicker from "../components/OutputPicker.vue";
 import ResultPanel from "../components/ResultPanel.vue";
 import SelectMenu from "../components/SelectMenu.vue";
+import { runConversionBatch } from "../utils/batchConversion";
 
 const input = ref<string[]>([]);
 const outputDir = ref("");
@@ -15,24 +16,35 @@ const startSeconds = ref(0);
 const durationSeconds = ref(5);
 const busy = ref(false);
 const result = ref<ConversionResult | null>(null);
+const canRun = computed(() => input.value.length > 0 && Boolean(outputDir.value) && !busy.value);
 const formatOptions = [
   { label: "GIF", value: "gif", icon: "ri-file-gif-line" },
   { label: "Animated WebP", value: "webp", icon: "ri-image-line" }
 ];
 
 async function run() {
-  if (!input.value[0] || !outputDir.value) return;
-  busy.value = true;
-  result.value = await window.devToolbox.convertVideoAnimation({
-    inputPath: input.value[0],
-    outputDir: outputDir.value,
+  if (!canRun.value) return;
+  const inputPaths = [...input.value];
+  const destination = outputDir.value;
+  const options = {
     outputFormat: outputFormat.value,
     width: width.value || undefined,
     fps: fps.value,
     startSeconds: startSeconds.value,
     durationSeconds: durationSeconds.value
-  });
-  busy.value = false;
+  };
+  busy.value = true;
+  try {
+    result.value = await runConversionBatch(inputPaths, destination, (inputPath) =>
+      window.devToolbox.convertVideoAnimation({
+        inputPath,
+        outputDir: destination,
+        ...options
+      })
+    );
+  } finally {
+    busy.value = false;
+  }
 }
 </script>
 
@@ -43,15 +55,15 @@ async function run() {
         <h2>视频转 GIF / Animated WebP</h2>
         <p>截取片段并生成动图资源</p>
       </div>
-      <button type="button" class="primary-button" :disabled="!input.length || !outputDir || busy" @click="run">
+      <button type="button" class="primary-button" :disabled="!canRun" @click="run">
         <i class="ri-play-fill" aria-hidden="true"></i>
-        开始转换
+        {{ input.length > 1 ? `批量转换（${input.length}）` : "开始转换" }}
       </button>
     </div>
 
     <div class="tool-layout">
       <section class="tool-main">
-        <DropZone v-model="input" title="源视频" preview="video" :multiple="false" :filters="[{ name: '视频', extensions: ['mp4', 'webm', 'mov', 'mkv', 'avi'] }]" />
+        <DropZone v-model="input" title="源视频" preview="video" :multiple="true" :filters="[{ name: '视频', extensions: ['mp4', 'webm', 'mov', 'mkv', 'avi'] }]" />
         <OutputPicker v-model="outputDir" />
         <div class="option-grid">
           <div class="field span-2">
@@ -68,4 +80,3 @@ async function run() {
     </div>
   </section>
 </template>
-

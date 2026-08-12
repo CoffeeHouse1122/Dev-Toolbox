@@ -6,6 +6,7 @@ import OutputPicker from "../components/OutputPicker.vue";
 import ResultPanel from "../components/ResultPanel.vue";
 import SelectMenu from "../components/SelectMenu.vue";
 import Slider from "../components/Slider.vue";
+import { runConversionBatch } from "../utils/batchConversion";
 
 type DragMode = "draw" | "move" | "resize";
 type ResizeHandle = "n" | "s" | "e" | "w" | "nw" | "ne" | "sw" | "se";
@@ -37,7 +38,7 @@ const formatOptions = [
 ];
 const handles: ResizeHandle[] = ["nw", "n", "ne", "e", "se", "s", "sw", "w"];
 
-const canRun = computed(() => input.value[0] && outputDir.value && cropRect.value.width > 0 && cropRect.value.height > 0 && !busy.value);
+const canRun = computed(() => input.value.length > 0 && outputDir.value && cropRect.value.width > 0 && cropRect.value.height > 0 && !busy.value);
 const selectionStyle = computed(() => ({
   left: `${selection.x}%`,
   top: `${selection.y}%`,
@@ -166,16 +167,40 @@ function endDrag() {
   drag.value = null;
 }
 
+async function imageDimensions(inputPath: string) {
+  if (inputPath === input.value[0] && naturalWidth.value && naturalHeight.value) {
+    return { width: naturalWidth.value, height: naturalHeight.value };
+  }
+  const source = await window.devToolbox.imageToBase64(inputPath);
+  return new Promise<{ width: number; height: number }>((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve({ width: image.naturalWidth, height: image.naturalHeight });
+    image.onerror = () => reject(new Error("无法读取图片尺寸。"));
+    image.src = source.dataUrl;
+  });
+}
+
 async function run() {
   if (!canRun.value) return;
   busy.value = true;
   try {
-    result.value = await window.devToolbox.cropImage({
-      inputPath: input.value[0],
-      outputDir: outputDir.value,
-      ...cropRect.value,
-      outputFormat: outputFormat.value,
-      quality: quality.value
+    const selectedPaths = [...input.value];
+    const relativeSelection = { ...selection };
+    const destination = outputDir.value;
+    const format = outputFormat.value;
+    const outputQuality = quality.value;
+    result.value = await runConversionBatch(selectedPaths, destination, async (inputPath) => {
+      const dimensions = await imageDimensions(inputPath);
+      return window.devToolbox.cropImage({
+        inputPath,
+        outputDir: destination,
+        x: Math.round((dimensions.width * relativeSelection.x) / 100),
+        y: Math.round((dimensions.height * relativeSelection.y) / 100),
+        width: Math.max(1, Math.round((dimensions.width * relativeSelection.w) / 100)),
+        height: Math.max(1, Math.round((dimensions.height * relativeSelection.h) / 100)),
+        outputFormat: format,
+        quality: outputQuality
+      });
     });
   } finally {
     busy.value = false;
@@ -188,7 +213,7 @@ async function run() {
     <div class="tool-header">
       <div>
         <h2>图片自由裁剪</h2>
-        <p>拖拽图片进入画布，框选任意区域后导出</p>
+        <p>框选比例区域并批量应用到所有图片</p>
       </div>
       <button type="button" class="primary-button" :disabled="!canRun" @click="run">
         <i class="ri-scissors-cut-line" aria-hidden="true"></i>
@@ -202,7 +227,7 @@ async function run() {
           v-model="input"
           title="源图片"
           preview="image"
-          :multiple="false"
+          :multiple="true"
           :filters="[{ name: '图片', extensions: ['png', 'jpg', 'jpeg', 'webp', 'avif', 'tiff'] }]"
         />
 

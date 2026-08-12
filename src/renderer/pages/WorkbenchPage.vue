@@ -41,8 +41,8 @@ const workbenches: Record<string, Workbench> = {
       ["/markdown-export", "Markdown", "ri-markdown-line", "HTML / PNG / PDF"], ["/data-convert", "JSON/YAML/TOML", "ri-arrow-left-right-line", "Config conversion"],
       ["/diff", "文本 Diff", "ri-swap-line", "Line comparison"], ["/jwt", "JWT 解析", "ri-key-2-line", "Decode claims"],
       ["/url-codec", "URL 编解码", "ri-links-line", "URIComponent"], ["/code-minify", "CSS / JS 压缩", "ri-braces-line", "Build optimization"],
-      ["/regex-tester", "正则测试器", "ri-parentheses-line", "Match inspector"], ["/css-variables", "CSS 变量", "ri-css3-line", "Token generator"],
-      ["/css-clamp", "Clamp 字号", "ri-font-size", "Fluid scale"], ["/color-palette", "配色生成器", "ri-palette-line", "Color system"],
+      ["/regex-tester", "正则测试器", "ri-parentheses-line", "Match inspector"],
+      ["/css-clamp", "Clamp 字号", "ri-font-size", "Fluid scale"],
       ["/code-screenshot", "代码截图", "ri-camera-3-line", "Shareable snippet"], ["/base64-text", "Base64 文本", "ri-text-block", "Multi-encoding"],
       ["/color-converter", "颜色转换器", "ri-contrast-drop-line", "HEX / RGB / HSL / CMYK"]
     ].map(([to, label, icon, hint]) => ({ to, label, icon, hint }))

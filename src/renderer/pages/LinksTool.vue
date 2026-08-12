@@ -123,6 +123,50 @@ function normalizeUrl(url: string) {
   return /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
 }
 
+function normalizedUrlKey(url: string) {
+  const normalized = normalizeUrl(url);
+  if (!normalized) return "";
+  try {
+    const parsed = new URL(normalized);
+    parsed.hash = "";
+    parsed.protocol = parsed.protocol.toLowerCase();
+    parsed.hostname = parsed.hostname.toLowerCase();
+    parsed.pathname = parsed.pathname.replace(/\/+$/g, "") || "/";
+    return parsed.toString();
+  } catch {
+    return normalized.toLocaleLowerCase();
+  }
+}
+
+function mergeImportedLinks(imported: LinkItem[]) {
+  const merged: LinkItem[] = [...links.value];
+  const seenUrls = new Set<string>();
+  const seenIds = new Set(links.value.map((item) => item.id));
+  let added = 0;
+  let duplicates = 0;
+
+  for (const item of links.value) {
+    const urlKey = normalizedUrlKey(item.url);
+    if (urlKey) seenUrls.add(urlKey);
+  }
+
+  for (const item of imported) {
+    const urlKey = normalizedUrlKey(item.url);
+    if (!urlKey || seenUrls.has(urlKey)) {
+      duplicates += 1;
+      continue;
+    }
+    const next = seenIds.has(item.id) ? { ...item, id: crypto.randomUUID() } : item;
+    merged.push(next);
+    seenUrls.add(urlKey);
+    seenIds.add(next.id);
+    added += 1;
+  }
+
+  if (added) links.value = merged;
+  return { added, duplicates };
+}
+
 function openCreate() {
   draft.value = emptyDraft();
   categoryMenuOpen.value = false;
@@ -234,23 +278,37 @@ async function openLink(url: string) {
 }
 
 async function importConfig() {
-  const files = await window.devToolbox.selectFiles([{ name: "JSON", extensions: ["json"] }], false);
-  const file = files[0];
-  if (!file) return;
-  try {
-    const content = await window.devToolbox.readTextFile(file);
-    const parsed = JSON.parse(content) as { links?: LinkItem[] } | LinkItem[];
-    const next = Array.isArray(parsed) ? parsed : parsed.links;
-    const imported = normalizeLinks(next || []);
-    if (!imported.length) {
-      showWorkspaceToast("未找到可导入的链接。", "error");
-      return;
+  const files = await window.devToolbox.selectFiles([{ name: "JSON", extensions: ["json"] }], true);
+  if (!files.length) return;
+
+  const imported: LinkItem[] = [];
+  let failedFiles = 0;
+  let emptyFiles = 0;
+  for (const file of files) {
+    try {
+      const content = await window.devToolbox.readTextFile(file);
+      const parsed = JSON.parse(content) as { links?: LinkItem[] } | LinkItem[];
+      const next = Array.isArray(parsed) ? parsed : parsed.links;
+      const normalized = normalizeLinks(next || []);
+      if (normalized.length) imported.push(...normalized);
+      else emptyFiles += 1;
+    } catch {
+      failedFiles += 1;
     }
-    links.value = imported;
-    showWorkspaceToast(`已导入 ${links.value.length} 条链接。`, "success");
-  } catch (error) {
-    showWorkspaceToast(`导入失败：${error instanceof Error ? error.message : String(error)}`, "error");
   }
+
+  const { added, duplicates } = mergeImportedLinks(imported);
+  const skipped = duplicates + emptyFiles;
+  if (added) {
+    const details = [skipped ? `跳过 ${skipped} 项` : "", failedFiles ? `${failedFiles} 个文件失败` : ""].filter(Boolean).join("，");
+    showWorkspaceToast(`已合并 ${added} 条链接${details ? `，${details}` : ""}。`, failedFiles ? "info" : "success");
+    return;
+  }
+  if (failedFiles === files.length) {
+    showWorkspaceToast(`${failedFiles} 个配置文件均导入失败。`, "error");
+    return;
+  }
+  showWorkspaceToast("未找到新的可导入链接，重复项已跳过。", "info");
 }
 
 async function exportConfig() {

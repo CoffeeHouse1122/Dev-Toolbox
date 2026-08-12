@@ -1,30 +1,59 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref } from "vue";
+import { computed, onBeforeUnmount, ref, watch } from "vue";
 import type { ConversionResult, DevToolboxApi, VideoLoopInfo } from "../../shared/types";
 // @ts-ignore VS Code inferred project may miss the local *.vue shim.
 import DropZone from "../components/DropZone.vue";
 // @ts-ignore VS Code inferred project may miss the local *.vue shim.
 import ResultPanel from "../components/ResultPanel.vue";
+import SelectMenu from "../components/SelectMenu.vue";
+import { runConversionBatch } from "../utils/batchConversion";
 const devToolbox = (window as unknown as Window & { devToolbox: DevToolboxApi }).devToolbox;
 
 type VideoLoopResult = ConversionResult & { info?: VideoLoopInfo };
+interface VideoLoopEntry {
+  inputPath: string;
+  result: VideoLoopResult;
+}
 
 const input = ref<string[]>([]);
 const edgeSeconds = ref(0.08);
 const busy = ref(false);
-const result = ref<VideoLoopResult | null>(null);
+const loopResults = ref<VideoLoopEntry[]>([]);
+const batchResult = ref<ConversionResult | null>(null);
+const activeInputPath = ref("");
 const loopVideoRef = ref<HTMLVideoElement | null>(null);
 const videoOrientation = ref<"landscape" | "portrait" | "square">("landscape");
 const previewVersion = ref(0);
+
+function fileName(filePath: string) {
+  return filePath.split(/[\\/]/).pop() || filePath;
+}
 
 function previewFileUrl(filePath: string, time = 0.1) {
   const params = new URLSearchParams({ path: filePath, cache: "1", v: String(previewVersion.value) });
   return `devtoolbox-file://preview?${params.toString()}#t=${time}`;
 }
 
-const selectedVideoUrl = computed(() => (input.value[0] ? previewFileUrl(input.value[0]) : ""));
-const selectedFileName = computed(() => input.value[0]?.split(/[\\/]/).pop() ?? "未选择视频");
-const canRun = computed(() => input.value.length === 1 && !busy.value);
+const currentInputPath = computed(() => activeInputPath.value || input.value[0] || "");
+const result = computed(() => loopResults.value.find((item) => item.inputPath === currentInputPath.value)?.result ?? null);
+const activeInputIndex = computed(() => input.value.indexOf(currentInputPath.value));
+const selectedVideoUrl = computed(() => (currentInputPath.value ? previewFileUrl(currentInputPath.value) : ""));
+const selectedFileName = computed(() => {
+  if (!currentInputPath.value) return "未选择视频";
+  const name = fileName(currentInputPath.value);
+  return input.value.length > 1 ? `${name}（${activeInputIndex.value + 1}/${input.value.length}）` : name;
+});
+const canRun = computed(() => input.value.length > 0 && !busy.value);
+const fileOptions = computed(() =>
+  input.value.map((inputPath, index) => {
+    const itemResult = loopResults.value.find((item) => item.inputPath === inputPath)?.result;
+    return {
+      label: `${index + 1}. ${fileName(inputPath)} · ${riskText(itemResult?.info?.loopRisk)}`,
+      value: inputPath,
+      icon: "ri-video-line"
+    };
+  })
+);
 const isPortraitVideo = computed(() => {
   if (videoOrientation.value === "portrait") return true;
   const resolution = result.value?.info?.resolution;
@@ -61,6 +90,12 @@ function releaseLoopVideo() {
   video.load();
 }
 
+function resetLoopPreview() {
+  releaseLoopVideo();
+  videoOrientation.value = "landscape";
+  previewVersion.value += 1;
+}
+
 function playLoopVideo() {
   const video = loopVideoRef.value;
   if (!video) return;
@@ -82,12 +117,18 @@ function updateVideoOrientation(event: Event) {
 }
 
 function selectInput(paths: string[]) {
-  releaseLoopVideo();
   input.value = paths;
-  result.value = null;
-  videoOrientation.value = "landscape";
-  previewVersion.value += 1;
+  const selectedPaths = new Set(paths);
+  loopResults.value = loopResults.value.filter((item) => selectedPaths.has(item.inputPath));
+  batchResult.value = null;
+  if (!selectedPaths.has(activeInputPath.value)) {
+    activeInputPath.value = paths[0] ?? "";
+  } else if (!paths.length) {
+    activeInputPath.value = "";
+  }
 }
+
+watch(activeInputPath, resetLoopPreview);
 
 onBeforeUnmount(() => {
   releaseLoopVideo();
@@ -95,11 +136,22 @@ onBeforeUnmount(() => {
 
 async function run() {
   if (!canRun.value) return;
+  const inputPaths = [...input.value];
+  const edgeOffset = edgeSeconds.value;
   busy.value = true;
   try {
-    result.value = await devToolbox.analyzeVideoLoop({
-      inputPath: input.value[0],
-      edgeSeconds: edgeSeconds.value
+    batchResult.value = await runConversionBatch(inputPaths, "", async (inputPath) => {
+      const itemResult = await devToolbox.analyzeVideoLoop({
+        inputPath,
+        edgeSeconds: edgeOffset
+      });
+      const completed = new Map(loopResults.value.map((item) => [item.inputPath, item.result]));
+      completed.set(inputPath, itemResult);
+      loopResults.value = input.value.flatMap((selectedPath) => {
+        const selectedResult = completed.get(selectedPath);
+        return selectedResult ? [{ inputPath: selectedPath, result: selectedResult }] : [];
+      });
+      return itemResult;
     });
   } finally {
     busy.value = false;
@@ -116,7 +168,7 @@ async function run() {
       </div>
       <button type="button" class="primary-button" :disabled="!canRun" @click="run">
         <i class="ri-loop-left-line" aria-hidden="true"></i>
-        分析循环点
+        {{ input.length > 1 ? `批量分析（${input.length}）` : "分析循环点" }}
       </button>
     </div>
 
@@ -126,10 +178,14 @@ async function run() {
           :model-value="input"
           title="源视频"
           preview="video"
-          :multiple="false"
+          :multiple="true"
           :filters="[{ name: '视频', extensions: ['mp4', 'webm', 'mov', 'mkv', 'avi'] }]"
           @update:model-value="selectInput"
         />
+        <div v-if="input.length > 1" class="field loop-file-selector">
+          <span>当前查看</span>
+          <SelectMenu v-model="activeInputPath" :options="fileOptions" />
+        </div>
         <div class="loop-stage" :class="{ portrait: isPortraitVideo }">
           <video ref="loopVideoRef" v-if="selectedVideoUrl" :key="selectedVideoUrl" :src="selectedVideoUrl" autoplay muted loop playsinline controls preload="auto" @loadedmetadata="updateVideoOrientation" @canplay="playLoopVideo"></video>
           <div v-else class="empty-state">等待选择视频</div>
@@ -176,7 +232,7 @@ async function run() {
           <p v-else class="empty-state">分析后显示编码、时长、分辨率和首尾帧差异。</p>
         </section>
 
-        <ResultPanel :result="result" :busy="busy" />
+        <ResultPanel :result="batchResult" :busy="busy" />
       </aside>
     </div>
   </section>
@@ -192,6 +248,10 @@ async function run() {
 
 .video-loop-main {
   align-content: start;
+}
+
+.loop-file-selector {
+  min-width: 0;
 }
 
 .loop-stage {

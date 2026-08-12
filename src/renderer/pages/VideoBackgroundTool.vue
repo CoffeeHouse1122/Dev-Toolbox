@@ -7,6 +7,7 @@ import ResultPanel from "../components/ResultPanel.vue";
 import SelectMenu from "../components/SelectMenu.vue";
 import Slider from "../components/Slider.vue";
 import Checkbox from "../components/Checkbox.vue";
+import { batchChildOutputDir, runConversionBatch } from "../utils/batchConversion";
 
 const input = ref<string[]>([]);
 const outputDir = ref("");
@@ -32,8 +33,11 @@ const outputItems = computed(() => [
   { name: "片段", detail: "HTML snippet", icon: "ri-code-s-slash-line", active: mode.value === "background-pack" }
 ]);
 
-const selectedFileName = computed(() => input.value[0]?.split(/[\\/]/).pop() ?? "未选择视频");
-const canRun = computed(() => input.value.length === 1 && outputDir.value && !busy.value);
+const selectedFileName = computed(() => {
+  if (input.value.length > 1) return `已选择 ${input.value.length} 个视频`;
+  return input.value[0]?.split(/[\\/]/).pop() ?? "未选择视频";
+});
+const canRun = computed(() => input.value.length > 0 && Boolean(outputDir.value) && !busy.value);
 const crfTone = computed(() => {
   if (crf.value <= 20) return "高画质";
   if (crf.value <= 28) return "均衡";
@@ -42,16 +46,26 @@ const crfTone = computed(() => {
 
 async function run() {
   if (!canRun.value) return;
-  busy.value = true;
-  result.value = await window.devToolbox.convertVideoBackground({
-    inputPath: input.value[0],
-    outputDir: outputDir.value,
+  const inputPaths = [...input.value];
+  const destination = outputDir.value;
+  const options = {
     mode: mode.value,
     width: width.value || undefined,
     crf: crf.value,
     makePoster: makePoster.value
-  });
-  busy.value = false;
+  };
+  busy.value = true;
+  try {
+    result.value = await runConversionBatch(inputPaths, destination, (inputPath, index) =>
+      window.devToolbox.convertVideoBackground({
+        inputPath,
+        outputDir: batchChildOutputDir(destination, inputPath, index, inputPaths.length),
+        ...options
+      })
+    );
+  } finally {
+    busy.value = false;
+  }
 }
 </script>
 
@@ -64,7 +78,7 @@ async function run() {
       </div>
       <button type="button" class="primary-button" :disabled="!canRun" @click="run">
         <i class="ri-play-fill" aria-hidden="true"></i>
-        开始转换
+        {{ input.length > 1 ? `批量转换（${input.length}）` : "开始转换" }}
       </button>
     </div>
 
@@ -74,7 +88,7 @@ async function run() {
           v-model="input"
           title="源视频"
           preview="video"
-          :multiple="false"
+          :multiple="true"
           :filters="[{ name: '视频', extensions: ['mp4', 'webm', 'mov', 'mkv', 'avi'] }]"
         />
         <OutputPicker v-model="outputDir" />

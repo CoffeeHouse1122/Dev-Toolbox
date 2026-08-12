@@ -6,6 +6,7 @@ import OutputPicker from "../components/OutputPicker.vue";
 import OptionGrid from "../components/OptionGrid.vue";
 import ResultPanel from "../components/ResultPanel.vue";
 import Checkbox from "../components/Checkbox.vue";
+import { batchChildOutputDir, runConversionBatch } from "../utils/batchConversion";
 
 const input = ref<string[]>([]);
 const outputDir = ref("");
@@ -15,7 +16,7 @@ const sizes = ref([256]);
 const busy = ref(false);
 const result = ref<ConversionResult | null>(null);
 
-const canRun = computed(() => input.value.length === 1 && outputDir.value && sizes.value.length > 0 && !busy.value);
+const canRun = computed(() => input.value.length > 0 && outputDir.value && sizes.value.length > 0 && !busy.value);
 const availableSizes = [16, 32, 48, 64, 128, 180, 192, 256, 512];
 
 function toggleSize(size: number) {
@@ -25,14 +26,24 @@ function toggleSize(size: number) {
 async function run() {
   if (!canRun.value) return;
   busy.value = true;
-  result.value = await window.devToolbox.convertFavicon({
-    inputPath: input.value[0],
-    outputDir: outputDir.value,
-    sizes: [...sizes.value],
-    includePng: includePng.value,
-    includeManifest: includeManifest.value
-  });
-  busy.value = false;
+  try {
+    const inputPaths = [...input.value];
+    const destination = outputDir.value;
+    const selectedSizes = [...sizes.value];
+    const withPng = includePng.value;
+    const withManifest = includeManifest.value;
+    result.value = await runConversionBatch(inputPaths, destination, (inputPath, index) =>
+      window.devToolbox.convertFavicon({
+        inputPath,
+        outputDir: batchChildOutputDir(destination, inputPath, index, inputPaths.length),
+        sizes: selectedSizes,
+        includePng: withPng,
+        includeManifest: withManifest
+      })
+    );
+  } finally {
+    busy.value = false;
+  }
 }
 </script>
 
@@ -55,7 +66,7 @@ async function run() {
           v-model="input"
           title="源图片"
           preview="image"
-          :multiple="false"
+          :multiple="true"
           :filters="[{ name: '图片', extensions: ['png', 'jpg', 'jpeg', 'webp', 'svg'] }]"
         />
         <OutputPicker v-model="outputDir" />

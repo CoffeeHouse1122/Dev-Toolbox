@@ -6,6 +6,7 @@ import OutputPicker from "../components/OutputPicker.vue";
 import ResultPanel from "../components/ResultPanel.vue";
 import SelectMenu from "../components/SelectMenu.vue";
 import Checkbox from "../components/Checkbox.vue";
+import { batchChildOutputDir, runConversionBatch } from "../utils/batchConversion";
 
 const input = ref<string[]>([]);
 const outputDir = ref("");
@@ -27,14 +28,22 @@ async function run() {
   if (!canRun.value) return;
   busy.value = true;
   try {
-    result.value = await window.devToolbox.subsetFont({
-      inputPath: input.value[0],
-      outputDir: outputDir.value,
-      text: text.value,
-      outputFormat: outputFormat.value,
-      fontFamily: fontFamily.value,
-      generateCss: generateCss.value
-    });
+    const inputPaths = [...input.value];
+    const destination = outputDir.value;
+    const subsetText = text.value;
+    const format = outputFormat.value;
+    const family = fontFamily.value;
+    const withCss = generateCss.value;
+    result.value = await runConversionBatch(inputPaths, destination, (inputPath, index) =>
+      window.devToolbox.subsetFont({
+        inputPath,
+        outputDir: batchChildOutputDir(destination, inputPath, index, inputPaths.length),
+        text: subsetText,
+        outputFormat: format,
+        fontFamily: family,
+        generateCss: withCss
+      })
+    );
   } finally {
     busy.value = false;
   }
@@ -59,7 +68,7 @@ async function run() {
         <DropZone
           v-model="input"
           title="源字体"
-          :multiple="false"
+          :multiple="true"
           :filters="[{ name: '字体', extensions: ['ttf', 'otf', 'woff', 'woff2'] }]"
         />
         <OutputPicker v-model="outputDir" />

@@ -48,7 +48,6 @@ export const router = createRouter({
     { path: "/font-preview", component: () => import("../pages/FontPreviewTool.vue") },
     { path: "/font-subset", component: () => import("../pages/FontSubsetTool.vue") },
     { path: "/font-face", component: () => import("../pages/FontFaceGeneratorTool.vue") },
-    { path: "/css-variables", component: () => import("../pages/CssVariablesTool.vue") },
     { path: "/asset-manifest", component: () => import("../pages/AssetManifestTool.vue") },
     { path: "/seo-files", component: () => import("../pages/SeoFilesTool.vue") },
     { path: "/meta-tags", component: () => import("../pages/MetaTagsTool.vue") },
@@ -58,7 +57,6 @@ export const router = createRouter({
     { path: "/jwt", component: () => import("../pages/JwtTool.vue") },
     { path: "/data-convert", component: () => import("../pages/DataConvertTool.vue") },
     { path: "/diff", component: () => import("../pages/DiffTool.vue") },
-    { path: "/color-palette", component: () => import("../pages/ColorPaletteTool.vue") },
     { path: "/code-screenshot", component: () => import("../pages/CodeScreenshotTool.vue") },
     { path: "/clipboard-history", component: () => import("../pages/ClipboardHistoryTool.vue") },
     { path: "/base64-text", component: () => import("../pages/Base64TextTool.vue") },
@@ -69,7 +67,8 @@ export const router = createRouter({
     { path: "/capture-proxy", component: () => import("../pages/CaptureProxyTool.vue") },
     { path: "/sticky-notes", component: () => import("../pages/StickyNotesTool.vue") },
     { path: "/history", component: () => import("../pages/HistoryPage.vue") },
-    { path: "/settings", component: () => import("../pages/SettingsPage.vue") }
+    { path: "/settings", component: () => import("../pages/SettingsPage.vue") },
+    { path: "/:pathMatch(.*)*", redirect: "/workbench/text" }
   ]
 });
 

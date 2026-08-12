@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref } from "vue";
-import type { ConversionResult } from "../../shared/types";
+import type { ConversionItemResult, ConversionResult } from "../../shared/types";
 import DropZone from "../components/DropZone.vue";
 import OutputPicker from "../components/OutputPicker.vue";
 import ResultPanel from "../components/ResultPanel.vue";
@@ -13,12 +13,53 @@ const result = ref<ConversionResult | null>(null);
 const busy = ref(false);
 
 async function encodeImage() {
-  if (!input.value[0]) return;
+  if (!input.value.length) return;
   busy.value = true;
-  const encoded = await window.devToolbox.imageToBase64(input.value[0]);
-  base64Text.value = encoded.dataUrl;
-  result.value = { id: "base64-preview", status: "success", files: [], outputPath: "", logs: [`MIME: ${encoded.mimeType}`] };
-  busy.value = false;
+  const inputPaths = [...input.value];
+  const encodedItems: Array<{
+    inputPath: string;
+    fileName: string;
+    status: "success" | "error";
+    mimeType?: string;
+    dataUrl?: string;
+    errorMessage?: string;
+  }> = [];
+  const items: ConversionItemResult[] = [];
+  const logs: string[] = [];
+
+  try {
+    for (const inputPath of inputPaths) {
+      const fileName = inputPath.split(/[\\/]/).pop() || inputPath;
+      try {
+        const encoded = await window.devToolbox.imageToBase64(inputPath);
+        encodedItems.push({ inputPath, fileName, status: "success", mimeType: encoded.mimeType, dataUrl: encoded.dataUrl });
+        items.push({ inputPath, status: "success" });
+        logs.push(`[${fileName}] MIME: ${encoded.mimeType}`);
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        encodedItems.push({ inputPath, fileName, status: "error", errorMessage });
+        items.push({ inputPath, status: "error", errorMessage });
+        logs.push(`[${fileName}] ${errorMessage}`);
+      }
+    }
+
+    const failed = items.filter((item) => item.status === "error").length;
+    const status = failed === 0 ? "success" : failed === items.length ? "error" : "partial";
+    base64Text.value = inputPaths.length === 1 && encodedItems[0]?.status === "success"
+      ? encodedItems[0].dataUrl || ""
+      : JSON.stringify({ version: 1, images: encodedItems }, null, 2);
+    result.value = {
+      id: `base64-${Date.now()}`,
+      status,
+      files: [],
+      outputPath: "",
+      logs,
+      items,
+      errorMessage: failed ? `${failed} / ${items.length} 个文件编码失败。` : undefined
+    };
+  } finally {
+    busy.value = false;
+  }
 }
 
 async function decodeImage() {
@@ -50,7 +91,7 @@ async function decodeImage() {
 
     <div class="media-tool-layout">
       <section class="tool-main media-tool-main">
-        <DropZone v-model="input" title="源图片" preview="image" :multiple="false" :filters="[{ name: '图片', extensions: ['png', 'jpg', 'jpeg', 'webp', 'avif', 'gif', 'svg'] }]" />
+        <DropZone v-model="input" title="源图片" preview="image" :multiple="true" :filters="[{ name: '图片', extensions: ['png', 'jpg', 'jpeg', 'webp', 'avif', 'gif', 'svg'] }]" />
         <textarea v-model="base64Text" class="tool-textarea" placeholder="Base64 或 Data URL"></textarea>
         <OutputPicker v-model="outputDir" />
         <label class="field">
@@ -62,4 +103,3 @@ async function decodeImage() {
     </div>
   </section>
 </template>
-

@@ -19,6 +19,14 @@ interface ImageInfo {
   height: number;
 }
 
+interface MarkImageEntry {
+  id: string;
+  url: string;
+  info: ImageInfo;
+  annotations: MarkAnnotation[];
+  colorSample: { hex: string; rgb: string; point: Point } | null;
+}
+
 const mode = ref<MarkMode>("measure");
 const imageUrl = ref("");
 const imageInfo = ref<ImageInfo | null>(null);
@@ -38,6 +46,8 @@ const overlayRef = ref<SVGSVGElement | null>(null);
 const imageRef = ref<HTMLImageElement | null>(null);
 const fileInputRef = ref<HTMLInputElement | null>(null);
 const samplingCanvas = document.createElement("canvas");
+const imageQueue = ref<MarkImageEntry[]>([]);
+const activeImageIndex = ref(-1);
 
 let panState:
   | {
@@ -50,6 +60,7 @@ let panState:
   | null = null;
 
 const hasImage = computed(() => Boolean(imageUrl.value && imageInfo.value));
+const activeImageEntry = computed(() => imageQueue.value[activeImageIndex.value] ?? null);
 const screenUnit = computed(() => 1 / Math.max(0.05, viewScale.value));
 const lineStrokeWidth = computed(() => 2.5 * screenUnit.value);
 const labelFontSize = computed(() => 14 * screenUnit.value);
@@ -305,27 +316,67 @@ function endPan(event: PointerEvent) {
   event.stopPropagation();
 }
 
-function loadImageFile(file: File) {
-  if (!file.type.startsWith("image/") && !/\.(png|jpe?g|webp|gif|bmp|svg)$/i.test(file.name)) return;
-  const reader = new FileReader();
-  reader.onload = () => {
-    imageUrl.value = String(reader.result || "");
-    imageInfo.value = {
+function isImageFile(file: File) {
+  return file.type.startsWith("image/") || /\.(png|jpe?g|webp|gif|bmp|svg)$/i.test(file.name);
+}
+
+function createImageEntry(file: File): MarkImageEntry {
+  return {
+    id: `${file.name}:${file.size}:${file.lastModified}:${crypto.randomUUID()}`,
+    url: URL.createObjectURL(file),
+    info: {
       name: file.name,
       size: file.size,
       type: file.type || file.name.split(".").at(-1) || "image",
       width: 0,
       height: 0
-    };
-    annotations.value = [];
-    draft.value = null;
-    selectedId.value = "";
-    colorSample.value = null;
-    hoverPoint.value = null;
-    viewScale.value = 1;
-    viewOffset.value = { x: 0, y: 0 };
+    },
+    annotations: [],
+    colorSample: null
   };
-  reader.readAsDataURL(file);
+}
+
+function saveActiveImageState() {
+  const entry = activeImageEntry.value;
+  if (!entry) return;
+  entry.annotations = [...annotations.value];
+  entry.colorSample = colorSample.value ? { ...colorSample.value, point: { ...colorSample.value.point } } : null;
+  if (imageInfo.value) entry.info = { ...imageInfo.value };
+}
+
+function activateImage(index: number) {
+  if (index < 0 || index >= imageQueue.value.length) return;
+  saveActiveImageState();
+  activeImageIndex.value = index;
+  const entry = imageQueue.value[index];
+  imageUrl.value = entry.url;
+  imageInfo.value = { ...entry.info };
+  annotations.value = [...entry.annotations];
+  colorSample.value = entry.colorSample ? { ...entry.colorSample, point: { ...entry.colorSample.point } } : null;
+  draft.value = null;
+  selectedId.value = "";
+  hoverPoint.value = null;
+  viewScale.value = 1;
+  viewOffset.value = { x: 0, y: 0 };
+}
+
+async function loadImageFiles(files: File[], append: boolean) {
+  const accepted = files.filter(isImageFile);
+  if (!accepted.length) return;
+  try {
+    const entries = accepted.map(createImageEntry);
+    const startIndex = append ? imageQueue.value.length : 0;
+    saveActiveImageState();
+    if (!append) {
+      imageQueue.value.forEach((entry) => URL.revokeObjectURL(entry.url));
+      activeImageIndex.value = -1;
+    }
+    imageQueue.value = append ? [...imageQueue.value, ...entries] : entries;
+    activateImage(startIndex);
+    showWorkspaceToast(`已载入 ${accepted.length} 张图片`, "success");
+  } catch (error) {
+    showWorkspaceToast(error instanceof Error ? error.message : String(error), "error");
+  }
 }
 
 async function onImageLoad() {
@@ -336,6 +387,7 @@ async function onImageLoad() {
     width: image.naturalWidth,
     height: image.naturalHeight
   };
+  if (activeImageEntry.value) activeImageEntry.value.info = { ...imageInfo.value };
   await nextTick();
   fitImageToStage();
 }
@@ -346,15 +398,15 @@ function openFilePicker() {
 
 function onFileInput(event: Event) {
   const input = event.target as HTMLInputElement;
-  const file = input.files?.[0];
-  if (file) loadImageFile(file);
+  const files = Array.from(input.files ?? []);
+  if (files.length) void loadImageFiles(files, false);
   input.value = "";
 }
 
 function onDrop(event: DragEvent) {
   dragActive.value = false;
-  const file = event.dataTransfer?.files?.[0];
-  if (file) loadImageFile(file);
+  const files = Array.from(event.dataTransfer?.files ?? []);
+  if (files.length) void loadImageFiles(files, imageQueue.value.length > 0);
 }
 
 function undo() {
@@ -419,6 +471,8 @@ onMounted(() => {
 });
 
 onBeforeUnmount(() => {
+  saveActiveImageState();
+  imageQueue.value.forEach((entry) => URL.revokeObjectURL(entry.url));
   window.removeEventListener("keydown", handleKeydown);
   window.removeEventListener("keyup", handleKeyup);
   window.removeEventListener("resize", fitImageToStage);
@@ -433,6 +487,10 @@ onBeforeUnmount(() => {
         <p>图片测距、取色与标注</p>
       </div>
       <div class="header-actions">
+        <button type="button" class="secondary-button" @click="openFilePicker">
+          <i class="ri-image-add-line" aria-hidden="true"></i>
+          批量选择
+        </button>
         <button type="button" class="secondary-button" :disabled="!hasImage" title="适应画布（Ctrl+0）" @click="fitImageToStage">
           <i class="ri-fullscreen-line" aria-hidden="true"></i>
           适应
@@ -450,6 +508,18 @@ onBeforeUnmount(() => {
 
     <div class="mark-layout">
       <section class="tool-main mark-stage-panel">
+        <div v-if="imageQueue.length" class="mark-batch-nav">
+          <button type="button" class="icon-button" :disabled="activeImageIndex <= 0" title="上一张" @click="activateImage(activeImageIndex - 1)">
+            <i class="ri-arrow-left-s-line" aria-hidden="true"></i>
+          </button>
+          <span :title="activeImageEntry?.info.name">
+            <strong>{{ activeImageIndex + 1 }} / {{ imageQueue.length }}</strong>
+            {{ activeImageEntry?.info.name }}
+          </span>
+          <button type="button" class="icon-button" :disabled="activeImageIndex >= imageQueue.length - 1" title="下一张" @click="activateImage(activeImageIndex + 1)">
+            <i class="ri-arrow-right-s-line" aria-hidden="true"></i>
+          </button>
+        </div>
         <div
           class="mark-drop-zone"
           :class="{ active: dragActive, filled: hasImage }"
@@ -606,7 +676,7 @@ onBeforeUnmount(() => {
             <button type="button" class="primary-button" @click="openFilePicker">选择图片</button>
           </template>
         </div>
-        <input ref="fileInputRef" type="file" accept="image/*" hidden @change="onFileInput" />
+        <input ref="fileInputRef" type="file" accept="image/*" multiple hidden @change="onFileInput" />
       </section>
 
       <aside class="result-panel mark-side-panel">
@@ -710,7 +780,34 @@ onBeforeUnmount(() => {
 }
 
 .mark-stage-panel {
+  display: grid;
+  gap: 10px;
   min-width: 0;
+}
+
+.mark-batch-nav {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  padding: 7px 9px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.mark-batch-nav > span {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--muted);
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mark-batch-nav strong {
+  margin-right: 8px;
+  color: var(--text);
 }
 
 .mark-drop-zone {
