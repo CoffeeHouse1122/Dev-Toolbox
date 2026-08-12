@@ -30,6 +30,7 @@ const props = withDefaults(
 const slots = useSlots();
 const hasSettings = computed(() => Boolean(slots.settings));
 const hasPreview = computed(() => Boolean(slots.preview));
+const hasResult = computed(() => Boolean(slots.result));
 const hasActionBar = computed(() => Boolean(slots.destination || slots.summary || slots.actions));
 const countLabel = computed(() => props.fileLabel || `${props.fileCount} 个文件`);
 </script>
@@ -47,6 +48,7 @@ const countLabel = computed(() => props.fileLabel || `${props.fileCount} 个文�
       class="task-flow-layout"
       :class="{
         'has-preview': hasPreview,
+        'without-result': !hasResult,
         'without-settings': !hasSettings,
         'without-destination': !$slots.destination,
         'without-action-bar': !hasActionBar
@@ -93,7 +95,7 @@ const countLabel = computed(() => props.fileLabel || `${props.fileCount} 个文�
             </div>
           </section>
 
-          <div class="task-flow-result-slot">
+          <div v-if="hasResult" class="task-flow-result-slot">
             <slot name="result"></slot>
           </div>
         </div>
@@ -209,8 +211,16 @@ const countLabel = computed(() => props.fileLabel || `${props.fileCount} 个文�
   grid-template-rows: minmax(0, 1.35fr) minmax(0, 0.8fr);
 }
 
+.task-flow-layout.has-preview.without-result .task-flow-output-column {
+  grid-template-rows: minmax(0, 1fr);
+}
+
 .task-flow-preview-dominant .task-flow-layout.has-preview .task-flow-output-column {
   grid-template-rows: minmax(0, 1.75fr) minmax(0, 0.68fr);
+}
+
+.task-flow-preview-dominant .task-flow-layout.has-preview.without-result .task-flow-output-column {
+  grid-template-rows: minmax(0, 1fr);
 }
 
 .task-flow-result-slot {

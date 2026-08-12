@@ -4,6 +4,7 @@ import type { ConversionResult } from "../../shared/types";
 import OutputPicker from "../components/OutputPicker.vue";
 import ResultPanel from "../components/ResultPanel.vue";
 import Checkbox from "../components/Checkbox.vue";
+import TaskFlowLayout from "../components/TaskFlowLayout.vue";
 
 const sourceDir = ref("");
 const outputDir = ref("");
@@ -36,20 +37,17 @@ async function run() {
 </script>
 
 <template>
-  <section class="tool-page">
-    <div class="tool-header">
-      <div>
-        <h2>前端静态资源清单</h2>
-        <p>扫描构建目录，生成包含体积、类型、哈希的 manifest JSON</p>
-      </div>
-      <button type="button" class="primary-button" :disabled="!canRun" @click="run">
-        <i class="ri-file-list-3-line" aria-hidden="true"></i>
-        生成清单
-      </button>
-    </div>
-
-    <div class="tool-layout">
-      <section class="tool-main">
+  <TaskFlowLayout
+    title="前端静态资源清单"
+    description="扫描构建目录，生成包含体积、类型、哈希的 manifest JSON"
+    source-title="构建产物目录"
+    source-description="选择 dist、build 或静态资源目录作为清单扫描来源"
+    settings-title="清单设置"
+    settings-description="设置生成文件名及资源指纹信息"
+    :file-label="sourceDir ? '已选择目录' : '未选择目录'"
+  >
+    <template #source>
+      <div class="manifest-source-row">
         <div class="field-row output-picker">
           <label class="field grow">
             <span>扫描目录</span>
@@ -59,17 +57,47 @@ async function run() {
             <i class="ri-folder-open-line" aria-hidden="true"></i>
           </button>
         </div>
-        <OutputPicker v-model="outputDir" />
-        <div class="option-grid">
-          <label class="field span-2">
-            <span>清单文件名</span>
-            <input v-model="baseName" />
-          </label>
-          <Checkbox v-model="includeHash" class="check-row span-2" label="计算 SHA-256 哈希" />
-        </div>
-      </section>
+      </div>
+    </template>
 
-      <ResultPanel :result="result" :busy="busy" />
-    </div>
-  </section>
+    <template #settings>
+      <div class="option-grid">
+        <label class="field span-2">
+          <span>清单文件名</span>
+          <input v-model="baseName" />
+        </label>
+        <Checkbox v-model="includeHash" class="check-row span-2" label="计算 SHA-256 哈希" />
+      </div>
+    </template>
+
+    <template #result>
+      <ResultPanel :result="result" :busy="busy" title="生成结果" empty-text="生成后可在此打开资源清单" compact />
+    </template>
+
+    <template #destination>
+      <OutputPicker v-model="outputDir" />
+    </template>
+
+    <template #summary>
+      <i class="ri-folder-chart-line" aria-hidden="true"></i>
+      <span>{{ sourceDir ? `扫描 1 个目录 · ${includeHash ? "包含 SHA-256" : "不计算哈希"}` : "等待选择扫描目录" }}</span>
+    </template>
+
+    <template #actions>
+      <button type="button" class="primary-button" :disabled="!canRun" @click="run">
+        <i class="ri-file-list-3-line" aria-hidden="true"></i>
+        {{ busy ? "生成中…" : "生成清单" }}
+      </button>
+    </template>
+  </TaskFlowLayout>
 </template>
+
+<style scoped>
+.manifest-source-row {
+  max-width: 100%;
+}
+
+.manifest-source-row .field-row {
+  margin: 0;
+}
+</style>
