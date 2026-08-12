@@ -12,7 +12,7 @@ const DEFAULT_MANIFEST = {
   features: [
     '图片：图标生成、格式转换、压缩、尺寸调整、裁剪、水印、雪碧图、Base64 编解码、二维码生成',
     '字体：WOFF2 转换、字体预览、字体子集化、@font-face 生成器',
-    '文本与 CSS：Markdown 导出、JSON/YAML/TOML 互转、文本 Diff、JWT 解析、URL 编解码、正则测试、CSS 变量提取、Clamp 字号计算、配色生成器、代码截图',
+    '文本与 CSS：Markdown 导出、JSON/YAML/TOML 互转、文本 Diff、JWT 解析、URL 编解码、正则测试、Clamp 字号计算、代码截图',
     '音视频：视频转 GIF / 序列帧、视频去音频、音频格式转换',
     'SEO 与发布：robots.txt / sitemap 生成、HTML Meta 标签生成、OG 图片生成',
     '开发辅助：时间戳转换、UUID 生成、剪贴板历史、IP 查询、文件批量重命名'

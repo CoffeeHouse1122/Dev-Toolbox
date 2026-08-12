@@ -39,7 +39,6 @@
     "clean-css": "^5.3.3",
     "ffmpeg-static": "^5.2.0",
     "fonteditor-core": "^2.4.0",
-    "http-mitm-proxy": "^1.1.0",
     "iconv-lite": "^0.7.3",
     "jszip": "^3.10.1",
     "markdown-it": "^15.0.0",
@@ -88,10 +87,6 @@
   "overrides": {
     "minimatch@<10.0.0": {
       "brace-expansion": "2.1.4"
-    },
-    "http-mitm-proxy": {
-      "uuid": "^11.1.1",
-      "ws": "^8.21.0"
     }
   },
   "build": {

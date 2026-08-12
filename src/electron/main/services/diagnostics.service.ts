@@ -28,10 +28,7 @@ export async function getAppDiagnostics(): Promise<AppDiagnostics> {
   const appLogsDir = logsDir();
   await fs.mkdir(appLogsDir, { recursive: true });
 
-  const ports = await Promise.all([
-    checkPort(5173, "Vite 开发服务"),
-    checkPort(8899, "抓包代理默认端口")
-  ]);
+  const ports = [await checkPort(5173, "Vite 开发服务")];
 
   return { userDataDir, logsDir: appLogsDir, ports };
 }

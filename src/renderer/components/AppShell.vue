@@ -52,7 +52,7 @@ let isDisposed = false;
 const modalPanelEnter = { opacity: 0, y: 16, scale: 0.975 };
 const modalPanelVisible = { opacity: 1, y: 0, scale: 1 };
 const modalPanelExit = { opacity: 0, y: 8, scale: 0.985 };
-const nonCacheableTools = ["WorkbenchPage", "CaptureProxyTool", "ClipboardHistoryTool", "StickyNotesTool"];
+const nonCacheableTools = ["WorkbenchPage", "ClipboardHistoryTool", "StickyNotesTool"];
 
 const defaultGroups: NavGroup[] = [
   {
@@ -131,9 +131,8 @@ const defaultGroups: NavGroup[] = [
       { id: "shared-disk", to: "/shared-disk", label: "共享盘登录", icon: "ri-hard-drive-3-line", visible: true },
       { id: "rename", to: "/rename", label: "文件重命名", icon: "ri-edit-2-line", visible: true },
       { id: "asset-manifest", to: "/asset-manifest", label: "资源清单", icon: "ri-file-list-3-line", visible: true },
-      { id: "http-tester", to: "/http-tester", label: "HTTP 测试器", icon: "ri-send-plane-line", visible: true },
-      { id: "certificate-scan", to: "/certificate-scan", label: "证书扫描", icon: "ri-shield-check-line", visible: true },
-      { id: "capture-proxy", to: "/capture-proxy", label: "抓包工具", icon: "ri-radar-line", visible: true }
+      { id: "http-tester", to: "/http-tester", label: "快速 HTTP 请求", icon: "ri-send-plane-line", visible: true },
+      { id: "certificate-scan", to: "/certificate-scan", label: "证书扫描", icon: "ri-shield-check-line", visible: true }
     ]
   },
   {

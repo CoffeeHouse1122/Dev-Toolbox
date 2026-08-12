@@ -84,6 +84,8 @@ tests/                       文件安全、便签、更新器和编码回归测
 
 当前没有需要人工执行的数据库迁移命令。既有本地数据库由对应 service 以兼容方式初始化；升级前应备份 `userData`。如果后续引入独立、版本化 migration，需同时增加 `db:revision`、`db:migrate` 和 `db:status` 命令。
 
+从包含抓包工具的旧版本升级时，应用不会删除 `userData` 中遗留的 CA 文件，也不会修改操作系统证书。若曾启用 HTTPS 抓包，请在确认不再依赖后，通过 Windows `certmgr.msc` 的“受信任的根证书颁发机构 / 证书”手动移除 `NodeMITMProxyCA`；遗留 CA 目录也只由用户自行清理。
+
 ## 源码传播、终端与离线保全
 
 日常获取和可重复安装使用 Git 与 lockfile，不复制已有 `node_modules`：

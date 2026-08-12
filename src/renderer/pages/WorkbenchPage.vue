@@ -59,8 +59,8 @@ const workbenches: Record<string, Workbench> = {
     tools: [
       ["/links", "网站与文档", "ri-bookmark-3-line", "Developer bookmarks"], ["/ip-query", "IP 查询", "ri-router-line", "IP / DNS"],
       ["/shared-disk", "共享盘登录", "ri-hard-drive-3-line", "Windows share"], ["/rename", "文件重命名", "ri-edit-2-line", "Batch planner"],
-      ["/asset-manifest", "资源清单", "ri-file-list-3-line", "Hash manifest"], ["/http-tester", "HTTP 测试器", "ri-send-plane-line", "API request"],
-      ["/certificate-scan", "证书扫描", "ri-shield-check-line", "TLS inspector"], ["/capture-proxy", "抓包工具", "ri-radar-line", "Local MITM proxy"]
+      ["/asset-manifest", "资源清单", "ri-file-list-3-line", "Hash manifest"], ["/http-tester", "快速 HTTP 请求", "ri-send-plane-line", "JSON / Bearer / 临时请求"],
+      ["/certificate-scan", "证书扫描", "ri-shield-check-line", "TLS inspector"]
     ].map(([to, label, icon, hint]) => ({ to, label, icon, hint }))
   },
   assist: {

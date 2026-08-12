@@ -81,9 +81,8 @@ function toolText(toolType: string) {
     "base64-text": "Base64 文本",
     hash: "Hash / 加解密",
     "color-converter": "颜色转换器",
-    "http-tester": "HTTP 测试器",
+    "http-tester": "快速 HTTP 请求",
     "certificate-scan": "证书扫描",
-    "capture-proxy": "抓包工具",
     "sticky-notes": "桌面便签"
   };
   return map[toolType] ?? toolType;

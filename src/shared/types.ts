@@ -27,7 +27,6 @@ export type ToolType =
   | "font-subset"
   | "asset-manifest"
   | "certificate-scan"
-  | "capture-proxy"
   | "sticky-notes";
 
 export type TaskStatus = "success" | "partial" | "error" | "cancelled";
@@ -420,7 +419,7 @@ export interface AppSettings {
   autoLaunch: boolean;
 }
 
-export type ToolConfigKey = "navigation" | "capture-proxy" | "output-picker";
+export type ToolConfigKey = "navigation" | "output-picker";
 
 export interface PortDiagnostic {
   label: string;
@@ -526,44 +525,6 @@ export interface StickyNotesState {
   preferences: StickyNotesPreferences;
 }
 
-export interface CaptureProxyStartOptions {
-  host: string;
-  port: number;
-  captureBodies: boolean;
-  maxBodySize: number;
-  enableHttps: boolean;
-}
-
-export interface CaptureProxyStatus {
-  running: boolean;
-  host: string;
-  port: number;
-  startedAt: number | null;
-  recordCount: number;
-  caCertPath?: string;
-  errorMessage?: string;
-}
-
-export interface CaptureProxyRecord {
-  id: string;
-  startedAt: number;
-  method: string;
-  url: string;
-  host: string;
-  path: string;
-  protocol: "http" | "https";
-  status: "pending" | "success" | "error" | "tunnel";
-  statusCode: number | null;
-  durationMs: number | null;
-  requestHeaders: Record<string, string>;
-  responseHeaders: Record<string, string>;
-  requestBody: string;
-  responseBody: string;
-  requestSize: number;
-  responseSize: number;
-  errorMessage?: string;
-}
-
 export interface DevToolboxApi {
   selectFiles(filters?: DialogFileFilter[], multiSelections?: boolean): Promise<string[]>;
   selectOutputDir(defaultPath?: string): Promise<string | null>;
@@ -596,11 +557,6 @@ export interface DevToolboxApi {
   lookupDomainIp(domain: string): Promise<DomainIpLookupResult>;
   sendHttpRequest(input: HttpRequestInput): Promise<HttpRequestOutput>;
   scanCertificates(options: CertificateScanOptions): Promise<CertificateScanResult[]>;
-  startCaptureProxy(options: CaptureProxyStartOptions): Promise<CaptureProxyStatus>;
-  stopCaptureProxy(): Promise<CaptureProxyStatus>;
-  getCaptureProxyStatus(): Promise<CaptureProxyStatus>;
-  listCaptureProxyRecords(): Promise<CaptureProxyRecord[]>;
-  clearCaptureProxyRecords(): Promise<CaptureProxyRecord[]>;
   generateAssetManifest(options: AssetManifestOptions): Promise<ConversionResult>;
   generateSeoFiles(options: SeoFilesOptions): Promise<ConversionResult>;
   generateOgImage(options: OgImageOptions): Promise<ConversionResult>;
@@ -667,7 +623,6 @@ export interface DevToolboxApi {
   applyStickyNotePreset(id: string | null, scope: "current" | "all", style: StickyNoteStyle): Promise<StickyNotesState>;
   importStickyNotes(inputPaths: string[]): Promise<StickyNotesImportResult>;
   exportStickyNotes(outputDirOrOptions: string | StickyNoteExportOptions, ids?: string[]): Promise<string[]>;
-  testCaptureProxy(): Promise<CaptureProxyRecord>;
 }
 
 /** 更新状态 */

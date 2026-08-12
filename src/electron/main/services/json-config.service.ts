@@ -4,7 +4,7 @@ import path from "node:path";
 import type { ToolConfigKey } from "../../../shared/types";
 import { readJsonWithBackup, writeFileAtomic } from "./atomic-file";
 
-const allowedConfigKeys = new Set<ToolConfigKey>(["navigation", "capture-proxy", "output-picker"]);
+const allowedConfigKeys = new Set<ToolConfigKey>(["navigation", "output-picker"]);
 
 function configDir() {
   return path.join(app.getPath("userData"), "data", "configs");

@@ -10,7 +10,7 @@ const blockedHeaders = new Set(["host", "content-length", "connection", "transfe
 function normalizeUrl(value: string) {
   const url = new URL(value.trim());
   if (url.protocol !== "http:" && url.protocol !== "https:") {
-    throw new Error("HTTP 测试器仅支持 http 和 https URL");
+    throw new Error("快速 HTTP 请求仅支持 http 和 https URL");
   }
   if (url.username || url.password) throw new Error("请使用 Authorization 请求头，不要在 URL 中包含账号密码");
   return url.toString();

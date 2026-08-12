@@ -124,8 +124,8 @@ async function sendRequest() {
 
 <template>
   <TaskFlowLayout
-    title="HTTP 请求测试器"
-    description="通过主进程发送 HTTP 请求，不受浏览器 CORS 限制；支持原始请求体与 multipart 字段"
+    title="快速 HTTP 请求"
+    description="用于 JSON、Bearer Token 与临时接口请求的轻量工具，不作为完整 API 客户端"
     source-title="请求目标"
     source-description="选择方法并填写接口地址与超时时间"
     settings-title="请求配置"

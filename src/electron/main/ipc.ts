@@ -13,14 +13,6 @@ import { generateQrCode } from "./services/qr.service";
 import { getIpInfo, lookupDomainIp } from "./services/network.service";
 import { sendHttpRequest } from "./services/http-request.service";
 import { scanCertificates } from "./services/certificate.service";
-import {
-  clearCaptureProxyRecords,
-  getCaptureProxyStatus,
-  listCaptureProxyRecords,
-  startCaptureProxy,
-  stopCaptureProxy,
-  testCaptureProxy
-} from "./services/capture-proxy.service";
 import { generateAssetManifest } from "./services/asset-manifest.service";
 import { generateSprite } from "./services/sprite.service";
 import { generateSeoFiles } from "./services/seo-files.service";
@@ -82,7 +74,6 @@ import type {
   AudioCompressOptions,
   AudioConvertOptions,
   CertificateScanOptions,
-  CaptureProxyStartOptions,
   FaviconOptions,
   FontSubsetOptions,
   FontWoff2Options,
@@ -441,20 +432,12 @@ const certificateScanSchema = z.object({
   timeoutMs: z.number().int().min(1000).max(30000).optional()
 });
 
-const captureProxyStartSchema = z.object({
-  host: z.string().ip({ version: "v4" }),
-  port: z.number().int().min(1024).max(65535),
-  captureBodies: z.boolean(),
-  maxBodySize: z.number().int().min(1024).max(2 * 1024 * 1024),
-  enableHttps: z.boolean()
-});
-
 const appSettingsSchema = z.object({
   closeBehavior: z.enum(["minimize-to-tray", "exit"]),
   autoLaunch: z.boolean()
 });
 
-const toolConfigKeySchema = z.enum(["navigation", "capture-proxy", "output-picker"]);
+const toolConfigKeySchema = z.enum(["navigation", "output-picker"]);
 
 const sharedDiskSchema = z.object({
   url: z.string().min(1).max(2_048),
@@ -696,17 +679,6 @@ export function registerIpc() {
     const options = certificateScanSchema.parse(raw);
     return scanCertificates(options);
   });
-
-  handleTrustedIpc("capture-proxy:start", async (_event, raw: CaptureProxyStartOptions) => {
-    const options = captureProxyStartSchema.parse(raw);
-    return startCaptureProxy(options);
-  });
-
-  handleTrustedIpc("capture-proxy:stop", async () => stopCaptureProxy());
-  handleTrustedIpc("capture-proxy:status", async () => getCaptureProxyStatus());
-  handleTrustedIpc("capture-proxy:list", async () => listCaptureProxyRecords());
-  handleTrustedIpc("capture-proxy:clear", async () => clearCaptureProxyRecords());
-  handleTrustedIpc("capture-proxy:test", async () => testCaptureProxy());
 
   handleTrustedIpc("assets:manifest", async (_event, raw: AssetManifestOptions) => {
     const options = assetManifestSchema.parse(raw);
