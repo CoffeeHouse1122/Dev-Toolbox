@@ -3,6 +3,7 @@ import { computed, ref } from "vue";
 import iconv from "iconv-lite";
 import { Buffer } from "buffer";
 import SelectMenu from "../components/SelectMenu.vue";
+import TaskFlowLayout from "../components/TaskFlowLayout.vue";
 
 const input = ref("");
 const mode = ref<"encode" | "decode">("encode");
@@ -47,36 +48,138 @@ const charCount = computed(() => ({ input: input.value.length, output: output.va
 </script>
 
 <template>
-  <section class="tool-page">
-    <div class="tool-header">
-      <div>
-        <h2>Base64 文本编解码</h2>
-        <p>文本字符串与 Base64 互转，支持指定字符编码</p>
-      </div>
-      <div class="header-actions">
+  <TaskFlowLayout
+    title="Base64 文本编解码"
+    description="文本字符串与 Base64 互转，支持指定字符编码"
+    :source-title="mode === 'encode' ? '待编码文本' : '待解码 Base64'"
+    source-description="内容变化后即时转换，无需额外执行"
+    settings-title="转换参数"
+    settings-description="选择转换方向与源文本字符编码"
+    :preview-title="mode === 'encode' ? 'Base64 输出' : '文本输出'"
+    preview-description="结果随输入和编码设置实时更新"
+    :file-label="`${charCount.input} 字符`"
+    variant="preview-dominant"
+  >
+    <template #source-actions>
+      <div class="base64-mode-switch">
         <div class="segmented">
           <button type="button" :class="{ selected: mode === 'encode' }" @click="mode = 'encode'">编码</button>
           <button type="button" :class="{ selected: mode === 'decode' }" @click="mode = 'decode'">解码</button>
         </div>
       </div>
-    </div>
+    </template>
 
-    <div class="tool-main">
-      <label class="field">
-        <span>字符编码</span>
-        <SelectMenu v-model="charset" :options="charsetOptions" />
-      </label>
+    <template #source>
+      <textarea
+        v-model="input"
+        class="tool-textarea code-output base64-source-input"
+        :placeholder="mode === 'encode' ? '输入要编码的文本...' : '输入 Base64 字符串...'"
+      ></textarea>
+    </template>
 
-      <div class="io-pair">
-        <div class="io-block">
-          <div class="io-label">输入 ({{ charCount.input }} 字符)</div>
-          <textarea v-model="input" class="tool-textarea" :placeholder="mode === 'encode' ? '输入要编码的文本...' : '输入 Base64 字符串...'"></textarea>
+    <template #settings>
+      <div class="base64-settings">
+        <div class="field">
+          <span>字符编码</span>
+          <SelectMenu v-model="charset" :options="charsetOptions" />
         </div>
-        <div class="io-block">
-          <div class="io-label">输出 ({{ charCount.output }} 字符)</div>
-          <textarea class="tool-textarea" readonly :value="output" placeholder="结果将显示在这里"></textarea>
+        <div class="base64-mode-summary">
+          <i :class="mode === 'encode' ? 'ri-code-s-slash-line' : 'ri-text'" aria-hidden="true"></i>
+          <div>
+            <strong>{{ mode === "encode" ? "文本 → Base64" : "Base64 → 文本" }}</strong>
+            <span>使用 {{ charsetOptions.find((item) => item.value === charset)?.label }} 处理字符</span>
+          </div>
         </div>
       </div>
-    </div>
-  </section>
+    </template>
+
+    <template #preview-actions>
+      <span class="status-pill" :class="output.startsWith('错误:') ? 'error' : output ? 'success' : ''">
+        {{ output.startsWith("错误:") ? "ERROR" : `${charCount.output} 字符` }}
+      </span>
+    </template>
+
+    <template #preview>
+      <textarea
+        class="tool-textarea code-output base64-output"
+        readonly
+        :value="output"
+        placeholder="结果将显示在这里"
+      ></textarea>
+    </template>
+  </TaskFlowLayout>
 </template>
+
+<style scoped>
+.base64-mode-switch,
+.base64-mode-switch .segmented {
+  min-width: 0;
+}
+
+.base64-source-input {
+  min-height: 126px;
+  max-height: 190px;
+  resize: vertical;
+}
+
+.base64-settings {
+  display: grid;
+  gap: 16px;
+  align-content: start;
+}
+
+.base64-mode-summary {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding: 13px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-subtle);
+}
+
+.base64-mode-summary > i {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  flex: 0 0 auto;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  color: var(--accent-strong);
+  font-size: 18px;
+}
+
+.base64-mode-summary div {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.base64-mode-summary strong {
+  font-size: 13px;
+}
+
+.base64-mode-summary span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.base64-output {
+  width: 100%;
+  height: 100%;
+  min-height: 240px;
+  resize: none;
+}
+
+@media (max-width: 720px) {
+  .base64-mode-switch,
+  .base64-mode-switch .segmented {
+    width: 100%;
+  }
+
+  .base64-mode-switch .segmented button {
+    flex: 1;
+  }
+}
+</style>

@@ -3,6 +3,7 @@ import { computed, ref } from "vue";
 import { toPng } from "html-to-image";
 import Slider from "../components/Slider.vue";
 import Checkbox from "../components/Checkbox.vue";
+import TaskFlowLayout from "../components/TaskFlowLayout.vue";
 import { showWorkspaceToast } from "../composables/useWorkspaceToast";
 
 const code = ref(
@@ -195,33 +196,32 @@ async function copyImage() {
 </script>
 
 <template>
-  <section class="tool-page">
-    <div class="tool-header">
-      <div>
-        <h2>美化代码截图</h2>
-        <p>类似 Carbon 的代码截图工具，支持多主题、行号、窗口装饰，导出 PNG / 复制到剪贴板</p>
-      </div>
-      <div class="header-actions">
-        <button type="button" class="secondary-button" @click="copyImage">
-          <i class="ri-clipboard-line" aria-hidden="true"></i>
-          复制图片
-        </button>
-        <button type="button" class="primary-button" @click="exportPng">
-          <i class="ri-download-2-line" aria-hidden="true"></i>
-          下载 PNG
-        </button>
-      </div>
-    </div>
+  <TaskFlowLayout
+    title="美化代码截图"
+    description="类似 Carbon 的代码截图工具，支持多主题、行号、窗口装饰，导出 PNG / 复制到剪贴板"
+    source-title="源码输入"
+    source-description="编辑代码内容，右侧画布将实时同步渲染"
+    settings-title="截图样式"
+    settings-description="设置主题、语言、排版与窗口装饰"
+    preview-title="截图预览"
+    preview-description="预览内容即最终导出的图片区域"
+    :file-label="`${tokens.length} 行`"
+    variant="preview-dominant"
+  >
+    <template #source>
+      <textarea
+        v-model="code"
+        class="tool-textarea code-shot-source"
+        aria-label="代码内容"
+        spellcheck="false"
+      ></textarea>
+    </template>
 
-    <div class="code-shot-layout">
-      <aside class="code-shot-controls">
-        <label class="field">
-          <span>代码</span>
-          <textarea v-model="code" class="tool-textarea markdown-editor" spellcheck="false"></textarea>
-        </label>
+    <template #settings>
+      <div class="code-shot-settings">
         <label class="field">
           <span>主题</span>
-          <div class="segmented" style="flex-wrap: wrap;">
+          <div class="segmented compact-segmented">
             <button
               v-for="(value, key) in themes"
               :key="key"
@@ -235,7 +235,7 @@ async function copyImage() {
         </label>
         <label class="field">
           <span>语言</span>
-          <div class="segmented" style="flex-wrap: wrap;">
+          <div class="segmented compact-segmented">
             <button
               v-for="opt in langOptions"
               :key="opt.value"
@@ -257,33 +257,99 @@ async function copyImage() {
           <span>字号</span>
           <Slider v-model="fontSize" :min="10" :max="22" unit="px" aria-label="字号" />
         </label>
+        <div class="code-shot-toggles">
           <Checkbox v-model="showWindow" class="check-row" label="显示窗口装饰" />
           <Checkbox v-model="showLineNumbers" class="check-row" label="显示行号" />
-
-      </aside>
-      <div class="tool-main" style="padding: 0; box-shadow: none; border: 0; background: transparent;">
-        <div class="code-shot-stage" ref="stage" :style="{ background: theme.bg }">
-          <div
-            ref="frame"
-            class="code-shot-frame"
-            :class="{ padded: !showWindow }"
-            :style="{ background: theme.surface, color: theme.text, fontFamily: fontFamily, fontSize: `${fontSize}px`, padding: showWindow ? '0' : `${padding}px` }"
-          >
-            <div v-if="showWindow" class="code-shot-window">
-              <div class="code-shot-dots">
-                <span class="code-shot-dot" style="background: #ff5f56;"></span>
-                <span class="code-shot-dot" style="background: #ffbd2e;"></span>
-                <span class="code-shot-dot" style="background: #27c93f;"></span>
-              </div>
-              <span class="code-shot-title">{{ fileName }}</span>
-            </div>
-            <pre class="code-shot-body" :style="{ paddingLeft: showLineNumbers ? '14px' : '22px' }"><code><template v-for="(line, i) in tokens" :key="i"><span v-if="showLineNumbers" :style="{ color: theme.line, display: 'inline-block', width: '2.5em', textAlign: 'right', marginRight: '14px', userSelect: 'none' }">{{ i + 1 }}</span><span v-html="renderLineHtml(line)"></span>
-</template></code></pre>
-          </div>
         </div>
       </div>
+    </template>
 
+    <template #preview-actions>
+      <span class="status-pill success">实时预览</span>
+    </template>
 
-    </div>
-  </section>
+    <template #preview>
+      <div ref="stage" class="code-shot-stage" :style="{ background: theme.bg }">
+        <div
+          ref="frame"
+          class="code-shot-frame"
+          :class="{ padded: !showWindow }"
+          :style="{ background: theme.surface, color: theme.text, fontFamily: fontFamily, fontSize: `${fontSize}px`, padding: showWindow ? '0' : `${padding}px` }"
+        >
+          <div v-if="showWindow" class="code-shot-window">
+            <div class="code-shot-dots">
+              <span class="code-shot-dot" style="background: #ff5f56;"></span>
+              <span class="code-shot-dot" style="background: #ffbd2e;"></span>
+              <span class="code-shot-dot" style="background: #27c93f;"></span>
+            </div>
+            <span class="code-shot-title">{{ fileName }}</span>
+          </div>
+          <pre class="code-shot-body" :style="{ paddingLeft: showLineNumbers ? '14px' : '22px' }"><code><template v-for="(line, i) in tokens" :key="i"><span v-if="showLineNumbers" :style="{ color: theme.line, display: 'inline-block', width: '2.5em', textAlign: 'right', marginRight: '14px', userSelect: 'none' }">{{ i + 1 }}</span><span v-html="renderLineHtml(line)"></span>
+</template></code></pre>
+        </div>
+      </div>
+    </template>
+
+    <template #summary>
+      <i class="ri-image-line" aria-hidden="true"></i>
+      <span>{{ theme.label }} · {{ language }} · {{ fontSize }}px</span>
+    </template>
+
+    <template #actions>
+      <button type="button" class="secondary-button" @click="copyImage">
+        <i class="ri-clipboard-line" aria-hidden="true"></i>
+        复制图片
+      </button>
+      <button type="button" class="primary-button" @click="exportPng">
+        <i class="ri-download-2-line" aria-hidden="true"></i>
+        下载 PNG
+      </button>
+    </template>
+  </TaskFlowLayout>
 </template>
+
+<style scoped>
+.code-shot-source {
+  min-height: 82px;
+  max-height: 112px;
+  resize: vertical;
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Consolas, monospace);
+  font-size: 13px;
+}
+
+.code-shot-settings {
+  display: grid;
+  gap: 14px;
+}
+
+.compact-segmented {
+  flex-wrap: wrap;
+}
+
+.compact-segmented button {
+  padding-inline: 9px;
+}
+
+.code-shot-toggles {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.code-shot-stage {
+  width: 100%;
+  height: 100%;
+  min-height: 260px;
+  padding: 20px;
+}
+
+.code-shot-frame {
+  max-height: 100%;
+}
+
+@media (max-width: 720px) {
+  .code-shot-toggles {
+    grid-template-columns: 1fr;
+  }
+}
+</style>

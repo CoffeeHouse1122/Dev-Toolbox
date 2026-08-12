@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed } from "vue";
 import Checkbox from "../components/Checkbox.vue";
+import TaskFlowLayout from "../components/TaskFlowLayout.vue";
 
 const input = ref("");
 const mode = ref<"hash" | "encrypt" | "decrypt">("hash");
@@ -191,93 +192,166 @@ const weakHashWarning = computed(() => mode.value === "hash" && (algorithm.value
 </script>
 
 <template>
-  <section class="tool-page">
-    <div class="tool-header">
-      <div>
-        <h2>Hash / 加解密</h2>
-        <p>MD5 / SHA 哈希及 AES-GCM 对称加解密</p>
-      </div>
-      <div class="header-actions">
+  <TaskFlowLayout
+    title="Hash / 加解密"
+    description="MD5 / SHA 哈希及 AES-GCM 对称加解密"
+    :source-title="mode === 'decrypt' ? '待解密密文' : mode === 'hash' ? '待计算文本' : '待加密文本'"
+    :source-description="mode === 'decrypt' ? '支持 DTBX1 与旧版 Base64 密文' : '输入内容后配置处理参数，再执行本次任务'"
+    settings-title="处理参数"
+    :settings-description="mode === 'hash' ? '选择摘要算法与输出格式' : '使用同一密钥完成 AES-GCM 加解密'"
+    :file-label="`${input.length} 字符`"
+  >
+    <template #source-actions>
+      <div class="hash-mode-switch">
         <div class="segmented">
           <button type="button" :class="{ selected: mode === 'hash' }" @click="mode = 'hash'; output = ''">哈希</button>
           <button type="button" :class="{ selected: mode === 'encrypt' }" @click="mode = 'encrypt'; output = ''">加密</button>
           <button type="button" :class="{ selected: mode === 'decrypt' }" @click="mode = 'decrypt'; output = ''">解密</button>
         </div>
       </div>
-    </div>
+    </template>
 
-    <div class="tool-main">
+    <template #source>
+      <textarea
+        v-model="input"
+        class="tool-textarea hash-source-input"
+        :placeholder="mode === 'decrypt' ? '粘贴 Base64 密文...' : mode === 'hash' ? '输入要计算哈希的文本...' : '输入要加密的文本...'"
+      ></textarea>
+    </template>
+
+    <template #settings>
       <!-- 哈希模式：算法选择 + 大写 -->
-      <div v-if="mode === 'hash'" class="hash-options-bar">
-        <div class="segmented">
-          <button v-for="algo in ['MD5','SHA-1','SHA-256','SHA-512']" :key="algo" type="button" :class="{ selected: algorithm === algo }" @click="algorithm = algo as any; output = ''">
-            {{ algo }}
-          </button>
+      <div v-if="mode === 'hash'" class="hash-settings">
+        <div class="field">
+          <span>摘要算法</span>
+          <div class="segmented hash-algorithms">
+            <button v-for="algo in ['MD5','SHA-1','SHA-256','SHA-512']" :key="algo" type="button" :class="{ selected: algorithm === algo }" @click="algorithm = algo as any; output = ''">
+              {{ algo }}
+            </button>
+          </div>
         </div>
-        <span class="hash-separator"></span>
-        <Checkbox class="hash-check-label" :model-value="uppercase" label="大写" @update:model-value="setUppercase" />
-        <button type="button" class="primary-button" :disabled="busy || !input" @click="doAction">
-          <i class="ri-fingerprint-line" aria-hidden="true"></i>
-          {{ actionLabel }}
-        </button>
+        <Checkbox class="hash-check-label" :model-value="uppercase" label="结果使用大写字母" @update:model-value="setUppercase" />
+        <p v-if="weakHashWarning" class="warning-banner">
+          {{ algorithm }} 已不适合密码、签名或完整性安全场景；兼容用途之外请使用 SHA-256 或 SHA-512。
+        </p>
+        <p v-else class="hash-method-note">
+          SHA-256 与 SHA-512 更适合日常完整性校验，结果仅在本机浏览器环境计算。
+        </p>
       </div>
 
       <!-- 加解密模式：密钥输入 -->
-      <div v-else class="hash-options-bar">
-        <input v-model="encryptKey" type="password" class="tool-input" placeholder="输入加密/解密密钥" style="max-width:280px;" />
-        <button type="button" class="primary-button" :disabled="busy || !input || !encryptKey" @click="doAction">
-          <i v-if="mode === 'encrypt'" class="ri-lock-line" aria-hidden="true"></i>
-          <i v-else class="ri-lock-unlock-line" aria-hidden="true"></i>
-          {{ actionLabel }}
-        </button>
+      <div v-else class="hash-settings">
+        <label class="field">
+          <span>加密 / 解密密钥</span>
+          <input v-model="encryptKey" type="password" class="tool-input" placeholder="输入加密/解密密钥" />
+        </label>
+        <p class="hash-method-note">
+          新密文使用 AES-256-GCM + PBKDF2-SHA-256（随机盐，{{ pbkdf2Iterations.toLocaleString() }} 次）；解密仍兼容旧版密文。
+        </p>
       </div>
+    </template>
 
-      <p v-if="weakHashWarning" class="warning-banner" style="margin-top: 12px;">
-        {{ algorithm }} 已不适合密码、签名或完整性安全场景；兼容用途之外请使用 SHA-256 或 SHA-512。
-      </p>
-      <p v-else-if="mode !== 'hash'" class="empty-state" style="margin: 12px 0 0; text-align: left;">
-        新密文使用 AES-256-GCM + PBKDF2-SHA-256（随机盐，{{ pbkdf2Iterations.toLocaleString() }} 次）；解密仍兼容旧版密文。
-      </p>
+    <template #result>
+      <aside class="result-panel hash-result-panel">
+        <div class="section-title">
+          <h2>{{ resultLabel }}</h2>
+          <span class="status-pill" :class="output ? 'success' : ''">{{ output ? "READY" : "WAITING" }}</span>
+        </div>
+        <textarea class="tool-textarea code-output hash-result-output" readonly :value="output" placeholder="结果将显示在这里"></textarea>
+      </aside>
+    </template>
 
-      <div class="io-pair" style="margin-top:12px;">
-        <div class="io-block">
-          <div class="io-label">{{ mode === 'decrypt' ? '输入密文 (DTBX1 / 旧版 Base64)' : '输入文本' }}</div>
-          <textarea v-model="input" class="tool-textarea" :placeholder="mode === 'decrypt' ? '粘贴 Base64 密文...' : mode === 'hash' ? '输入要计算哈希的文本...' : '输入要加密的文本...'"></textarea>
-        </div>
-        <div class="io-block">
-          <div class="io-label">{{ resultLabel }}</div>
-          <textarea class="tool-textarea" readonly :value="output" placeholder="结果将显示在这里"></textarea>
-        </div>
-      </div>
-    </div>
-  </section>
+    <template #summary>
+      <i :class="mode === 'hash' ? 'ri-fingerprint-line' : mode === 'encrypt' ? 'ri-lock-line' : 'ri-lock-unlock-line'" aria-hidden="true"></i>
+      <span v-if="mode === 'hash'">{{ algorithm }} · {{ uppercase ? "大写" : "小写" }}</span>
+      <span v-else>{{ mode === "encrypt" ? "AES-256-GCM 加密" : "AES-256-GCM 解密" }}</span>
+    </template>
+
+    <template #actions>
+      <button type="button" class="primary-button" :disabled="busy || !input || (mode !== 'hash' && !encryptKey)" @click="doAction">
+        <i v-if="mode === 'hash'" class="ri-fingerprint-line" aria-hidden="true"></i>
+        <i v-else-if="mode === 'encrypt'" class="ri-lock-line" aria-hidden="true"></i>
+        <i v-else class="ri-lock-unlock-line" aria-hidden="true"></i>
+        {{ actionLabel }}
+      </button>
+    </template>
+  </TaskFlowLayout>
 </template>
 
 <style scoped>
-.hash-options-bar {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
+.hash-mode-switch,
+.hash-mode-switch .segmented {
+  min-width: 0;
 }
 
-.hash-separator {
-  width: 1px;
-  height: 26px;
-  background: var(--border);
-  margin: 0 4px;
+.hash-source-input {
+  min-height: 112px;
+  max-height: 170px;
+  resize: vertical;
+}
+
+.hash-settings {
+  display: grid;
+  gap: 16px;
+  align-content: start;
+}
+
+.hash-algorithms {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.hash-algorithms button {
+  min-width: 0;
 }
 
 .hash-check-label {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  width: fit-content;
   font-size: 13px;
   color: var(--muted);
   cursor: pointer;
   white-space: nowrap;
 }
+
+.hash-method-note {
+  margin: 0;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-subtle);
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.65;
+}
+
+.warning-banner {
+  margin: 0;
+}
+
+.hash-result-panel {
+  min-height: 0;
+}
+
+.hash-result-output {
+  height: 100%;
+  min-height: 0;
+  resize: none;
+}
+
 .primary-button i {
   margin-right: 6px;
+}
+
+@media (max-width: 720px) {
+  .hash-mode-switch,
+  .hash-mode-switch .segmented {
+    width: 100%;
+  }
+
+  .hash-mode-switch .segmented button {
+    flex: 1;
+  }
 }
 </style>
