@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { inject, onMounted, onUnmounted, ref } from "vue";
-import { useThemeStore, type ThemeMode } from "../stores/theme";
+import { useThemeStore, type ThemeMode, type UiFont } from "../stores/theme";
 import type { AppCloseBehavior, AppDiagnostics, AppSettings, UpdateStatus } from "../../shared/types";
 import Checkbox from "../components/Checkbox.vue";
 import { showWorkspaceToast } from "../composables/useWorkspaceToast";
@@ -19,9 +19,19 @@ const updateDownloading = ref(false);
 const updateInstalling = ref(false);
 let unsubUpdate: (() => void) | null = null;
 const openProvidedNavEditor = inject<() => void>("openNavEditor");
+const fontOptions: Array<{ value: UiFont; label: string; sample: string }> = [
+  { value: "source-han", label: "默认字体", sample: "清晰、稳健，适合长时间使用" },
+  { value: "zcool-kuaile", label: "ZCOOL KuaiLe", sample: "前端工具箱 Aa 123" },
+  { value: "wdxl-lubrifont", label: "WDXL Lubrifont SC", sample: "前端工具箱 Aa 123" }
+];
 
 function setTheme(mode: ThemeMode) {
   theme.setMode(mode);
+}
+
+function setUiFont(font: UiFont) {
+  theme.setUiFont(font);
+  showWorkspaceToast("界面字体已切换", "success");
 }
 
 async function loadSettings() {
@@ -167,6 +177,29 @@ onUnmounted(() => {
       </div>
 
       <div class="settings-block">
+        <div class="settings-block-head">
+          <h3>界面字体</h3>
+          <span class="settings-current-value">{{ fontOptions.find((option) => option.value === theme.uiFont)?.label }}</span>
+        </div>
+        <div class="font-choice-grid" role="radiogroup" aria-label="界面字体">
+          <button
+            v-for="option in fontOptions"
+            :key="option.value"
+            type="button"
+            class="font-choice"
+            :class="[{ selected: theme.uiFont === option.value }, `font-choice-${option.value}`]"
+            role="radio"
+            :aria-checked="theme.uiFont === option.value"
+            @click="setUiFont(option.value)"
+          >
+            <strong>{{ option.label }}</strong>
+            <span>{{ option.sample }}</span>
+          </button>
+        </div>
+        <p class="settings-helper-text">仅切换工具箱界面字体，代码与终端内容继续使用等宽字体。</p>
+      </div>
+
+      <div class="settings-block">
         <h3>关闭行为</h3>
         <div class="segmented">
           <button
@@ -291,6 +324,70 @@ onUnmounted(() => {
   color: var(--muted);
   font-size: 13px;
   line-height: 1.7;
+}
+
+.settings-current-value {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.font-choice-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.font-choice {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+  padding: 11px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.font-choice:hover {
+  background: var(--surface-subtle);
+}
+
+.font-choice.selected {
+  border-color: var(--accent);
+  color: var(--accent-strong);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+.font-choice strong,
+.font-choice span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.font-choice span {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.font-choice-source-han {
+  font-family: "Source Han Sans CN", ui-sans-serif, system-ui, sans-serif;
+}
+
+.font-choice-zcool-kuaile {
+  font-family: "ZCOOL KuaiLe", "Source Han Sans CN", sans-serif;
+}
+
+.font-choice-wdxl-lubrifont {
+  font-family: "WDXL Lubrifont SC", "Source Han Sans CN", sans-serif;
+}
+
+@media (max-width: 760px) {
+  .font-choice-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 .diagnostics-grid {

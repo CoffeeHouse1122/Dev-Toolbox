@@ -1,7 +1,3 @@
-:root {
-  font-family: "Source Han Sans CN", ui-sans-serif, system-ui, sans-serif;
-}
-
 @font-face {
   font-family: "Source Han Sans CN";
   src: url("../assets/NotoSansSC-Regular.woff2") format("woff2");
@@ -10,8 +6,25 @@
   font-display: swap;
 }
 
+@font-face {
+  font-family: "ZCOOL KuaiLe";
+  src: url("../assets/ZCOOLKuaiLe-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "WDXL Lubrifont SC";
+  src: url("../assets/WDXLLubrifontSC-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
 :root {
   color-scheme: light;
+  --font-ui: "Source Han Sans CN", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --bg: #f6f8fa;
   --surface: #ffffff;
   --surface-subtle: #f6f8fa;
@@ -31,6 +44,15 @@
   --scrollbar-track: color-mix(in srgb, var(--surface-subtle) 82%, transparent);
   --scrollbar-thumb: color-mix(in srgb, var(--border-strong) 72%, transparent);
   --scrollbar-thumb-hover: color-mix(in srgb, var(--muted) 78%, transparent);
+  font-family: var(--font-ui);
+}
+
+:root[data-ui-font="zcool-kuaile"] {
+  --font-ui: "ZCOOL KuaiLe", "Source Han Sans CN", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+:root[data-ui-font="wdxl-lubrifont"] {
+  --font-ui: "WDXL Lubrifont SC", "Source Han Sans CN", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
 :root[data-theme="dark"] {
@@ -79,14 +101,7 @@ body,
 }
 
 body {
-  font-family:
-    "Source Han Sans CN",
-    ui-sans-serif,
-    system-ui,
-    -apple-system,
-    BlinkMacSystemFont,
-    "Segoe UI",
-    sans-serif;
+  font-family: var(--font-ui);
   background: var(--bg);
   color: var(--text);
 }
