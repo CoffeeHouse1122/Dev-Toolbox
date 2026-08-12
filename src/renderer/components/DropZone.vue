@@ -8,6 +8,9 @@ const props = defineProps<{
   multiple?: boolean;
   title: string;
   preview?: "image" | "video";
+  compact?: boolean;
+  appendSelection?: boolean;
+  actionLabel?: string;
 }>();
 
 const emit = defineEmits<{
@@ -88,7 +91,8 @@ onBeforeUnmount(() => {
 async function pickFiles() {
   const paths = await window.devToolbox.selectFiles(props.filters, props.multiple ?? true);
   if (paths.length > 0) {
-    emit("update:modelValue", props.multiple === false ? [paths[0]] : paths);
+    const nextPaths = props.appendSelection ? uniquePaths([...props.modelValue, ...paths]) : paths;
+    emit("update:modelValue", props.multiple === false ? [nextPaths[0]] : nextPaths);
   }
 }
 
@@ -123,10 +127,10 @@ function onKeydown(event: KeyboardEvent) {
 </script>
 
 <template>
-  <div class="drop-zone-wrapper">
+  <div class="drop-zone-wrapper" :class="{ compact }">
     <div
       class="drop-zone"
-      :class="{ active: isDragging, 'has-preview': Boolean(previewUrl) }"
+      :class="{ active: isDragging, compact, 'has-preview': Boolean(previewUrl) }"
       role="button"
       tabindex="0"
       @click="pickFiles"
@@ -142,6 +146,10 @@ function onKeydown(event: KeyboardEvent) {
       <span v-else class="drop-icon"><i class="ri-upload-cloud-2-line" aria-hidden="true"></i></span>
       <span class="drop-title">{{ title }}</span>
       <span class="drop-files" :title="fileNames">{{ selectionLabel }}</span>
+      <span v-if="compact" class="drop-add-label">
+        <i class="ri-add-line" aria-hidden="true"></i>
+        {{ actionLabel || "添加文件" }}
+      </span>
     </div>
     <ol v-if="modelValue.length" class="drop-file-list" aria-label="已选文件与顺序">
       <li v-for="(filePath, index) in modelValue" :key="filePath" class="drop-file-item">
@@ -186,5 +194,81 @@ function onKeydown(event: KeyboardEvent) {
 .drop-file-actions {
   display: flex;
   gap: 2px;
+}
+
+.drop-zone.compact {
+  grid-template-areas:
+    "icon title action"
+    "icon files action";
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  justify-items: start;
+  align-items: center;
+  gap: 3px 12px;
+  min-height: 72px;
+  padding: 12px;
+  text-align: left;
+}
+
+.drop-zone.compact .drop-icon {
+  grid-area: icon;
+  width: 36px;
+  height: 36px;
+  font-size: 18px;
+}
+
+.drop-zone.compact .drop-title {
+  grid-area: title;
+}
+
+.drop-zone.compact .drop-files {
+  grid-area: files;
+}
+
+.drop-add-label {
+  grid-area: action;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 32px;
+  padding: 5px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  background: var(--surface);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.drop-zone.compact:hover .drop-add-label,
+.drop-zone.compact:focus-visible .drop-add-label {
+  border-color: var(--accent);
+  color: var(--accent-strong);
+}
+
+.drop-zone-wrapper.compact .drop-file-list {
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  max-height: 150px;
+  margin-top: 10px;
+}
+
+.drop-zone-wrapper.compact .drop-file-item {
+  min-height: 40px;
+  background: var(--surface-subtle);
+}
+
+@media (max-width: 720px) {
+  .drop-zone.compact {
+    grid-template-areas:
+      "icon title"
+      "icon files"
+      "action action";
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .drop-add-label {
+    justify-content: center;
+    width: 100%;
+    margin-top: 6px;
+  }
 }
 </style>

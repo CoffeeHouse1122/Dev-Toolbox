@@ -5,6 +5,9 @@ import GsapTransition from "./GsapTransition.vue";
 defineProps<{
   result: ConversionResult | null;
   busy: boolean;
+  title?: string;
+  emptyText?: string;
+  compact?: boolean;
 }>();
 
 function reveal(path: string) {
@@ -43,9 +46,9 @@ function issueItems(result: ConversionResult): ConversionItemResult[] {
 </script>
 
 <template>
-  <section class="result-panel">
+  <section class="result-panel" :class="{ compact }">
     <div class="section-title">
-      <h2>转换结果</h2>
+      <h2>{{ title || "转换结果" }}</h2>
       <span v-if="busy" class="status-pill running">运行中</span>
       <span v-else-if="result" class="status-pill" :class="statusClass(result.status)">{{ statusText(result.status) }}</span>
     </div>
@@ -56,7 +59,7 @@ function issueItems(result: ConversionResult): ConversionItemResult[] {
         key="result-empty"
         class="empty-state"
       >
-        等待转换
+        {{ emptyText || "等待转换" }}
       </div>
       <div
         v-else
@@ -108,4 +111,12 @@ function issueItems(result: ConversionResult): ConversionItemResult[] {
 .batch-item-issue span, .batch-item-issue code, .batch-item-issue small { display: block; min-width: 0; }
 .batch-item-issue code { overflow: hidden; color: var(--text); font: 11px/1.4 var(--font-mono); text-overflow: ellipsis; white-space: nowrap; }
 .batch-item-issue small { margin-top: 3px; color: var(--muted); font-size: 11px; }
+
+.result-panel.compact {
+  min-height: 154px;
+}
+
+.result-panel.compact > .empty-state {
+  min-height: 80px;
+}
 </style>
