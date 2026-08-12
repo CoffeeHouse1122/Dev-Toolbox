@@ -127,7 +127,7 @@ function onKeydown(event: KeyboardEvent) {
 </script>
 
 <template>
-  <div class="drop-zone-wrapper" :class="{ compact }">
+  <div class="drop-zone-wrapper" :class="{ compact, 'has-files': modelValue.length > 0 }">
     <div
       class="drop-zone"
       :class="{ active: isDragging, compact, 'has-preview': Boolean(previewUrl) }"
@@ -256,6 +256,53 @@ function onKeydown(event: KeyboardEvent) {
   background: var(--surface-subtle);
 }
 
+.drop-zone-wrapper.compact.has-files {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: stretch;
+}
+
+.drop-zone-wrapper.compact.has-files .drop-zone {
+  grid-column: 2;
+  grid-row: 1;
+  grid-template-areas: "action";
+  grid-template-columns: auto;
+  min-width: 118px;
+  min-height: 40px;
+  padding: 3px;
+  border-style: solid;
+}
+
+.drop-zone-wrapper.compact.has-files .drop-icon,
+.drop-zone-wrapper.compact.has-files .drop-title,
+.drop-zone-wrapper.compact.has-files .drop-files {
+  display: none;
+}
+
+.drop-zone-wrapper.compact.has-files .drop-add-label {
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: transparent;
+}
+
+.drop-zone-wrapper.compact.has-files .drop-file-list {
+  grid-column: 1;
+  grid-row: 1;
+  display: flex;
+  gap: 8px;
+  max-height: none;
+  margin: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.drop-zone-wrapper.compact.has-files .drop-file-item {
+  flex: 0 0 min(280px, 42vw);
+}
+
 @media (max-width: 720px) {
   .drop-zone.compact {
     grid-template-areas:
@@ -269,6 +316,19 @@ function onKeydown(event: KeyboardEvent) {
     justify-content: center;
     width: 100%;
     margin-top: 6px;
+  }
+
+  .drop-zone-wrapper.compact.has-files {
+    grid-template-columns: 1fr;
+  }
+
+  .drop-zone-wrapper.compact.has-files .drop-zone,
+  .drop-zone-wrapper.compact.has-files .drop-file-list {
+    grid-column: 1;
+  }
+
+  .drop-zone-wrapper.compact.has-files .drop-zone {
+    grid-row: 2;
   }
 }
 </style>

@@ -183,8 +183,11 @@ async function run() {
 
 <style scoped>
 .font-subset-page {
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
   gap: 14px;
-  padding-bottom: 4px;
+  height: calc(100vh - var(--titlebar-height) - 72px);
+  min-height: 0;
+  overflow: hidden;
 }
 
 .subset-panel,
@@ -210,20 +213,44 @@ async function run() {
   display: grid;
   grid-template-columns: minmax(320px, 0.72fr) minmax(440px, 1fr);
   gap: 14px;
-  align-items: start;
+  align-items: stretch;
+  min-height: 0;
 }
 
-.subset-settings-panel,
-.subset-output-column {
+.subset-settings-panel {
   display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
   gap: 14px;
   min-width: 0;
+  min-height: 0;
+}
+
+.subset-settings-panel > .field {
+  grid-template-rows: auto minmax(0, 1fr);
+  min-height: 0;
+}
+
+.subset-settings-panel .tool-textarea {
+  height: 100%;
+  min-height: 84px;
+  resize: none;
+}
+
+.subset-output-column {
+  display: grid;
+  grid-template-rows: minmax(0, 1.55fr) minmax(0, 0.8fr);
+  gap: 14px;
+  min-width: 0;
+  min-height: 0;
 }
 
 .subset-preview-panel {
   display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
   gap: 12px;
   min-width: 0;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .subset-preview-heading {
@@ -237,6 +264,7 @@ async function run() {
 
 .subset-preview-list {
   display: grid;
+  min-height: 0;
   overflow: hidden;
   border: 1px solid var(--border);
   border-radius: 7px;
@@ -248,8 +276,8 @@ async function run() {
   grid-template-columns: 46px minmax(0, 1fr);
   gap: 12px;
   align-items: baseline;
-  min-height: 48px;
-  padding: 9px 12px;
+  min-height: 38px;
+  padding: 5px 10px;
   border-bottom: 1px solid color-mix(in srgb, var(--border) 76%, transparent);
 }
 
@@ -276,7 +304,8 @@ async function run() {
   display: grid;
   place-items: center;
   gap: 8px;
-  min-height: 192px;
+  min-height: 0;
+  height: 100%;
   border: 1px dashed var(--border-strong);
   border-radius: 7px;
   color: var(--muted);
@@ -288,15 +317,28 @@ async function run() {
 }
 
 .subset-action-bar {
-  position: sticky;
-  bottom: 0;
+  position: relative;
   z-index: 8;
   display: grid;
   grid-template-columns: minmax(300px, 1fr) auto auto;
   gap: 16px;
   align-items: end;
   padding: 12px 14px;
-  box-shadow: 0 -8px 24px color-mix(in srgb, var(--bg) 72%, transparent);
+  box-shadow: none;
+}
+
+.subset-output-column :deep(.result-panel.compact) {
+  height: 100%;
+  min-height: 0;
+}
+
+.subset-output-column :deep(.result-panel.compact > .empty-state) {
+  min-height: 0;
+}
+
+.subset-output-column :deep(.result-panel.compact .result-content) {
+  min-height: 0;
+  overflow: auto;
 }
 
 .subset-output-picker {
@@ -325,16 +367,70 @@ async function run() {
 }
 
 @media (max-width: 1120px) {
+  .font-subset-page {
+    grid-template-rows: none;
+    height: auto;
+    overflow: visible;
+  }
+
   .subset-workbench {
     grid-template-columns: 1fr;
   }
 
+  .subset-settings-panel,
+  .subset-output-column,
+  .subset-preview-panel {
+    grid-template-rows: none;
+    height: auto;
+    overflow: visible;
+  }
+
+  .subset-preview-empty {
+    min-height: 192px;
+  }
+
   .subset-action-bar {
+    position: sticky;
+    bottom: 0;
     grid-template-columns: minmax(0, 1fr) auto;
+    box-shadow: 0 -8px 24px color-mix(in srgb, var(--bg) 72%, transparent);
   }
 
   .subset-output-picker {
     grid-column: 1 / -1;
+  }
+}
+
+@media (max-height: 720px) {
+  .font-subset-page {
+    grid-template-rows: none;
+    height: auto;
+    overflow: visible;
+  }
+
+  .subset-workbench,
+  .subset-settings-panel,
+  .subset-output-column,
+  .subset-preview-panel {
+    min-height: auto;
+  }
+
+  .subset-settings-panel,
+  .subset-output-column,
+  .subset-preview-panel {
+    grid-template-rows: none;
+    height: auto;
+    overflow: visible;
+  }
+
+  .subset-preview-empty {
+    min-height: 160px;
+  }
+
+  .subset-action-bar {
+    position: sticky;
+    bottom: 0;
+    box-shadow: 0 -8px 24px color-mix(in srgb, var(--bg) 72%, transparent);
   }
 }
 
