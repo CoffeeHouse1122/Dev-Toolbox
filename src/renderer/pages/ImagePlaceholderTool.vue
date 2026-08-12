@@ -4,6 +4,7 @@ import type { ConversionResult } from "../../shared/types";
 import DropZone from "../components/DropZone.vue";
 import OutputPicker from "../components/OutputPicker.vue";
 import ResultPanel from "../components/ResultPanel.vue";
+import TaskFlowLayout from "../components/TaskFlowLayout.vue";
 
 const input = ref<string[]>([]);
 const outputDir = ref("");
@@ -32,44 +33,62 @@ async function run() {
 </script>
 
 <template>
-  <section class="tool-page">
-    <div class="tool-header">
-      <div>
-        <h2>图片占位符生成</h2>
-        <p>输出 BlurHash、dominant color 与 tiny base64 placeholder</p>
+  <TaskFlowLayout
+    title="图片占位符生成"
+    description="输出 BlurHash、dominant color 与 tiny base64 placeholder"
+    source-title="源图片"
+    source-description="添加待分析图片，任务将按队列顺序处理"
+    settings-title="占位符设置"
+    settings-description="调整 Tiny 图尺寸与 BlurHash 采样精度"
+    :file-count="input.length"
+  >
+    <template #source>
+      <DropZone
+        v-model="input"
+        title="拖入源图片"
+        action-label="添加图片"
+        compact
+        append-selection
+        :multiple="true"
+        :filters="[{ name: '图片', extensions: ['png', 'jpg', 'jpeg', 'webp', 'avif'] }]"
+      />
+    </template>
+
+    <template #settings>
+      <div class="option-grid">
+        <label class="field">
+          <span>Tiny 宽度</span>
+          <input v-model.number="tinyWidth" type="number" min="8" max="128" />
+        </label>
+        <label class="field">
+          <span>BlurHash X</span>
+          <input v-model.number="componentX" type="number" min="1" max="9" />
+        </label>
+        <label class="field">
+          <span>BlurHash Y</span>
+          <input v-model.number="componentY" type="number" min="1" max="9" />
+        </label>
       </div>
+    </template>
+
+    <template #result>
+      <ResultPanel :result="result" :busy="busy" compact />
+    </template>
+
+    <template #destination>
+      <OutputPicker v-model="outputDir" />
+    </template>
+
+    <template #summary>
+      <i class="ri-stack-line" aria-hidden="true"></i>
+      <span>{{ input.length }} 张 · Tiny {{ tinyWidth }}px · BlurHash {{ componentX }} × {{ componentY }}</span>
+    </template>
+
+    <template #actions>
       <button type="button" class="primary-button" :disabled="!canRun" @click="run">
         <i class="ri-blur-off-line" aria-hidden="true"></i>
         生成占位符
       </button>
-    </div>
-
-    <div class="tool-layout">
-      <section class="tool-main">
-        <DropZone
-          v-model="input"
-          title="源图片"
-          preview="image"
-          :multiple="true"
-          :filters="[{ name: '图片', extensions: ['png', 'jpg', 'jpeg', 'webp', 'avif'] }]"
-        />
-        <OutputPicker v-model="outputDir" />
-        <div class="option-grid">
-          <label class="field">
-            <span>Tiny 宽度</span>
-            <input v-model.number="tinyWidth" type="number" min="8" max="128" />
-          </label>
-          <label class="field">
-            <span>BlurHash X</span>
-            <input v-model.number="componentX" type="number" min="1" max="9" />
-          </label>
-          <label class="field">
-            <span>BlurHash Y</span>
-            <input v-model.number="componentY" type="number" min="1" max="9" />
-          </label>
-        </div>
-      </section>
-      <ResultPanel :result="result" :busy="busy" />
-    </div>
-  </section>
+    </template>
+  </TaskFlowLayout>
 </template>

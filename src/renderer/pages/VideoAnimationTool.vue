@@ -5,6 +5,7 @@ import DropZone from "../components/DropZone.vue";
 import OutputPicker from "../components/OutputPicker.vue";
 import ResultPanel from "../components/ResultPanel.vue";
 import SelectMenu from "../components/SelectMenu.vue";
+import TaskFlowLayout from "../components/TaskFlowLayout.vue";
 import { runConversionBatch } from "../utils/batchConversion";
 
 const input = ref<string[]>([]);
@@ -49,22 +50,28 @@ async function run() {
 </script>
 
 <template>
-  <section class="tool-page">
-    <div class="tool-header">
-      <div>
-        <h2>视频转 GIF / Animated WebP</h2>
-        <p>截取片段并生成动图资源</p>
-      </div>
-      <button type="button" class="primary-button" :disabled="!canRun" @click="run">
-        <i class="ri-play-fill" aria-hidden="true"></i>
-        {{ input.length > 1 ? `批量转换（${input.length}）` : "开始转换" }}
-      </button>
-    </div>
+  <TaskFlowLayout
+    title="视频转 GIF / Animated WebP"
+    description="截取片段并生成动图资源"
+    source-title="源视频"
+    source-description="可继续添加视频，任务将按队列顺序批量转换"
+    settings-title="动图设置"
+    settings-description="队列中的视频共用以下截取与输出参数"
+    :file-count="input.length"
+  >
+    <template #source>
+      <DropZone
+        v-model="input"
+        title="拖入视频文件"
+        action-label="添加视频"
+        compact
+        append-selection
+        :multiple="true"
+        :filters="[{ name: '视频', extensions: ['mp4', 'webm', 'mov', 'mkv', 'avi'] }]"
+      />
+    </template>
 
-    <div class="tool-layout">
-      <section class="tool-main">
-        <DropZone v-model="input" title="源视频" preview="video" :multiple="true" :filters="[{ name: '视频', extensions: ['mp4', 'webm', 'mov', 'mkv', 'avi'] }]" />
-        <OutputPicker v-model="outputDir" />
+    <template #settings>
         <div class="option-grid">
           <div class="field span-2">
             <span>输出格式</span>
@@ -75,8 +82,26 @@ async function run() {
           <label class="field"><span>开始秒</span><input v-model.number="startSeconds" type="number" min="0" /></label>
           <label class="field"><span>持续秒</span><input v-model.number="durationSeconds" type="number" min="0.1" step="0.1" /></label>
         </div>
-      </section>
-      <ResultPanel :result="result" :busy="busy" />
-    </div>
-  </section>
+    </template>
+
+    <template #result>
+      <ResultPanel :result="result" :busy="busy" title="转换结果" empty-text="转换后可在此打开输出文件" compact />
+    </template>
+
+    <template #destination>
+      <OutputPicker v-model="outputDir" />
+    </template>
+
+    <template #summary>
+      <i class="ri-stack-line" aria-hidden="true"></i>
+      <span>{{ input.length }} 个视频 · {{ outputFormat.toUpperCase() }} · {{ fps }} FPS</span>
+    </template>
+
+    <template #actions>
+      <button type="button" class="primary-button" :disabled="!canRun" @click="run">
+        <i class="ri-play-fill" aria-hidden="true"></i>
+        {{ input.length > 1 ? `批量转换（${input.length}）` : "开始转换" }}
+      </button>
+    </template>
+  </TaskFlowLayout>
 </template>

@@ -6,6 +6,7 @@ import DropZone from "../components/DropZone.vue";
 // @ts-ignore VS Code inferred project may miss the local *.vue shim.
 import ResultPanel from "../components/ResultPanel.vue";
 import SelectMenu from "../components/SelectMenu.vue";
+import TaskFlowLayout from "../components/TaskFlowLayout.vue";
 import { runConversionBatch } from "../utils/batchConversion";
 const devToolbox = (window as unknown as Window & { devToolbox: DevToolboxApi }).devToolbox;
 
@@ -160,96 +161,92 @@ async function run() {
 </script>
 
 <template>
-  <section class="tool-page video-loop-page">
-    <div class="tool-header">
-      <div>
-        <h2>视频循环播放</h2>
-        <p>{{ selectedFileName }} · {{ riskText(result?.info?.loopRisk) }}</p>
+  <TaskFlowLayout
+    title="视频循环播放"
+    description="分析首尾帧差异，评估视频无缝循环效果"
+    source-title="源视频"
+    source-description="可批量分析视频，并逐个切换查看循环预览"
+    settings-title="分析与预览"
+    settings-description="选择当前视频并调整首尾取帧偏移"
+    preview-title="首尾帧与视频信息"
+    :preview-description="`${selectedFileName} · ${riskText(result?.info?.loopRisk)}`"
+    variant="analysis"
+    :file-count="input.length"
+  >
+    <template #source>
+      <DropZone
+        :model-value="input"
+        title="拖入源视频"
+        action-label="添加视频"
+        compact
+        append-selection
+        :multiple="true"
+        :filters="[{ name: '视频', extensions: ['mp4', 'webm', 'mov', 'mkv', 'avi'] }]"
+        @update:model-value="selectInput"
+      />
+    </template>
+
+    <template #settings>
+      <div v-if="input.length > 1" class="field loop-file-selector">
+        <span>当前查看</span>
+        <SelectMenu v-model="activeInputPath" :options="fileOptions" />
       </div>
+      <div class="loop-stage task-flow-loop-stage" :class="{ portrait: isPortraitVideo }">
+        <video ref="loopVideoRef" v-if="selectedVideoUrl" :key="selectedVideoUrl" :src="selectedVideoUrl" autoplay muted loop playsinline controls preload="auto" @loadedmetadata="updateVideoOrientation" @canplay="playLoopVideo"></video>
+        <div v-else class="empty-state">等待选择视频</div>
+      </div>
+      <label class="field">
+        <span>首尾取帧偏移秒数</span>
+        <input v-model.number="edgeSeconds" type="number" min="0.02" max="2" step="0.01" />
+      </label>
+    </template>
+
+    <template #preview-actions>
+      <span class="status-pill" :class="result?.info?.loopRisk === 'high' ? 'error' : result?.info ? 'success' : ''">
+        {{ riskText(result?.info?.loopRisk) }}
+      </span>
+    </template>
+    <template #preview>
+      <div class="task-flow-loop-preview">
+        <div v-if="result?.info?.firstFrameDataUrl && result?.info?.lastFrameDataUrl" class="loop-frame-grid" :class="{ portrait: isPortraitVideo }">
+          <figure>
+            <img :src="result.info.firstFrameDataUrl" alt="循环首帧" />
+            <figcaption>首帧</figcaption>
+          </figure>
+          <figure>
+            <img :src="result.info.lastFrameDataUrl" alt="循环尾帧" />
+            <figcaption>尾帧</figcaption>
+          </figure>
+        </div>
+        <p v-else class="empty-state task-flow-frame-empty">分析后显示首尾帧，截图只在工具内预览。</p>
+        <p v-if="result?.info" class="loop-summary">{{ result.info.summary }}</p>
+        <div v-if="infoRows.length" class="info-list task-flow-loop-info">
+          <div v-for="row in infoRows" :key="row[0]" class="info-row loop-info-row">
+            <span>{{ row[0] }}</span>
+            <strong>{{ row[1] }}</strong>
+          </div>
+        </div>
+      </div>
+    </template>
+
+    <template #result>
+      <ResultPanel :result="batchResult" :busy="busy" title="分析结果" empty-text="分析后在此显示批量状态" compact />
+    </template>
+
+    <template #summary>
+      <i class="ri-loop-left-line" aria-hidden="true"></i>
+      <span>{{ input.length ? `${input.length} 个视频 · 偏移 ${edgeSeconds}s` : "添加视频后可开始分析" }}</span>
+    </template>
+    <template #actions>
       <button type="button" class="primary-button" :disabled="!canRun" @click="run">
         <i class="ri-loop-left-line" aria-hidden="true"></i>
-        {{ input.length > 1 ? `批量分析（${input.length}）` : "分析循环点" }}
+        {{ busy ? "分析中…" : input.length > 1 ? `批量分析（${input.length}）` : "分析循环点" }}
       </button>
-    </div>
-
-    <div class="video-loop-layout">
-      <section class="tool-main video-loop-main">
-        <DropZone
-          :model-value="input"
-          title="源视频"
-          preview="video"
-          :multiple="true"
-          :filters="[{ name: '视频', extensions: ['mp4', 'webm', 'mov', 'mkv', 'avi'] }]"
-          @update:model-value="selectInput"
-        />
-        <div v-if="input.length > 1" class="field loop-file-selector">
-          <span>当前查看</span>
-          <SelectMenu v-model="activeInputPath" :options="fileOptions" />
-        </div>
-        <div class="loop-stage" :class="{ portrait: isPortraitVideo }">
-          <video ref="loopVideoRef" v-if="selectedVideoUrl" :key="selectedVideoUrl" :src="selectedVideoUrl" autoplay muted loop playsinline controls preload="auto" @loadedmetadata="updateVideoOrientation" @canplay="playLoopVideo"></video>
-          <div v-else class="empty-state">等待选择视频</div>
-        </div>
-        <label class="field">
-          <span>首尾取帧偏移秒数</span>
-          <input v-model.number="edgeSeconds" type="number" min="0.02" max="2" step="0.01" />
-        </label>
-      </section>
-
-      <aside class="media-tool-side">
-        <section class="output-summary loop-frame-panel">
-          <div class="section-title">
-            <h2>首尾帧</h2>
-            <span class="status-pill">Frame</span>
-          </div>
-          <div v-if="result?.info?.firstFrameDataUrl && result?.info?.lastFrameDataUrl" class="loop-frame-grid" :class="{ portrait: isPortraitVideo }">
-            <figure>
-              <img :src="result.info.firstFrameDataUrl" alt="循环首帧" />
-              <figcaption>首帧</figcaption>
-            </figure>
-            <figure>
-              <img :src="result.info.lastFrameDataUrl" alt="循环尾帧" />
-              <figcaption>尾帧</figcaption>
-            </figure>
-          </div>
-          <p v-else class="empty-state">分析后展示首尾帧截图，截图只在工具内显示，不保存到磁盘。</p>
-        </section>
-
-        <section class="output-summary loop-info-panel">
-          <div class="section-title">
-            <h2>视频信息</h2>
-            <span class="status-pill" :class="result?.info?.loopRisk === 'high' ? 'error' : result?.info ? 'success' : ''">
-              {{ riskText(result?.info?.loopRisk) }}
-            </span>
-          </div>
-          <p v-if="result?.info" class="loop-summary">{{ result.info.summary }}</p>
-          <div v-if="infoRows.length" class="info-list">
-            <div v-for="row in infoRows" :key="row[0]" class="info-row loop-info-row">
-              <span>{{ row[0] }}</span>
-              <strong>{{ row[1] }}</strong>
-            </div>
-          </div>
-          <p v-else class="empty-state">分析后显示编码、时长、分辨率和首尾帧差异。</p>
-        </section>
-
-        <ResultPanel :result="batchResult" :busy="busy" />
-      </aside>
-    </div>
-  </section>
+    </template>
+  </TaskFlowLayout>
 </template>
 
 <style scoped>
-.video-loop-layout {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 390px;
-  gap: 16px;
-  align-items: start;
-}
-
-.video-loop-main {
-  align-content: start;
-}
-
 .loop-file-selector {
   min-width: 0;
 }
@@ -266,9 +263,14 @@ async function run() {
   background: #000000;
 }
 
+.task-flow-loop-stage {
+  min-height: 0;
+  height: 100%;
+}
+
 .loop-stage.portrait {
   aspect-ratio: auto;
-  height: clamp(480px, calc(100vh - 260px), 780px);
+  height: 100%;
 }
 
 .loop-stage video {
@@ -314,7 +316,7 @@ async function run() {
 
 .loop-frame-grid.portrait img {
   aspect-ratio: auto;
-  height: clamp(240px, 32vh, 380px);
+  max-height: 260px;
 }
 
 .loop-frame-grid figcaption {
@@ -324,8 +326,22 @@ async function run() {
   text-align: center;
 }
 
-@media (max-width: 980px) {
-  .video-loop-layout {
+.task-flow-loop-preview {
+  display: grid;
+  gap: 10px;
+  min-height: 0;
+}
+
+.task-flow-loop-info {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.task-flow-frame-empty {
+  min-height: 100px;
+}
+
+@media (max-width: 720px) {
+  .task-flow-loop-info {
     grid-template-columns: 1fr;
   }
 }

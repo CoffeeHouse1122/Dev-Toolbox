@@ -6,6 +6,7 @@ import OutputPicker from "../components/OutputPicker.vue";
 import ResultPanel from "../components/ResultPanel.vue";
 import SelectMenu from "../components/SelectMenu.vue";
 import Slider from "../components/Slider.vue";
+import TaskFlowLayout from "../components/TaskFlowLayout.vue";
 import { runConversionBatch } from "../utils/batchConversion";
 
 type DragMode = "draw" | "move" | "resize";
@@ -209,63 +210,99 @@ async function run() {
 </script>
 
 <template>
-  <section class="tool-page">
-    <div class="tool-header">
-      <div>
-        <h2>图片自由裁剪</h2>
-        <p>框选比例区域并批量应用到所有图片</p>
+  <TaskFlowLayout
+    title="图片自由裁剪"
+    description="框选比例区域并批量应用到所有图片"
+    source-title="源图片"
+    source-description="添加图片后，当前裁剪比例会应用到整个队列"
+    settings-title="裁剪设置"
+    settings-description="先在右侧框选区域，再确认输出格式与质量"
+    preview-title="裁剪预览"
+    preview-description="拖动选区或八个控制点调整裁剪区域"
+    variant="preview-dominant"
+    :file-count="input.length"
+  >
+    <template #source>
+      <DropZone
+        v-model="input"
+        title="拖入源图片"
+        action-label="添加图片"
+        compact
+        append-selection
+        :multiple="true"
+        :filters="[{ name: '图片', extensions: ['png', 'jpg', 'jpeg', 'webp', 'avif', 'tiff'] }]"
+      />
+    </template>
+
+    <template #settings>
+      <div class="option-grid">
+        <div class="field">
+          <span>输出格式</span>
+          <SelectMenu v-model="outputFormat" :options="formatOptions" />
+        </div>
+        <label class="field">
+          <span>质量</span>
+          <Slider v-model="quality" :min="1" :max="100" aria-label="质量" />
+        </label>
+        <div class="crop-stats span-2">
+          <span>起点 {{ cropRect.x }}, {{ cropRect.y }}</span>
+          <strong>{{ cropRect.width }} × {{ cropRect.height }}</strong>
+        </div>
       </div>
+    </template>
+
+    <template #preview>
+      <div v-if="imageUrl" ref="stage" class="crop-stage task-flow-crop-stage" @pointerdown="startDraw">
+        <img class="crop-image" :src="imageUrl" alt="裁剪预览" draggable="false" @load="onImageLoad" />
+        <div class="crop-mask"></div>
+        <div class="crop-selection" :style="selectionStyle" @pointerdown.stop="startMove">
+          <button
+            v-for="handle in handles"
+            :key="handle"
+            type="button"
+            class="crop-handle"
+            :class="`crop-handle-${handle}`"
+            :aria-label="`调整 ${handle}`"
+            @pointerdown.stop="startResize(handle, $event)"
+          ></button>
+        </div>
+      </div>
+      <div v-else class="empty-state task-flow-crop-empty">选择图片后在此框选裁剪区域</div>
+    </template>
+
+    <template #result>
+      <ResultPanel :result="result" :busy="busy" title="裁剪结果" empty-text="导出后可在此打开文件" compact />
+    </template>
+
+    <template #destination>
+      <OutputPicker v-model="outputDir" />
+    </template>
+    <template #summary>
+      <i class="ri-crop-line" aria-hidden="true"></i>
+      <span>{{ input.length ? `${input.length} 张图片 · ${cropRect.width} × ${cropRect.height}` : "选择图片后可开始" }}</span>
+    </template>
+    <template #actions>
       <button type="button" class="primary-button" :disabled="!canRun" @click="run">
         <i class="ri-scissors-cut-line" aria-hidden="true"></i>
-        导出裁剪
+        {{ busy ? "导出中…" : "导出裁剪" }}
       </button>
-    </div>
-
-    <div class="tool-layout image-crop-layout">
-      <section class="tool-main image-crop-main">
-        <DropZone
-          v-model="input"
-          title="源图片"
-          preview="image"
-          :multiple="true"
-          :filters="[{ name: '图片', extensions: ['png', 'jpg', 'jpeg', 'webp', 'avif', 'tiff'] }]"
-        />
-
-        <div v-if="imageUrl" ref="stage" class="crop-stage" @pointerdown="startDraw">
-          <img class="crop-image" :src="imageUrl" alt="裁剪预览" draggable="false" @load="onImageLoad" />
-          <div class="crop-mask"></div>
-          <div class="crop-selection" :style="selectionStyle" @pointerdown.stop="startMove">
-            <button
-              v-for="handle in handles"
-              :key="handle"
-              type="button"
-              class="crop-handle"
-              :class="`crop-handle-${handle}`"
-              :aria-label="`调整 ${handle}`"
-              @pointerdown.stop="startResize(handle, $event)"
-            ></button>
-          </div>
-        </div>
-
-        <OutputPicker v-model="outputDir" />
-
-        <div class="option-grid">
-          <div class="field">
-            <span>输出格式</span>
-            <SelectMenu v-model="outputFormat" :options="formatOptions" />
-          </div>
-          <label class="field">
-            <span>质量</span>
-            <Slider v-model="quality" :min="1" :max="100" aria-label="质量" />
-          </label>
-          <div class="crop-stats span-2">
-            <span>{{ cropRect.x }}, {{ cropRect.y }}</span>
-            <strong>{{ cropRect.width }} x {{ cropRect.height }}</strong>
-          </div>
-        </div>
-      </section>
-
-      <ResultPanel :result="result" :busy="busy" />
-    </div>
-  </section>
+    </template>
+  </TaskFlowLayout>
 </template>
+
+<style scoped>
+.task-flow-crop-stage {
+  width: 100%;
+  max-height: 100%;
+}
+
+.task-flow-crop-stage .crop-image {
+  max-height: 100%;
+  object-fit: contain;
+}
+
+.task-flow-crop-empty {
+  height: 100%;
+  min-height: 180px;
+}
+</style>

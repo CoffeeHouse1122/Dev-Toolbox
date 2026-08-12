@@ -5,6 +5,7 @@ import DropZone from "../components/DropZone.vue";
 import OutputPicker from "../components/OutputPicker.vue";
 import ResultPanel from "../components/ResultPanel.vue";
 import SelectMenu from "../components/SelectMenu.vue";
+import TaskFlowLayout from "../components/TaskFlowLayout.vue";
 
 const input = ref<string[]>([]);
 const outputDir = ref("");
@@ -49,27 +50,28 @@ async function run() {
 </script>
 
 <template>
-  <section class="tool-page">
-    <div class="tool-header">
-      <div>
-        <h2>音频格式转换</h2>
-        <p>批量转换 MP3、WAV、AAC、OGG、FLAC、M4A</p>
-      </div>
-      <button type="button" class="primary-button" :disabled="!canRun" @click="run">
-        <i class="ri-play-fill" aria-hidden="true"></i>
-        转换 {{ input.length > 1 ? input.length : "" }}
-      </button>
-    </div>
-
-    <div class="tool-layout">
-      <section class="tool-main">
+  <TaskFlowLayout
+    title="音频格式转换"
+    description="批量转换 MP3、WAV、AAC、OGG、FLAC、M4A"
+    source-title="源音频"
+    source-description="可继续添加音频，任务将按队列顺序批量转换"
+    settings-title="转换设置"
+    settings-description="队列中的音频共用以下输出参数"
+    :file-count="input.length"
+  >
+    <template #source>
         <DropZone
           v-model="input"
-          title="源音频"
+          title="拖入音频文件"
+          action-label="添加音频"
+          compact
+          append-selection
           :multiple="true"
           :filters="[{ name: '音频', extensions: ['mp3', 'wav', 'aac', 'ogg', 'flac', 'm4a', 'wma'] }]"
         />
-        <OutputPicker v-model="outputDir" />
+    </template>
+
+    <template #settings>
         <div class="option-grid">
           <div class="field">
             <span>目标格式</span>
@@ -84,9 +86,26 @@ async function run() {
             <input v-model.number="sampleRate" type="number" min="8000" step="1000" placeholder="保持原始采样率" />
           </label>
         </div>
-      </section>
+    </template>
 
-      <ResultPanel :result="result" :busy="busy" />
-    </div>
-  </section>
+    <template #result>
+      <ResultPanel :result="result" :busy="busy" title="转换结果" empty-text="转换后可在此打开输出文件" compact />
+    </template>
+
+    <template #destination>
+      <OutputPicker v-model="outputDir" />
+    </template>
+
+    <template #summary>
+      <i class="ri-stack-line" aria-hidden="true"></i>
+      <span>{{ input.length }} 个音频 · {{ outputFormat.toUpperCase() }} · {{ bitrate }}</span>
+    </template>
+
+    <template #actions>
+      <button type="button" class="primary-button" :disabled="!canRun" @click="run">
+        <i class="ri-play-fill" aria-hidden="true"></i>
+        {{ input.length > 1 ? `批量转换（${input.length}）` : "开始转换" }}
+      </button>
+    </template>
+  </TaskFlowLayout>
 </template>

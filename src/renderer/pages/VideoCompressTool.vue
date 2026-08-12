@@ -12,6 +12,7 @@ import SelectMenu from "../components/SelectMenu.vue";
 // @ts-ignore VS Code inferred project may miss the local *.vue shim.
 import Slider from "../components/Slider.vue";
 import Checkbox from "../components/Checkbox.vue";
+import TaskFlowLayout from "../components/TaskFlowLayout.vue";
 const devToolbox = (window as unknown as Window & { devToolbox: DevToolboxApi }).devToolbox;
 
 const input = ref<string[]>([]);
@@ -97,28 +98,30 @@ async function run() {
 </script>
 
 <template>
-  <section class="tool-page">
-    <div class="tool-header">
-      <div>
-        <h2>视频压缩</h2>
-        <p>{{ qualityTone }} · CRF {{ crf }} · {{ width || "原始尺寸" }}</p>
-      </div>
-      <button type="button" class="primary-button" :disabled="!canRun" @click="run">
-        <i class="ri-compress-line" aria-hidden="true"></i>
-        开始压缩
-      </button>
-    </div>
-
-    <div class="tool-layout">
-      <section class="tool-main">
+  <TaskFlowLayout
+    title="视频压缩"
+    :description="`${qualityTone} · CRF ${crf} · ${width || '原始尺寸'}`"
+    source-title="源视频"
+    source-description="可继续添加视频，任务将按队列顺序批量压缩"
+    settings-title="压缩设置"
+    settings-description="队列中的视频共用以下编码参数"
+    preview-title="当前视频"
+    preview-description="显示队列首个视频的媒体信息"
+    :file-count="input.length"
+  >
+    <template #source>
         <DropZone
           v-model="input"
-          title="源视频"
-          preview="video"
+          title="拖入视频文件"
+          action-label="添加视频"
+          compact
+          append-selection
           :multiple="true"
           :filters="[{ name: '视频', extensions: ['mp4', 'webm', 'mov', 'mkv', 'avi'] }]"
         />
-        <OutputPicker v-model="outputDir" />
+    </template>
+
+    <template #settings>
         <div class="video-form-grid">
           <label class="field">
             <span>CRF</span>
@@ -138,28 +141,43 @@ async function run() {
           </div>
           <Checkbox v-model="keepAudio" class="check-row span-2 video-check-row" label="保留音频并重新编码" />
         </div>
-      </section>
+    </template>
 
-      <aside class="media-tool-side">
-        <section class="output-summary">
-          <div class="section-title">
-            <h2>当前视频</h2>
-            <span class="status-pill" :class="{ running: infoBusy, error: mediaError }">INFO</span>
-          </div>
-          <p v-if="mediaError" class="error-text">{{ mediaError }}</p>
-          <div v-else-if="infoRows.length" class="info-list">
-            <div v-for="row in infoRows" :key="row[0]" class="info-row media-info-row">
-              <span>{{ row[0] }}</span>
-              <strong>{{ row[1] }}</strong>
-            </div>
-          </div>
-          <p v-else class="empty-state">选择视频文件后显示编码、时长、分辨率、帧率和码率。</p>
-        </section>
+    <template #preview-actions>
+      <span class="status-pill" :class="{ running: infoBusy, error: mediaError }">INFO</span>
+    </template>
 
-        <ResultPanel :result="result" :busy="busy" />
-      </aside>
-    </div>
-  </section>
+    <template #preview>
+      <p v-if="mediaError" class="error-text">{{ mediaError }}</p>
+      <div v-else-if="infoRows.length" class="info-list">
+        <div v-for="row in infoRows" :key="row[0]" class="info-row media-info-row">
+          <span>{{ row[0] }}</span>
+          <strong>{{ row[1] }}</strong>
+        </div>
+      </div>
+      <p v-else class="empty-state">选择视频文件后显示编码、时长、分辨率、帧率和码率。</p>
+    </template>
+
+    <template #result>
+      <ResultPanel :result="result" :busy="busy" title="压缩结果" empty-text="压缩后可在此打开输出文件" compact />
+    </template>
+
+    <template #destination>
+      <OutputPicker v-model="outputDir" />
+    </template>
+
+    <template #summary>
+      <i class="ri-stack-line" aria-hidden="true"></i>
+      <span>{{ input.length }} 个视频 · CRF {{ crf }} · {{ width || "原始尺寸" }}</span>
+    </template>
+
+    <template #actions>
+      <button type="button" class="primary-button" :disabled="!canRun" @click="run">
+        <i class="ri-compress-line" aria-hidden="true"></i>
+        {{ input.length > 1 ? `批量压缩（${input.length}）` : "开始压缩" }}
+      </button>
+    </template>
+  </TaskFlowLayout>
 </template>
 
 <style scoped>

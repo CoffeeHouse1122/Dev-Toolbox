@@ -6,6 +6,7 @@ import OutputPicker from "../components/OutputPicker.vue";
 import ResultPanel from "../components/ResultPanel.vue";
 import SelectMenu from "../components/SelectMenu.vue";
 import Checkbox from "../components/Checkbox.vue";
+import TaskFlowLayout from "../components/TaskFlowLayout.vue";
 
 const input = ref<string[]>([]);
 const outputDir = ref("");
@@ -46,33 +47,37 @@ async function run() {
 </script>
 
 <template>
-  <section class="tool-page">
-    <div class="tool-header">
-      <div>
-        <h2>序列帧转动图</h2>
-        <p>把连续图片帧转换为 GIF、APNG 或 Animated WebP</p>
-      </div>
-      <div class="header-actions">
-        <button type="button" class="secondary-button" :disabled="input.length < 2" @click="sortByName">
-          <i class="ri-sort-asc" aria-hidden="true"></i>
-          按文件名排序
-        </button>
-        <button type="button" class="primary-button" :disabled="!canRun" @click="run">
-          <i class="ri-play-fill" aria-hidden="true"></i>
-          生成动图
-        </button>
-      </div>
-    </div>
+  <TaskFlowLayout
+    title="序列帧转动图"
+    description="把连续图片帧转换为 GIF、APNG 或 Animated WebP"
+    source-title="序列帧图片"
+    source-description="按队列顺序合成动图，可先按文件名进行自然排序"
+    settings-title="动图设置"
+    settings-description="所有序列帧共用以下合成参数"
+    preview-title="帧序列"
+    preview-description="执行前确认图片帧的合成顺序"
+    :file-count="input.length"
+  >
+    <template #source-actions>
+      <button type="button" class="secondary-button" :disabled="input.length < 2" @click="sortByName">
+        <i class="ri-sort-asc" aria-hidden="true"></i>
+        按文件名排序
+      </button>
+    </template>
 
-    <div class="tool-layout">
-      <section class="tool-main">
+    <template #source>
         <DropZone
           v-model="input"
-          title="序列帧图片"
+          title="拖入序列帧图片"
+          action-label="添加图片"
+          compact
+          append-selection
           :multiple="true"
           :filters="[{ name: '序列帧图片', extensions: ['png', 'jpg', 'jpeg', 'webp'] }]"
         />
-        <OutputPicker v-model="outputDir" />
+    </template>
+
+    <template #settings>
         <div class="option-grid">
           <div class="field">
             <span>输出格式</span>
@@ -88,15 +93,37 @@ async function run() {
           </label>
           <Checkbox v-model="loop" class="check-row" label="循环播放" />
         </div>
-        <div v-if="input.length" class="sequence-list">
-          <div v-for="(frame, index) in input.slice(0, 8)" :key="frame" class="sequence-row">
-            <span>{{ String(index + 1).padStart(2, "0") }}</span>
-            <strong>{{ frame.split(/[\\/]/).pop() }}</strong>
-          </div>
-          <p v-if="input.length > 8" class="empty-state">还有 {{ input.length - 8 }} 帧未显示</p>
+    </template>
+
+    <template #preview>
+      <div v-if="input.length" class="sequence-list">
+        <div v-for="(frame, index) in input.slice(0, 8)" :key="frame" class="sequence-row">
+          <span>{{ String(index + 1).padStart(2, "0") }}</span>
+          <strong>{{ frame.split(/[\\/]/).pop() }}</strong>
         </div>
-      </section>
-      <ResultPanel :result="result" :busy="busy" />
-    </div>
-  </section>
+        <p v-if="input.length > 8" class="empty-state">还有 {{ input.length - 8 }} 帧未显示</p>
+      </div>
+      <p v-else class="empty-state">选择序列帧后显示合成顺序。</p>
+    </template>
+
+    <template #result>
+      <ResultPanel :result="result" :busy="busy" title="生成结果" empty-text="生成后可在此打开动图文件" compact />
+    </template>
+
+    <template #destination>
+      <OutputPicker v-model="outputDir" />
+    </template>
+
+    <template #summary>
+      <i class="ri-stack-line" aria-hidden="true"></i>
+      <span>{{ input.length }} 帧 · {{ outputFormat.toUpperCase() }} · {{ fps }} FPS</span>
+    </template>
+
+    <template #actions>
+      <button type="button" class="primary-button" :disabled="!canRun" @click="run">
+        <i class="ri-play-fill" aria-hidden="true"></i>
+        生成动图
+      </button>
+    </template>
+  </TaskFlowLayout>
 </template>

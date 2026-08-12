@@ -8,6 +8,7 @@ import ResultPanel from "../components/ResultPanel.vue";
 import SelectMenu from "../components/SelectMenu.vue";
 import Slider from "../components/Slider.vue";
 import Checkbox from "../components/Checkbox.vue";
+import TaskFlowLayout from "../components/TaskFlowLayout.vue";
 
 const input = ref<string[]>([]);
 const outputDir = ref("");
@@ -49,52 +50,68 @@ async function run() {
 </script>
 
 <template>
-  <section class="tool-page">
-    <div class="tool-header">
-      <div>
-        <h2>图片格式转换</h2>
-        <p>支持 WebP、PNG、JPEG、AVIF，支持单个或批量</p>
-      </div>
+  <TaskFlowLayout
+    title="图片格式转换"
+    description="支持 WebP、PNG、JPEG、AVIF，支持单个或批量"
+    source-title="源图片"
+    source-description="添加待转换图片，任务将按队列顺序处理"
+    settings-title="转换设置"
+    settings-description="所有源图片共用以下格式与尺寸规则"
+    :file-count="input.length"
+  >
+    <template #source>
+      <DropZone
+        v-model="input"
+        title="拖入源图片"
+        action-label="添加图片"
+        compact
+        append-selection
+        :multiple="true"
+        :filters="[{ name: '图片', extensions: ['png', 'jpg', 'jpeg', 'webp', 'avif', 'tiff'] }]"
+      />
+    </template>
+
+    <template #settings>
+      <OptionGrid>
+        <div class="field">
+          <span>目标格式</span>
+          <SelectMenu v-model="outputFormat" :options="formatOptions" />
+        </div>
+        <label class="field">
+          <span>质量</span>
+          <Slider v-model="quality" :min="1" :max="100" aria-label="质量" />
+        </label>
+        <label class="field">
+          <span>最大宽度</span>
+          <input v-model.number="maxWidth" type="number" min="1" placeholder="保持原始" />
+        </label>
+        <label class="field">
+          <span>最大高度</span>
+          <input v-model.number="maxHeight" type="number" min="1" placeholder="保持原始" />
+        </label>
+        <Checkbox v-model="lossless" class="check-row" label="无损压缩" />
+        <Checkbox v-model="keepMetadata" class="check-row" label="保留元数据" />
+      </OptionGrid>
+    </template>
+
+    <template #result>
+      <ResultPanel :result="result" :busy="busy" compact />
+    </template>
+
+    <template #destination>
+      <OutputPicker v-model="outputDir" />
+    </template>
+
+    <template #summary>
+      <i class="ri-stack-line" aria-hidden="true"></i>
+      <span>{{ input.length }} 张 · {{ outputFormat.toUpperCase() }} · 质量 {{ quality }}</span>
+    </template>
+
+    <template #actions>
       <button type="button" class="primary-button" :disabled="!canRun" @click="run">
         <i class="ri-play-fill" aria-hidden="true"></i>
         转换 {{ input.length > 1 ? input.length : "" }}
       </button>
-    </div>
-
-    <div class="tool-layout">
-      <div class="tool-main">
-        <DropZone
-          v-model="input"
-          title="源图片"
-          preview="image"
-          :multiple="true"
-          :filters="[{ name: '图片', extensions: ['png', 'jpg', 'jpeg', 'webp', 'avif', 'tiff'] }]"
-        />
-        <OutputPicker v-model="outputDir" />
-
-        <OptionGrid>
-          <div class="field">
-            <span>目标格式</span>
-            <SelectMenu v-model="outputFormat" :options="formatOptions" />
-          </div>
-          <label class="field">
-            <span>质量</span>
-            <Slider v-model="quality" :min="1" :max="100" aria-label="质量" />
-          </label>
-          <label class="field">
-            <span>最大宽度</span>
-            <input v-model.number="maxWidth" type="number" min="1" placeholder="保持原始" />
-          </label>
-          <label class="field">
-            <span>最大高度</span>
-            <input v-model.number="maxHeight" type="number" min="1" placeholder="保持原始" />
-          </label>
-          <Checkbox v-model="lossless" class="check-row" label="无损压缩" />
-          <Checkbox v-model="keepMetadata" class="check-row" label="保留元数据" />
-        </OptionGrid>
-      </div>
-
-      <ResultPanel :result="result" :busy="busy" />
-    </div>
-  </section>
+    </template>
+  </TaskFlowLayout>
 </template>
