@@ -3,6 +3,7 @@ import { computed, ref } from "vue";
 import { toPng } from "html-to-image";
 import Slider from "../components/Slider.vue";
 import Checkbox from "../components/Checkbox.vue";
+import { showWorkspaceToast } from "../composables/useWorkspaceToast";
 
 const code = ref(
   `function fibonacci(n) {\n  if (n < 2) return n;\n  return fibonacci(n - 1) + fibonacci(n - 2);\n}\n\nconsole.log(fibonacci(10));\n`
@@ -15,7 +16,6 @@ const showWindow = ref(true);
 const showLineNumbers = ref(true);
 const fontFamily = ref(`"Source Han Sans CN", "SourceHanSansCN", "JetBrains Mono", ui-monospace, SFMono-Regular, Consolas, monospace`);
 const fontSize = ref(14);
-const status = ref("");
 const stage = ref<HTMLElement | null>(null);
 const frame = ref<HTMLElement | null>(null);
 
@@ -160,7 +160,7 @@ const langOptions = [
 
 async function exportPng() {
   if (!frame.value) return;
-  status.value = "正在生成图片…";
+  showWorkspaceToast("正在生成图片…");
   try {
     const dataUrl = await toPng(frame.value, { pixelRatio: 2, cacheBust: true });
     const a = document.createElement("a");
@@ -171,15 +171,15 @@ async function exportPng() {
       .replace(/[. ]+$/g, "") || "code-shot";
     a.download = `${safeName}.png`;
     a.click();
-    status.value = "已下载 PNG。";
+    showWorkspaceToast("已下载 PNG。", "success");
   } catch (error) {
-    status.value = error instanceof Error ? error.message : String(error);
+    showWorkspaceToast(error instanceof Error ? error.message : String(error), "error");
   }
 }
 
 async function copyImage() {
   if (!frame.value) return;
-  status.value = "正在复制…";
+  showWorkspaceToast("正在复制…");
   try {
     const dataUrl = await toPng(frame.value, { pixelRatio: 2, cacheBust: true });
     const blob = await (await fetch(dataUrl)).blob();
@@ -187,9 +187,9 @@ async function copyImage() {
       throw new Error("当前环境不支持 ClipboardItem。");
     }
     await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
-    status.value = "图片已复制到剪贴板。";
+    showWorkspaceToast("图片已复制到剪贴板。", "success");
   } catch (error) {
-    status.value = error instanceof Error ? error.message : String(error);
+    showWorkspaceToast(error instanceof Error ? error.message : String(error), "error");
   }
 }
 </script>
@@ -281,7 +281,6 @@ async function copyImage() {
 </template></code></pre>
           </div>
         </div>
-        <p v-if="status" class="empty-state" style="margin-top: 8px;">{{ status }}</p>
       </div>
 
 

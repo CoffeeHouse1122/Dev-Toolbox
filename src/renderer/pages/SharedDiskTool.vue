@@ -2,6 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import type { SharedDiskConfig, SharedDiskConnectResult, SharedDiskStatus } from "../../shared/types";
 import Checkbox from "../components/Checkbox.vue";
+import { showWorkspaceToast } from "../composables/useWorkspaceToast";
 
 const config = ref<SharedDiskConfig>({
   url: "http://10.0.15.5:5000",
@@ -12,7 +13,6 @@ const config = ref<SharedDiskConfig>({
   persistent: true
 });
 const busy = ref(false);
-const status = ref("");
 const lastResult = ref<SharedDiskConnectResult | null>(null);
 const diskStatus = ref<SharedDiskStatus>({ connected: false, shareRoot: "", message: "未检查" });
 let pollTimer: ReturnType<typeof setInterval> | null = null;
@@ -58,9 +58,9 @@ async function saveConfig() {
   busy.value = true;
   try {
     config.value = await window.devToolbox.saveSharedDiskConfig(plainConfig());
-    status.value = "配置已保存";
+    showWorkspaceToast("配置已保存", "success");
   } catch (error) {
-    status.value = friendlyError(error);
+    showWorkspaceToast(friendlyError(error), "error");
   } finally {
     busy.value = false;
   }
@@ -71,10 +71,10 @@ async function connect() {
   busy.value = true;
   try {
     lastResult.value = await window.devToolbox.connectSharedDisk(plainConfig());
-    status.value = lastResult.value.message;
+    showWorkspaceToast(lastResult.value.message, "success");
     await refreshStatus();
   } catch (error) {
-    status.value = friendlyError(error);
+    showWorkspaceToast(friendlyError(error), "error");
   } finally {
     busy.value = false;
   }
@@ -84,10 +84,10 @@ async function disconnect() {
   busy.value = true;
   try {
     lastResult.value = await window.devToolbox.disconnectSharedDisk(plainConfig());
-    status.value = lastResult.value.message;
+    showWorkspaceToast(lastResult.value.message, "success");
     await refreshStatus();
   } catch (error) {
-    status.value = friendlyError(error);
+    showWorkspaceToast(friendlyError(error), "error");
   } finally {
     busy.value = false;
   }
@@ -99,9 +99,9 @@ async function openDefaultDirectory() {
   busy.value = true;
   try {
     await window.devToolbox.openSharedDiskDirectory(target);
-    status.value = "已打开默认目录";
+    showWorkspaceToast("已打开默认目录", "success");
   } catch (error) {
-    status.value = friendlyError(error);
+    showWorkspaceToast(friendlyError(error), "error");
   } finally {
     busy.value = false;
   }
@@ -173,7 +173,6 @@ onBeforeUnmount(() => {
         </div>
         <div class="result-content">
           <p class="empty-state">{{ diskStatus.message }}</p>
-          <p v-if="status" class="empty-state">{{ status }}</p>
           <div v-if="lastResult || diskStatus.shareRoot" class="file-list">
             <button type="button" class="file-item" @click="openDefaultDirectory">
               <i class="ri-folder-open-line" aria-hidden="true"></i>

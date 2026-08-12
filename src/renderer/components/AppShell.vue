@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, provide, ref, watch } from "vue";
 import { RouterLink, RouterView } from "vue-router";
+import { showWorkspaceToast } from "../composables/useWorkspaceToast";
 import { useThemeStore } from "../stores/theme";
 import Checkbox from "./Checkbox.vue";
 import GsapTransition from "./GsapTransition.vue";
+import WorkspaceToast from "./WorkspaceToast.vue";
 import brandIcon from "../../../build/icons/favicon-128x128.png";
 
 type NavTool = {
@@ -32,7 +34,6 @@ const collapsedStorageKey = "dev-toolbox.nav-collapsed.v1";
 const theme = useThemeStore();
 const editingNav = ref(false);
 const navImportInput = ref<HTMLInputElement | null>(null);
-const navEditorMessage = ref("");
 const navConfigLoaded = ref(false);
 const alwaysOnTop = ref(false);
 const isWindowMaximized = ref(false);
@@ -311,7 +312,6 @@ function saveNavConfig() {
 function openNavEditor() {
   draftGroups.value = cloneGroups(groups.value);
   draftFavoriteToolIds.value = [...favoriteToolIds.value];
-  navEditorMessage.value = "";
   dragState.value = null;
   dropHover.value = null;
   editingNav.value = true;
@@ -326,7 +326,6 @@ provide("openNavEditor", handleOpenNavEditor);
 function cancelNavEditing() {
   draftGroups.value = cloneGroups(groups.value);
   draftFavoriteToolIds.value = [...favoriteToolIds.value];
-  navEditorMessage.value = "";
   dragState.value = null;
   dropHover.value = null;
   editingNav.value = false;
@@ -335,7 +334,6 @@ function cancelNavEditing() {
 function applyNavEditing() {
   groups.value = cloneGroups(draftGroups.value);
   favoriteToolIds.value = [...draftFavoriteToolIds.value];
-  navEditorMessage.value = "";
   dragState.value = null;
   dropHover.value = null;
   editingNav.value = false;
@@ -344,7 +342,7 @@ function applyNavEditing() {
 function resetNav() {
   draftGroups.value = cloneGroups(defaultGroups);
   draftFavoriteToolIds.value = [];
-  navEditorMessage.value = "已恢复默认导航";
+  showWorkspaceToast("已恢复默认导航", "success");
 }
 
 function exportNavConfig() {
@@ -363,7 +361,7 @@ function exportNavConfig() {
   link.download = `dev-toolbox-nav-${new Date().toISOString().slice(0, 10)}.json`;
   link.click();
   URL.revokeObjectURL(url);
-  navEditorMessage.value = "已导出导航 JSON";
+  showWorkspaceToast("已导出导航 JSON", "success");
 }
 
 function pickNavConfigFile() {
@@ -383,9 +381,9 @@ async function importNavConfig(event: Event) {
     if (!Array.isArray(importedGroups)) throw new Error("JSON 中缺少 groups 数组");
     draftGroups.value = mergeGroups(importedGroups);
     draftFavoriteToolIds.value = normalizeFavoriteToolIds(Array.isArray(parsed) ? [] : parsed.favoriteToolIds);
-    navEditorMessage.value = `已导入 ${file.name}`;
+    showWorkspaceToast(`已导入 ${file.name}`, "success");
   } catch (error) {
-    navEditorMessage.value = error instanceof Error ? error.message : String(error);
+    showWorkspaceToast(error instanceof Error ? error.message : String(error), "error");
   }
 }
 
@@ -739,7 +737,6 @@ onBeforeUnmount(() => {
         <div class="brand-mark"><img :src="brandIcon" alt="Dev Toolbox" width="30" height="30" /></div>
         <div>
           <strong>Dev Toolbox</strong>
-          <span>Frontend / Full-stack Console</span>
         </div>
       </div>
 
@@ -787,6 +784,7 @@ onBeforeUnmount(() => {
 
     <main class="workspace">
       <!-- <header class="topbar" aria-hidden="true"></header> -->
+      <WorkspaceToast />
 
       <div class="workspace-body dt-simplebar">
         <RouterView v-slot="{ Component, route }">
@@ -844,7 +842,6 @@ onBeforeUnmount(() => {
               </button>
             </div>
           </header>
-          <!-- <p v-if="navEditorMessage" class="nav-editor-message">{{ navEditorMessage }}</p> -->
           <div class="dt-modal-body nav-editor-modal-body dt-simplebar">
             <section class="nav-editor-group nav-editor-favorites-group">
               <div class="nav-editor-group-head nav-editor-favorites-head">

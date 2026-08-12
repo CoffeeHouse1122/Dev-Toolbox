@@ -2,6 +2,7 @@
 import { computed, ref } from "vue";
 import { dump as dumpYaml, load as loadYaml } from "js-yaml";
 import * as toml from "smol-toml";
+import { showWorkspaceToast } from "../composables/useWorkspaceToast";
 
 type Format = "json" | "yaml" | "toml";
 
@@ -44,16 +45,13 @@ const targetText = computed(() => {
   }
 });
 
-const copyState = ref("");
-
 async function copyTarget() {
   if (!targetText.value) return;
   try {
     await navigator.clipboard.writeText(targetText.value);
-    copyState.value = "已复制到剪贴板";
-    setTimeout(() => (copyState.value = ""), 1800);
+    showWorkspaceToast("已复制到剪贴板", "success");
   } catch (error) {
-    copyState.value = error instanceof Error ? error.message : String(error);
+    showWorkspaceToast(error instanceof Error ? error.message : String(error), "error");
   }
 }
 
@@ -146,7 +144,6 @@ function loadSample() {
             </div>
           </div>
           <textarea readonly :value="targetText" spellcheck="false"></textarea>
-          <p v-if="copyState" class="success-banner">{{ copyState }}</p>
         </div>
       </div>
     </div>

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from "vue";
+import { showWorkspaceToast } from "../composables/useWorkspaceToast";
 
 type MarkMode = "measure" | "color" | "rect" | "text";
 
@@ -26,7 +27,6 @@ const draft = ref<MarkAnnotation | null>(null);
 const selectedId = ref("");
 const textValue = ref("标注说明");
 const colorSample = ref<{ hex: string; rgb: string; point: Point } | null>(null);
-const copiedColor = ref(false);
 const hoverPoint = ref<Point | null>(null);
 const dragActive = ref(false);
 const spacePressed = ref(false);
@@ -201,16 +201,16 @@ function sampleColor(point: Point) {
   const [r, g, b] = context.getImageData(x, y, 1, 1).data;
   const hex = `#${[r, g, b].map((value) => value.toString(16).padStart(2, "0")).join("")}`.toUpperCase();
   colorSample.value = { hex, rgb: `rgb(${r}, ${g}, ${b})`, point: { x, y } };
-  copiedColor.value = false;
 }
 
 async function copyColorHex() {
   if (!colorSample.value) return;
-  await navigator.clipboard.writeText(colorSample.value.hex);
-  copiedColor.value = true;
-  window.setTimeout(() => {
-    copiedColor.value = false;
-  }, 1200);
+  try {
+    await navigator.clipboard.writeText(colorSample.value.hex);
+    showWorkspaceToast("色值已复制。", "success");
+  } catch (error) {
+    showWorkspaceToast(error instanceof Error ? error.message : String(error), "error");
+  }
 }
 
 function setViewScale(nextScale: number, anchor?: { clientX: number; clientY: number }) {
@@ -659,8 +659,8 @@ onBeforeUnmount(() => {
               <strong>{{ colorSample.hex }}</strong>
               <small>{{ colorSample.rgb }} / {{ colorSample.point.x }}, {{ colorSample.point.y }}</small>
             </div>
-            <button type="button" class="icon-button" :title="copiedColor ? '已复制' : '复制色值'" @click="copyColorHex">
-              <i :class="copiedColor ? 'ri-check-line' : 'ri-file-copy-line'" aria-hidden="true"></i>
+            <button type="button" class="icon-button" title="复制色值" @click="copyColorHex">
+              <i class="ri-file-copy-line" aria-hidden="true"></i>
             </button>
           </div>
           <p v-else class="empty-state">切换到吸色后点击图片取色。</p>

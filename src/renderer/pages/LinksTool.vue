@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, watch, type CSSProperties } from "vue";
+import { computed, ref, watch, type CSSProperties } from "vue";
+import { showWorkspaceToast } from "../composables/useWorkspaceToast";
 import GsapTransition from "../components/GsapTransition.vue";
 
 type LinkItem = {
@@ -10,7 +11,6 @@ type LinkItem = {
   description: string;
 };
 
-type ToastTone = "success" | "error" | "info";
 type DropPlacement = "before" | "after";
 
 const storageKey = "dev-toolbox.links.v1";
@@ -33,10 +33,7 @@ const draggingLinkId = ref("");
 const dragOverLinkId = ref("");
 const dragPlacement = ref<DropPlacement>("before");
 const categoryMenuOpen = ref(false);
-const toast = ref({ visible: false, message: "", tone: "info" as ToastTone });
 const editing = computed(() => !!draft.value.id);
-
-let toastTimer: ReturnType<typeof setTimeout> | null = null;
 
 const categoryTones = [
   { background: "#e6f6ff", border: "#84c5f4", color: "#0550ae" },
@@ -48,9 +45,6 @@ const categoryTones = [
   { background: "#ddf4ff", border: "#80ccff", color: "#0969da" },
   { background: "#e8f7f5", border: "#6ed3cc", color: "#0a6866" }
 ];
-const linkToastEnter = { opacity: 0, y: 12, scale: 0.98 };
-const linkToastVisible = { opacity: 1, y: 0, scale: 1 };
-const linkToastExit = { opacity: 0, y: 8, scale: 0.98 };
 const dialogPanelEnter = { opacity: 0, y: 14, scale: 0.975 };
 const dialogPanelVisible = { opacity: 1, y: 0, scale: 1 };
 const dialogPanelExit = { opacity: 0, y: 8, scale: 0.985 };
@@ -92,15 +86,6 @@ function normalizeLinks(input: LinkItem[]) {
       description: item.description?.trim() || ""
     }))
     .filter((item) => item.title && item.url);
-}
-
-function showToast(message: string, tone: ToastTone = "info") {
-  toast.value = { visible: true, message, tone };
-  if (toastTimer) clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => {
-    toast.value.visible = false;
-    toastTimer = null;
-  }, 2600);
 }
 
 function categoryTagStyle(value: string): CSSProperties {
@@ -164,17 +149,17 @@ function saveDraft() {
   const title = draft.value.title.trim();
   const url = normalizeUrl(draft.value.url);
   if (!title || !url) {
-    showToast("请填写名称和 URL。", "error");
+    showWorkspaceToast("请填写名称和 URL。", "error");
     return;
   }
   const item = { ...draft.value, id: draft.value.id || crypto.randomUUID(), title, url, category: draft.value.category.trim() || "未分类" };
   const index = links.value.findIndex((link) => link.id === item.id);
   if (index >= 0) {
     links.value[index] = item;
-    showToast("已更新链接。", "success");
+    showWorkspaceToast("已更新链接。", "success");
   } else {
     links.value.unshift(item);
-    showToast("已新增链接。", "success");
+    showWorkspaceToast("已新增链接。", "success");
   }
   showModal.value = false;
   categoryMenuOpen.value = false;
@@ -189,7 +174,7 @@ function confirmDeleteLink() {
   if (!target) return;
   links.value = links.value.filter((item) => item.id !== target.id);
   pendingDeleteLink.value = null;
-  showToast(`已删除：${target.title}`, "success");
+  showWorkspaceToast(`已删除：${target.title}`, "success");
 }
 
 function moveLink(id: string, direction: -1 | 1) {
@@ -258,13 +243,13 @@ async function importConfig() {
     const next = Array.isArray(parsed) ? parsed : parsed.links;
     const imported = normalizeLinks(next || []);
     if (!imported.length) {
-      showToast("未找到可导入的链接。", "error");
+      showWorkspaceToast("未找到可导入的链接。", "error");
       return;
     }
     links.value = imported;
-    showToast(`已导入 ${links.value.length} 条链接。`, "success");
+    showWorkspaceToast(`已导入 ${links.value.length} 条链接。`, "success");
   } catch (error) {
-    showToast(`导入失败：${error instanceof Error ? error.message : String(error)}`, "error");
+    showWorkspaceToast(`导入失败：${error instanceof Error ? error.message : String(error)}`, "error");
   }
 }
 
@@ -278,15 +263,11 @@ async function exportConfig() {
       fileName,
       `${JSON.stringify({ version: 1, exportedAt: new Date().toISOString(), links: links.value }, null, 2)}\n`
     );
-    showToast(`已导出：${output}`, "success");
+    showWorkspaceToast(`已导出：${output}`, "success");
   } catch (error) {
-    showToast(`导出失败：${error instanceof Error ? error.message : String(error)}`, "error");
+    showWorkspaceToast(`导出失败：${error instanceof Error ? error.message : String(error)}`, "error");
   }
 }
-
-onBeforeUnmount(() => {
-  if (toastTimer) clearTimeout(toastTimer);
-});
 
 watch(
   links,
@@ -393,20 +374,6 @@ watch(
         <p v-if="!filteredLinks.length" class="empty-state link-empty">暂无匹配链接，点击右上角"新增链接"开始添加。</p>
       </div>
     </div>
-
-    <GsapTransition :from="linkToastEnter" :to="linkToastVisible" :leave="linkToastExit" :duration="0.18">
-      <div
-        v-if="toast.visible"
-        key="links-toast"
-        class="links-toast"
-        :class="toast.tone"
-        role="status"
-        aria-live="polite"
-      >
-        <i :class="toast.tone === 'error' ? 'ri-error-warning-line' : toast.tone === 'success' ? 'ri-checkbox-circle-line' : 'ri-information-line'" aria-hidden="true"></i>
-        <span>{{ toast.message }}</span>
-      </div>
-    </GsapTransition>
 
     <Teleport to="body">
       <GsapTransition
@@ -623,52 +590,6 @@ watch(
 
 .links-category-tabs button.selected {
   transform: translateY(-1px);
-}
-
-.links-toast {
-  position: fixed;
-  right: 24px;
-  bottom: 24px;
-  z-index: 90;
-  display: grid;
-  grid-template-columns: 18px minmax(0, 1fr);
-  align-items: center;
-  gap: 8px;
-  max-width: min(440px, calc(100vw - 48px));
-  padding: 11px 14px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--surface);
-  color: var(--text);
-  box-shadow: 0 16px 38px rgba(1, 4, 9, 0.2);
-  -webkit-app-region: no-drag;
-}
-
-.links-toast span {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.links-toast.success {
-  border-color: color-mix(in srgb, var(--success) 42%, var(--border));
-}
-
-.links-toast.success i {
-  color: var(--success);
-}
-
-.links-toast.error {
-  border-color: color-mix(in srgb, var(--danger) 46%, var(--border));
-}
-
-.links-toast.error i {
-  color: var(--danger);
-}
-
-.links-toast.info i {
-  color: var(--accent-strong);
 }
 
 .links-confirm-dialog .dt-modal-body {

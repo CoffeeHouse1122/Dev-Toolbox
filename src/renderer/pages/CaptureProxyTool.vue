@@ -2,6 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import type { CaptureProxyRecord, CaptureProxyStatus } from "../../shared/types";
 import Checkbox from "../components/Checkbox.vue";
+import { showWorkspaceToast } from "../composables/useWorkspaceToast";
 
 type HostMode = "local" | "lan";
 type MethodFilter = "all" | "http" | "connect" | "error";
@@ -26,10 +27,7 @@ const selectedId = ref("");
 const query = ref("");
 const methodFilter = ref<MethodFilter>("all");
 const busy = ref(false);
-const copied = ref(false);
 const selfTesting = ref(false);
-const selfTestMessage = ref("");
-const errorMessage = ref("");
 const guideOpen = ref(false);
 const captureConfigLoaded = ref(false);
 
@@ -131,7 +129,6 @@ async function refresh() {
 
 async function startProxy() {
   busy.value = true;
-  errorMessage.value = "";
   try {
     status.value = await window.devToolbox.startCaptureProxy({
       host: proxyHost.value,
@@ -142,7 +139,7 @@ async function startProxy() {
     });
     await refresh();
   } catch (error) {
-    errorMessage.value = error instanceof Error ? error.message : String(error);
+    showWorkspaceToast(error instanceof Error ? error.message : String(error), "error");
   } finally {
     busy.value = false;
   }
@@ -165,26 +162,24 @@ async function clearRecords() {
 }
 
 async function copyProxyAddress() {
-  await navigator.clipboard.writeText(proxyAddress.value);
-  copied.value = true;
-  window.setTimeout(() => {
-    copied.value = false;
-  }, 1200);
+  try {
+    await navigator.clipboard.writeText(proxyAddress.value);
+    showWorkspaceToast("代理地址已复制。", "success");
+  } catch (error) {
+    showWorkspaceToast(error instanceof Error ? error.message : String(error), "error");
+  }
 }
 
 async function runSelfTest() {
   if (!status.value.running) return;
   selfTesting.value = true;
-  selfTestMessage.value = "";
-  errorMessage.value = "";
   try {
     const record = await window.devToolbox.testCaptureProxy();
-    selfTestMessage.value = `自检成功：${record.statusCode ?? "-"}`;
+    showWorkspaceToast(`自检成功：${record.statusCode ?? "-"}`, "success");
     selectedId.value = record.id;
     await refresh();
   } catch (error) {
-    selfTestMessage.value = "";
-    errorMessage.value = error instanceof Error ? error.message : String(error);
+    showWorkspaceToast(error instanceof Error ? error.message : String(error), "error");
   } finally {
     selfTesting.value = false;
   }
@@ -284,8 +279,8 @@ onBeforeUnmount(() => {
             <span>代理地址</span>
             <strong>{{ proxyAddress }}</strong>
             <button type="button" class="secondary-button" @click="copyProxyAddress">
-              <i :class="copied ? 'ri-check-line' : 'ri-file-copy-line'" aria-hidden="true"></i>
-              {{ copied ? "已复制" : "复制" }}
+              <i class="ri-file-copy-line" aria-hidden="true"></i>
+              复制
             </button>
             <button type="button" class="secondary-button" :disabled="!status.running || selfTesting" @click="runSelfTest">
               <i class="ri-pulse-line" aria-hidden="true"></i>
@@ -297,8 +292,6 @@ onBeforeUnmount(() => {
           <div><span>CONNECT</span><strong>{{ summary.tunnels }}</strong></div>
           <div><span>错误</span><strong>{{ summary.errors }}</strong></div>
         </div>
-        <p v-if="errorMessage" class="error-banner">{{ errorMessage }}</p>
-        <p v-else-if="selfTestMessage" class="capture-inline-status">{{ selfTestMessage }}</p>
       </section>
 
       <div class="capture-workspace">
@@ -603,13 +596,6 @@ onBeforeUnmount(() => {
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--surface-subtle);
-}
-
-.capture-inline-status {
-  margin: 0;
-  color: var(--success);
-  font-size: 12px;
-  font-weight: 700;
 }
 
 .capture-empty-tip {

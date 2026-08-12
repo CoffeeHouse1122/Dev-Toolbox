@@ -1,13 +1,13 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import type { ClipboardEntry } from "../../shared/types";
+import { showWorkspaceToast } from "../composables/useWorkspaceToast";
 
 const entries = ref<ClipboardEntry[]>([]);
 const watching = ref(false);
 const query = ref("");
 const filterKind = ref<"all" | "text" | "image">("all");
 const expandedId = ref<string | null>(null);
-const status = ref("");
 let unsubscribe: (() => void) | null = null;
 
 const filtered = computed(() =>
@@ -45,7 +45,7 @@ async function removeEntry(id: string) {
 
 async function clearHistory() {
   entries.value = await window.devToolbox.clearClipboardHistory();
-  status.value = "已清空（保留固定项）。";
+  showWorkspaceToast("已清空（保留固定项）。", "success");
 }
 
 async function togglePin(entry: ClipboardEntry) {
@@ -54,7 +54,7 @@ async function togglePin(entry: ClipboardEntry) {
 
 async function writeBack(entry: ClipboardEntry) {
   const ok = await window.devToolbox.writeClipboardEntry(entry.id);
-  status.value = ok ? "已写回剪贴板。" : "写回失败。";
+  showWorkspaceToast(ok ? "已写回剪贴板。" : "写回失败。", ok ? "success" : "error");
 }
 
 function formatTime(ms: number) {
@@ -123,7 +123,6 @@ onBeforeUnmount(() => {
         </div>
         <div class="links-meta">
           <span class="status-pill">{{ filtered.length }} / {{ entries.length }}</span>
-          <span v-if="status" class="empty-state">{{ status }}</span>
         </div>
       </div>
 

@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
+import { showWorkspaceToast } from "../composables/useWorkspaceToast";
 
 const token = ref(
   ""
 );
-const status = ref("");
 
 type DecodedPart = {
   raw: string;
@@ -92,22 +92,21 @@ async function pasteFromClipboard() {
     const text = await navigator.clipboard.readText();
     if (text) {
       token.value = text.trim();
-      status.value = "已从剪贴板粘贴。";
+      showWorkspaceToast("已从剪贴板粘贴。", "success");
     }
   } catch (error) {
-    status.value = error instanceof Error ? error.message : String(error);
+    showWorkspaceToast(error instanceof Error ? error.message : String(error), "error");
   }
 }
 
 function clear() {
   token.value = "";
-  status.value = "";
 }
 
 function loadSample() {
   token.value =
     "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkRldiBUb29sYm94IiwiaWF0IjoxNzAwMDAwMDAwLCJleHAiOjQwMDAwMDAwMDB9.xDr9kFAkgYpWZBoAfH1KXcrMMZh4kcb3gJL_wGfQRYI";
-  status.value = "已载入示例。";
+  showWorkspaceToast("已载入示例。", "success");
 }
 </script>
 
@@ -141,7 +140,6 @@ function loadSample() {
           编码后的 Token
         </div>
         <textarea v-model="token" class="tool-textarea" placeholder="粘贴 JWT，例如 xxxxx.yyyyy.zzzzz"></textarea>
-        <p v-if="status" class="empty-state">{{ status }}</p>
         <p v-if="segments && segments.parts.length > 0" class="jwt-token">
           <span class="jwt-segment-header">{{ segments.parts[0] || "" }}</span><span v-if="segments.parts.length > 1">.</span><span class="jwt-segment-payload">{{ segments.parts[1] || "" }}</span><span v-if="segments.parts.length > 2">.</span><span class="jwt-segment-signature">{{ segments.parts[2] || "" }}</span>
         </p>

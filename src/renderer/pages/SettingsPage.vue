@@ -3,11 +3,11 @@ import { inject, onMounted, onUnmounted, ref } from "vue";
 import { useThemeStore, type ThemeMode } from "../stores/theme";
 import type { AppCloseBehavior, AppDiagnostics, AppSettings, UpdateStatus } from "../../shared/types";
 import Checkbox from "../components/Checkbox.vue";
+import { showWorkspaceToast } from "../composables/useWorkspaceToast";
 
 const theme = useThemeStore();
 
 const settings = ref<AppSettings>({ closeBehavior: "minimize-to-tray", autoLaunch: false });
-const status = ref("");
 const diagnostics = ref<AppDiagnostics | null>(null);
 const diagnosticsBusy = ref(false);
 
@@ -31,13 +31,11 @@ async function loadSettings() {
 async function setCloseBehavior(value: AppCloseBehavior) {
   settings.value.closeBehavior = value;
   settings.value = await window.devToolbox.saveAppSettings({ ...settings.value });
-  // status.value = value === "minimize-to-tray" ? "已设置为关闭时最小化到托盘" : "已设置为关闭时直接退出";
 }
 
 async function setAutoLaunch(value: boolean) {
   settings.value.autoLaunch = value;
   settings.value = await window.devToolbox.saveAppSettings({ ...settings.value });
-  // status.value = value ? "已开启开机自启" : "已关闭开机自启";
 }
 
 async function loadDiagnostics() {
@@ -57,10 +55,27 @@ function openNavEditor() {
   openProvidedNavEditor?.();
 }
 
+function notifyUpdateStatus(value: UpdateStatus) {
+  if (value.status === "checking") {
+    showWorkspaceToast("正在检查更新…");
+  } else if (value.status === "not-available") {
+    showWorkspaceToast("当前已是最新版本", "success");
+  } else if (value.status === "available") {
+    showWorkspaceToast(`发现新版本 v${value.version ?? "--"}`);
+  } else if (value.status === "downloading") {
+    showWorkspaceToast(`正在下载更新 ${value.percent ?? 0}%`);
+  } else if (value.status === "downloaded") {
+    showWorkspaceToast(`v${value.version ?? "--"} 已下载完成，可立即安装`, "success");
+  } else {
+    showWorkspaceToast(value.message || "更新检查失败", "error");
+  }
+}
+
 // 手动检查更新
 async function handleCheckUpdate() {
   updateChecking.value = true;
   updateStatus.value = { status: "checking" };
+  notifyUpdateStatus(updateStatus.value);
   try {
     await window.devToolbox.checkForUpdates();
   } catch {
@@ -87,6 +102,7 @@ async function handleDownloadUpdate() {
 async function handleInstallUpdate() {
   if (updateInstalling.value) return;
   updateInstalling.value = true;
+  showWorkspaceToast("正在启动安装…");
   try {
     await window.devToolbox.installUpdate();
   } catch (error) {
@@ -95,6 +111,7 @@ async function handleInstallUpdate() {
       status: "error",
       message: error instanceof Error ? error.message : String(error)
     };
+    notifyUpdateStatus(updateStatus.value);
   }
 }
 
@@ -110,6 +127,7 @@ onMounted(async () => {
   // 监听更新状态推送
   unsubUpdate = window.devToolbox.onUpdateStatus((s) => {
     updateStatus.value = s;
+    notifyUpdateStatus(s);
     if (s.status === "checking") {
       updateChecking.value = true;
     } else {
@@ -168,7 +186,6 @@ onUnmounted(() => {
             直接关闭客户端
           </button>
         </div>
-        <p v-if="status" class="empty-state">{{ status }}</p>
       </div>
 
       <div class="settings-block">
@@ -219,26 +236,6 @@ onUnmounted(() => {
           当前版本：<strong>v{{ currentVersion }}</strong>
         </p>
         <p>启动后会自动检查一次新版本。也可随时手动点击下方按钮检测更新。</p>
-
-        <!-- 状态文案 -->
-        <p v-if="updateStatus?.status === 'checking'" class="empty-state">
-          <i class="ri-loader-4-line ri-spin" aria-hidden="true" style="margin-right:6px;"></i>正在检查更新...
-        </p>
-        <p v-else-if="updateStatus?.status === 'not-available'" class="empty-state" style="color: var(--success);">
-          <i class="ri-check-line" aria-hidden="true" style="margin-right:6px;"></i>当前已是最新版本
-        </p>
-        <p v-else-if="updateStatus?.status === 'available'" class="empty-state" style="color: var(--accent-strong);">
-          <i class="ri-arrow-up-circle-line" aria-hidden="true" style="margin-right:6px;"></i>发现新版本 v{{ updateStatus.version }}
-        </p>
-        <p v-else-if="updateStatus?.status === 'downloading'" class="empty-state" style="color: var(--accent-strong);">
-          <i class="ri-download-line" aria-hidden="true" style="margin-right:6px;"></i>正在下载更新 {{ updateStatus.percent ?? 0 }}%
-        </p>
-        <p v-else-if="updateStatus?.status === 'downloaded'" class="empty-state" style="color: var(--success);">
-          <i class="ri-check-double-line" aria-hidden="true" style="margin-right:6px;"></i>v{{ updateStatus.version }} 已下载完成，可立即安装
-        </p>
-        <p v-else-if="updateStatus?.status === 'error'" class="empty-state" style="color: var(--danger);">
-          <i class="ri-error-warning-line" aria-hidden="true" style="margin-right:6px;"></i>{{ updateStatus.message || '更新检查失败' }}
-        </p>
 
         <!-- 操作按钮 -->
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;">

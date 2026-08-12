@@ -5,9 +5,9 @@ import { toPng } from "html-to-image";
 import type { DevToolboxApi, StickyNote, StickyNoteExportFormat, StickyNoteStyle, StickyNotesPreferences, StickyNotesState } from "../../shared/types";
 import { flushRevisionBarrier } from "../../shared/revision-flush";
 import GsapTransition from "../components/GsapTransition.vue";
+import { showWorkspaceToast as showToast } from "../composables/useWorkspaceToast";
 
 type NoteView = "active" | "archived" | "trash";
-type ToastTone = "success" | "error" | "info";
 type ColorPaletteKind = "text" | "highlight" | "editorBackground";
 type ExportBlock =
   | { type: "text"; value: string }
@@ -74,16 +74,11 @@ const previewScale = ref(1);
 const previewOffset = ref({ x: 0, y: 0 });
 const pendingDeleteNote = ref<StickyNote | null>(null);
 const pendingLinkEdit = ref<LinkEditDraft | null>(null);
-const toast = ref({ visible: false, message: "", tone: "info" as ToastTone });
 
-const noteToastEnter = { opacity: 0, y: 14, scale: 0.975 };
-const noteToastVisible = { opacity: 1, y: 0, scale: 1 };
-const noteToastExit = { opacity: 0, y: 10, scale: 0.985 };
 const noteDialogEnter = { opacity: 0, y: 16, scale: 0.975 };
 const noteDialogVisible = { opacity: 1, y: 0, scale: 1 };
 const noteDialogExit = { opacity: 0, y: 8, scale: 0.985 };
 let saveTimer: ReturnType<typeof setTimeout> | null = null;
-let toastTimer: ReturnType<typeof setTimeout> | null = null;
 let saveQueue: Promise<void> = Promise.resolve();
 let lastSaveError: unknown = null;
 let draftRevision = 0;
@@ -189,15 +184,6 @@ function rgbToHex(value: string) {
 
 function sortNotes(input: StickyNote[]) {
   return [...input].sort((left, right) => Number(right.pinned) - Number(left.pinned) || right.createdAt - left.createdAt);
-}
-
-function showToast(message: string, tone: ToastTone = "info") {
-  toast.value = { visible: true, message, tone };
-  if (toastTimer) clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => {
-    toast.value.visible = false;
-    toastTimer = null;
-  }, 2600);
 }
 
 function applyState(state: StickyNotesState) {
@@ -1691,7 +1677,6 @@ onBeforeUnmount(() => {
   document.removeEventListener("pointerdown", handleDocumentPointerDown, true);
   stopBeforeWindowAction?.();
   stopBeforeWindowAction = null;
-  if (toastTimer) clearTimeout(toastTimer);
 });
 </script>
 
@@ -1962,20 +1947,6 @@ onBeforeUnmount(() => {
         ></div>
       </section>
     </div>
-
-    <GsapTransition :from="noteToastEnter" :to="noteToastVisible" :leave="noteToastExit" :duration="0.18">
-      <div
-        v-if="toast.visible"
-        key="note-toast"
-        class="note-toast"
-        :class="toast.tone"
-        role="status"
-        aria-live="polite"
-      >
-        <i :class="toast.tone === 'error' ? 'ri-error-warning-line' : toast.tone === 'success' ? 'ri-checkbox-circle-line' : 'ri-information-line'" aria-hidden="true"></i>
-        <span>{{ toast.message }}</span>
-      </div>
-    </GsapTransition>
 
     <Teleport to="body">
       <div v-if="contextMenu.visible" class="note-context-scrim" @mousedown="closeContextMenu"></div>
@@ -2763,52 +2734,6 @@ onBeforeUnmount(() => {
 .danger-outline {
   border-color: color-mix(in srgb, #d1242f 40%, var(--border));
   color: #d1242f;
-}
-
-.note-toast {
-  position: fixed;
-  right: 24px;
-  bottom: 24px;
-  z-index: 90;
-  display: grid;
-  grid-template-columns: 18px minmax(0, 1fr);
-  align-items: center;
-  gap: 8px;
-  max-width: min(420px, calc(100vw - 48px));
-  padding: 11px 14px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--surface);
-  color: var(--text);
-  box-shadow: 0 16px 38px rgba(1, 4, 9, 0.2);
-  -webkit-app-region: no-drag;
-}
-
-.note-toast span {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.note-toast.success {
-  border-color: color-mix(in srgb, #1a7f37 42%, var(--border));
-}
-
-.note-toast.success i {
-  color: #1a7f37;
-}
-
-.note-toast.error {
-  border-color: color-mix(in srgb, #d1242f 46%, var(--border));
-}
-
-.note-toast.error i {
-  color: #d1242f;
-}
-
-.note-toast.info i {
-  color: var(--accent-strong);
 }
 
 .note-context-menu {
