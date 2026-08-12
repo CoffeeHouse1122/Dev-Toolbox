@@ -3,7 +3,7 @@
   "appName": "Dev Toolbox",
   "title": "Dev Toolbox 开发工具箱",
   "heroDescription": "本地优先的前端资源转换桌面工具箱，支持图片、字体、音视频、CSS、文本等常见开发资产的格式转换与处理。页面会根据更新清单自动展示当前版本号、下载入口和更新日志。",
-  "latestVersion": "0.1.2",
+  "latestVersion": "0.1.3",
   "system": "Windows 10 / 11",
   "packageType": "NSIS 安装程序",
   "recommendedEnvironment": "4GB 内存以上",
@@ -11,11 +11,11 @@
   "downloads": [
     {
       "label": "下载 Windows x64",
-      "url": "./release/Dev Toolbox-0.1.2-x64.exe",
+      "url": "./release/Dev Toolbox-0.1.3-x64.exe",
       "platform": "win32",
       "arch": "x64",
-      "size": 154387932,
-      "sha256": "c2329b979ddfad3011f62b8a7e33c08d31634e2fcfa89362caac77f5a9b86efc",
+      "size": 157523181,
+      "sha256": "2c8e343f1c40428ef4ee36a809f1d7d204024b121eed1f27f60ecbbfcc8edd61",
       "note": "适用于 64 位 Windows 桌面环境",
       "primary": true
     }
@@ -40,6 +40,32 @@
     "部分工具依赖本地二进制文件（如 ffmpeg），首次使用时会自动加载。"
   ],
   "releaseNotes": [
+    {
+      "version": "0.1.3",
+      "publishedAt": "2026-08-12",
+      "summary": "统一任务流体验，增强批量与文件安全能力，并收敛低收益工具。",
+      "changes": [
+        "新增七类工作台总览与分组导航，统一素材、参数、预览、结果和输出的任务流布局",
+        "扩展多文件队列处理与逐项结果汇总，修复中文文件名和批量重命名冲突、覆盖及失败回滚问题",
+        "设置新增默认字体、站酷快乐体和 WDXL Lubrifont SC 切换并记忆偏好",
+        "将 HTTP 请求工具收敛为快速 HTTP 请求，完善 multipart 文本字段、二进制预览、响应截断和状态展示",
+        "增强便签导入净化、ZIP 体积限制、关闭保存屏障以及更新包大小和 SHA-256 校验",
+        "移除抓包工具、配色生成器和 CSS 变量生成器；旧抓包用户需手动移除 NodeMITMProxyCA",
+        "支持 renderer 热更新和 Electron 主进程自动重启，并补充文件安全、更新器与 Electron 冒烟测试"
+      ],
+      "downloads": [
+        {
+          "label": "下载 Windows x64",
+          "url": "./release/Dev Toolbox-0.1.3-x64.exe",
+          "platform": "win32",
+          "arch": "x64",
+          "size": 157523181,
+          "sha256": "2c8e343f1c40428ef4ee36a809f1d7d204024b121eed1f27f60ecbbfcc8edd61",
+          "note": "适用于 64 位 Windows 桌面环境",
+          "primary": true
+        }
+      ]
+    },
     {
       "version": "0.1.2",
       "publishedAt": "2026-05-28",

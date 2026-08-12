@@ -64,7 +64,7 @@ export const router = createRouter({
     { path: "/color-converter", component: () => import("../pages/ColorConverterTool.vue") },
     { path: "/http-tester", component: () => import("../pages/HttpTesterTool.vue") },
     { path: "/certificate-scan", component: () => import("../pages/CertificateScanTool.vue") },
-    { path: "/capture-proxy", redirect: "/workbench/system-files" },
+    { path: "/capture-proxy", redirect: "/workbench/system" },
     { path: "/sticky-notes", component: () => import("../pages/StickyNotesTool.vue") },
     { path: "/history", component: () => import("../pages/HistoryPage.vue") },
     { path: "/settings", component: () => import("../pages/SettingsPage.vue") },
