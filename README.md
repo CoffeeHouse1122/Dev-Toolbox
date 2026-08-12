@@ -38,9 +38,9 @@ HTTP 更新源不提供来源认证。清单中的 `size` 和 `sha256` 能检查
 
 | 命令 | 用途 |
 | --- | --- |
-| `npm run dev` | 同时启动 renderer 与 Electron |
+| `npm run dev` | 同时启动 renderer 与 Electron，启用开发热更新 |
 | `npm run dev:renderer` | 仅启动 Vite renderer |
-| `npm run dev:electron` | 等待 renderer 后启动 Electron |
+| `npm run dev:electron` | 等待 renderer，监视 main/preload/shared 并自动重启 Electron |
 | `npm run build` | 构建 main、preload 和 renderer |
 | `npm run build:main` | 构建 main 与 preload |
 | `npm run build:renderer` | 构建 renderer |
@@ -51,6 +51,8 @@ HTTP 更新源不提供来源认证。清单中的 `size` 和 `sha256` 能检查
 | `npm run pack` | 生成当前平台目录包 |
 | `npm run dist` | 生成当前平台安装包 |
 | `npm run dist:win` | 生成 Windows NSIS 安装包 |
+
+开发模式下，renderer 修改由 Vite HMR 直接更新当前窗口，不重启桌面进程；`src/electron`、`src/shared` 或 `tsconfig.node.json` 修改会先重新编译 main/preload，编译成功后自动重启 Electron。编译失败时保留上一次正常运行的桌面进程，修复并保存后会再次构建。依赖、`package.json` 或环境变量变化仍需重新执行 `npm run dev`。按 `Ctrl+C` 会同时清理 Vite、Electron 及其子进程。
 
 ## 项目结构
 
