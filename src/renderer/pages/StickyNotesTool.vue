@@ -1779,7 +1779,7 @@ onBeforeUnmount(() => {
         </section>
       </aside>
 
-      <section class="tool-main note-editor-panel">
+      <section class="tool-main note-editor-panel" :class="{ 'toolbar-collapsed': !formatToolbarExpanded }">
         <div class="section-title note-editor-head">
           <div class="note-editor-identity">
             <button
@@ -2402,6 +2402,10 @@ onBeforeUnmount(() => {
   min-height: 0;
   overflow: hidden;
   padding-bottom: 8px;
+}
+
+.note-editor-panel.toolbar-collapsed {
+  grid-template-rows: auto minmax(0, 1fr);
 }
 
 .note-editor-head {
