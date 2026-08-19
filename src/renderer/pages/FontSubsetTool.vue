@@ -185,7 +185,7 @@ async function run() {
 .font-subset-page {
   grid-template-rows: auto auto minmax(0, 1fr) auto;
   gap: 14px;
-  height: calc(100vh - var(--titlebar-height) - var(--tool-page-viewport-offset, 72px));
+  height: calc(100vh - var(--titlebar-height) - 72px);
   min-height: 0;
   overflow: hidden;
 }
