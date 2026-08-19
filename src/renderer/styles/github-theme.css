@@ -353,6 +353,9 @@ button {
 } */
 
 .nav-group-head {
+  position: sticky;
+  top: 0;
+  z-index: 6;
   display: grid;
   grid-template-columns: 18px minmax(0, 1fr) auto;
   align-items: center;
@@ -361,7 +364,8 @@ button {
   margin: 0;
   padding: 8px 10px;
   border: 0;
-  background: transparent;
+  background: color-mix(in srgb, var(--surface) 94%, var(--surface-subtle));
+  box-shadow: 0 1px 0 color-mix(in srgb, var(--border) 72%, transparent);
   color: var(--muted);
   font-size: 12px;
   font-weight: 700;
