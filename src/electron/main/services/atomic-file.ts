@@ -3,6 +3,10 @@ import fsp from "node:fs/promises";
 import path from "node:path";
 import crypto from "node:crypto";
 
+const pendingWrites = new Map<string, Promise<void>>();
+const transientFileErrorCodes = new Set(["EACCES", "EBUSY", "EPERM"]);
+const retryDelaysMs = [10, 25, 50, 100, 200];
+
 function temporaryPath(targetPath: string, suffix = "tmp") {
   return path.join(
     path.dirname(targetPath),
@@ -10,14 +14,27 @@ function temporaryPath(targetPath: string, suffix = "tmp") {
   );
 }
 
-/**
- * Write in the destination directory, flush the temporary file, then rename it
- * into place. The previous complete value is retained as `<file>.bak`.
- */
-export async function writeFileAtomic(
+function writeQueueKey(targetPath: string) {
+  const resolvedPath = path.resolve(targetPath);
+  return process.platform === "win32" ? resolvedPath.toLowerCase() : resolvedPath;
+}
+
+async function retryTransientFileError<T>(operation: () => Promise<T>): Promise<T> {
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      return await operation();
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code;
+      if (!code || !transientFileErrorCodes.has(code) || attempt >= retryDelaysMs.length) throw error;
+      await new Promise<void>((resolve) => setTimeout(resolve, retryDelaysMs[attempt]));
+    }
+  }
+}
+
+async function writeFileAtomicInternal(
   targetPath: string,
   data: string | Uint8Array,
-  options: { backup?: boolean } = {}
+  options: { backup?: boolean }
 ): Promise<void> {
   await fsp.mkdir(path.dirname(targetPath), { recursive: true });
   const tempPath = temporaryPath(targetPath);
@@ -34,23 +51,48 @@ export async function writeFileAtomic(
 
     if (options.backup !== false) {
       try {
-        await fsp.copyFile(targetPath, backupTempPath);
-        await fsp.rm(backupPath, { force: true });
-        await fsp.rename(backupTempPath, backupPath);
+        await retryTransientFileError(() => fsp.copyFile(targetPath, backupTempPath));
+        await retryTransientFileError(async () => {
+          await fsp.rm(backupPath, { force: true });
+          await fsp.rename(backupTempPath, backupPath);
+        });
       } catch (error) {
         if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
       }
     } else {
-      await fsp.rm(backupPath, { force: true });
+      await retryTransientFileError(() => fsp.rm(backupPath, { force: true }));
     }
 
-    await fsp.rename(tempPath, targetPath);
+    await retryTransientFileError(() => fsp.rename(tempPath, targetPath));
   } finally {
     await handle?.close().catch(() => undefined);
     await Promise.all([
       fsp.rm(tempPath, { force: true }).catch(() => undefined),
       fsp.rm(backupTempPath, { force: true }).catch(() => undefined)
     ]);
+  }
+}
+
+/**
+ * Write in the destination directory, flush the temporary file, then rename it
+ * into place. The previous complete value is retained as `<file>.bak`.
+ */
+export async function writeFileAtomic(
+  targetPath: string,
+  data: string | Uint8Array,
+  options: { backup?: boolean } = {}
+): Promise<void> {
+  const queueKey = writeQueueKey(targetPath);
+  const previousWrite = pendingWrites.get(queueKey) ?? Promise.resolve();
+  const queuedData = typeof data === "string" ? data : new Uint8Array(data);
+  const currentWrite = previousWrite
+    .catch(() => undefined)
+    .then(() => writeFileAtomicInternal(targetPath, queuedData, options));
+  pendingWrites.set(queueKey, currentWrite);
+  try {
+    await currentWrite;
+  } finally {
+    if (pendingWrites.get(queueKey) === currentWrite) pendingWrites.delete(queueKey);
   }
 }
 
