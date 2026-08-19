@@ -9,6 +9,7 @@ const { normalizeManifestUrl: normalizeBuildManifestUrl, prepareBuildConfig } = 
 const { sanitizeStickyNoteHtml } = require("../dist/electron/main/services/sticky-notes.service.js");
 const {
   claimInstallerLaunch,
+  createManifestFetchRequest,
   createPendingUpdateSnapshot,
   isValidUpdateSha256,
   normalizeUpdateManifestUrl,
@@ -17,6 +18,18 @@ const {
   resolveUpdateDownloadUrl,
   selectUpdateDownload
 } = require("../dist/electron/main/services/autoUpdater.service.js");
+
+test("updater bypasses cached manifests on every version check", () => {
+  const request = createManifestFetchRequest("http://127.0.0.1/download/release-manifest.json?channel=stable", 123456);
+
+  assert.equal(
+    request.url,
+    "http://127.0.0.1/download/release-manifest.json?channel=stable&_dev_toolbox_update_check=123456"
+  );
+  assert.equal(request.init.cache, "no-store");
+  assert.equal(request.init.headers["Cache-Control"], "no-cache, no-store");
+  assert.equal(request.init.headers.Pragma, "no-cache");
+});
 
 test("release build config embeds an HTTP update feed without credentials", () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "dev-toolbox-update-config-"));

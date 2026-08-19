@@ -239,6 +239,23 @@ export async function readManifestStream(stream: ReadableStream<Uint8Array>) {
   return Buffer.concat(chunks, totalBytes).toString("utf8");
 }
 
+export function createManifestFetchRequest(manifestUrl: string, cacheBust = Date.now()) {
+  const requestUrl = new URL(manifestUrl);
+  requestUrl.searchParams.set("_dev_toolbox_update_check", String(cacheBust));
+  return {
+    url: requestUrl.toString(),
+    init: {
+      method: "GET",
+      cache: "no-store" as const,
+      headers: {
+        Accept: "application/json",
+        "Cache-Control": "no-cache, no-store",
+        Pragma: "no-cache"
+      }
+    }
+  };
+}
+
 export function createPendingUpdateSnapshot(update: PendingUpdate): Readonly<PendingUpdate> {
   return Object.freeze({ ...update });
 }
@@ -261,9 +278,9 @@ export function restoreInstallerLaunch(state: InstallerLaunchState, installerPat
 async function fetchManifest() {
   const manifestUrl = getUpdateManifestUrl();
   if (!manifestUrl) throw new Error("未配置更新清单地址，请设置 AUTOUPDATE_FEED_URL 或 DESKTOP_APP_UPDATE_URL");
-  const response = await net.fetch(manifestUrl, {
-    method: "GET",
-    headers: { Accept: "application/json" },
+  const request = createManifestFetchRequest(manifestUrl);
+  const response = await net.fetch(request.url, {
+    ...request.init,
     signal: AbortSignal.timeout(MANIFEST_TIMEOUT_MS)
   });
   if (!response.ok) throw new Error(`更新清单加载失败 (${response.status})`);

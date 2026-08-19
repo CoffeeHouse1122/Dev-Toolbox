@@ -3,7 +3,7 @@
   "appName": "Dev Toolbox",
   "title": "Dev Toolbox 开发工具箱",
   "heroDescription": "本地优先的前端资源转换桌面工具箱，支持图片、字体、音视频、CSS、文本等常见开发资产的格式转换与处理。页面会根据更新清单自动展示当前版本号、下载入口和更新日志。",
-  "latestVersion": "0.1.4",
+  "latestVersion": "0.1.5",
   "system": "Windows 10 / 11",
   "packageType": "NSIS 安装程序",
   "recommendedEnvironment": "4GB 内存以上",
@@ -11,11 +11,11 @@
   "downloads": [
     {
       "label": "下载 Windows x64",
-      "url": "./release/Dev Toolbox-0.1.4-x64.exe",
+      "url": "./release/Dev Toolbox-0.1.5-x64.exe",
       "platform": "win32",
       "arch": "x64",
-      "size": 157592384,
-      "sha256": "4f036b28334345483ab81d191ae6f7ef6c1eff012b4e0d40d8c52a2692767d75",
+      "size": 157592192,
+      "sha256": "f43fb5e2b0464e33387952eacb052b235ec08b6ec9e9a1e885f959e4350e62fa",
       "note": "适用于 64 位 Windows 桌面环境",
       "primary": true
     }
@@ -40,6 +40,28 @@
     "部分工具依赖本地二进制文件（如 ffmpeg），首次使用时会自动加载。"
   ],
   "releaseNotes": [
+    {
+      "version": "0.1.5",
+      "publishedAt": "2026-08-19",
+      "summary": "修复版本更新清单被 Chromium 缓存后无法发现新版本的问题。",
+      "changes": [
+        "每次检查更新时生成唯一清单请求地址，避免复用旧版本缓存",
+        "禁用 Chromium 清单缓存并发送 no-cache、no-store 请求头",
+        "新增更新清单缓存绕过回归测试"
+      ],
+      "downloads": [
+        {
+          "label": "下载 Windows x64",
+          "url": "./release/Dev Toolbox-0.1.5-x64.exe",
+          "platform": "win32",
+          "arch": "x64",
+          "size": 157592192,
+          "sha256": "f43fb5e2b0464e33387952eacb052b235ec08b6ec9e9a1e885f959e4350e62fa",
+          "note": "适用于 64 位 Windows 桌面环境",
+          "primary": true
+        }
+      ]
+    },
     {
       "version": "0.1.4",
       "publishedAt": "2026-08-19",
