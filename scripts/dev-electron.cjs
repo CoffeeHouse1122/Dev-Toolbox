@@ -1,6 +1,7 @@
 const fs = require("node:fs");
 const path = require("node:path");
 const { spawn } = require("node:child_process");
+const waitOn = require("wait-on");
 const { prepareBuildConfig } = require("./prepare-build-config.cjs");
 
 const projectRoot = path.resolve(__dirname, "..");
@@ -24,6 +25,15 @@ const watchers = [];
 
 function log(message) {
   console.log(`[electron-dev] ${message}`);
+}
+
+function rendererWaitResource() {
+  const parsedUrl = new URL(devServerUrl);
+  if (parsedUrl.protocol !== "http:" && parsedUrl.protocol !== "https:") {
+    throw new Error(`Unsupported renderer development URL: ${devServerUrl}`);
+  }
+  const port = parsedUrl.port || (parsedUrl.protocol === "https:" ? "443" : "80");
+  return `tcp:${parsedUrl.hostname}:${port}`;
 }
 
 function compileMain() {
@@ -179,9 +189,6 @@ async function shutdown(signal, exitCode = 0) {
   process.exit(exitCode);
 }
 
-for (const directory of watchDirectories) watchDirectory(directory);
-for (const filePath of watchFiles) watchFile(filePath);
-
 process.once("SIGINT", () => void shutdown("SIGINT"));
 process.once("SIGTERM", () => void shutdown("SIGTERM"));
 process.once("uncaughtException", (error) => {
@@ -193,4 +200,16 @@ process.once("unhandledRejection", (error) => {
   void shutdown("unhandledRejection", 1);
 });
 
-void runBuildCycle();
+async function main() {
+  log(`Waiting for renderer at ${devServerUrl}...`);
+  await waitOn({ resources: [rendererWaitResource()] });
+  if (shuttingDown) return;
+  for (const directory of watchDirectories) watchDirectory(directory);
+  for (const filePath of watchFiles) watchFile(filePath);
+  await runBuildCycle();
+}
+
+void main().catch((error) => {
+  console.error(`[electron-dev] Startup failed: ${error instanceof Error ? error.message : String(error)}`);
+  void shutdown("startup failure", 1);
+});
