@@ -10,12 +10,14 @@ const DEFAULT_MANIFEST = {
   recommendedEnvironment: '4GB 内存以上',
   downloadHint: '更新清单加载失败，请稍后重试或联系维护人员。',
   features: [
-    '图片：图标生成、格式转换、压缩、尺寸调整、裁剪、水印、雪碧图、Base64 编解码、二维码生成',
-    '字体：WOFF2 转换、字体预览、字体子集化、@font-face 生成器',
-    '文本与 CSS：Markdown 导出、JSON/YAML/TOML 互转、文本 Diff、JWT 解析、URL 编解码、正则测试、Clamp 字号计算、代码截图',
-    '音视频：视频转 GIF / 序列帧、视频去音频、音频格式转换',
-    'SEO 与发布：robots.txt / sitemap 生成、HTML Meta 标签生成、OG 图片生成',
-    '开发辅助：时间戳转换、UUID 生成、剪贴板历史、IP 查询、文件批量重命名'
+    '图片（9 项）：图标生成、图片转换、图片压缩、尺寸调整、自由裁剪、添加水印、图片占位符、Base64 图片、二维码生成',
+    '音视频（8 项）：视频转化、视频动图、序列帧动图、视频去音频、视频压缩、视频循环播放（网页背景循环预览）、音频转换、音频压缩',
+    '字体（4 项）：WOFF2 转换、字体预览、字体子集化、@font-face',
+    '文本与样式（10 项）：Markdown、JSON/YAML/TOML、文本 Diff、JWT 解析、URL 编解码、CSS / JS 压缩、正则测试器、Clamp 字号、Base64 文本、颜色转换器',
+    'SEO 发布（3 项）：robots / sitemap、HTML Meta、OG 图片',
+    '文件与网络（6 项）：网站与文档、IP 查询、共享盘登录、文件重命名、资源清单、证书扫描',
+    '开发者快捷（5 项）：时间戳、UUID、Hash / AES-GCM 加解密、剪贴板历史、桌面便签',
+    '系统（2 项）：历史记录、设置（主题 / 字体 / 关闭行为 / 版本更新）'
   ],
   installationSteps: [
     '下载对应系统的安装包后运行安装程序，按向导选择安装目录即可。',
