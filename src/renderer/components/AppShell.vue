@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, provide, ref, watch } from "vue";
-import { RouterLink, RouterView } from "vue-router";
+import { RouterLink, RouterView, useRoute } from "vue-router";
 import { showWorkspaceToast } from "../composables/useWorkspaceToast";
+import { getToolSuiteByPath, getToolSuiteForEntryId, toolSuites } from "../config/toolSuites";
 import { useThemeStore } from "../stores/theme";
 import Checkbox from "./Checkbox.vue";
 import GsapTransition from "./GsapTransition.vue";
+import ToolSuiteTabs from "./ToolSuiteTabs.vue";
 import WorkspaceToast from "./WorkspaceToast.vue";
 import brandIcon from "../../../build/icons/favicon-128x128.png";
 
@@ -33,6 +35,7 @@ const navStorageKey = "dev-toolbox.nav.v1";
 const collapsedStorageKey = "dev-toolbox.nav-collapsed.v1";
 const sidebarCollapsedStorageKey = "dev-toolbox.sidebar-collapsed.v1";
 const theme = useThemeStore();
+const route = useRoute();
 const editingNav = ref(false);
 const navImportInput = ref<HTMLInputElement | null>(null);
 const navConfigLoaded = ref(false);
@@ -56,19 +59,20 @@ const modalPanelVisible = { opacity: 1, y: 0, scale: 1 };
 const modalPanelExit = { opacity: 0, y: 8, scale: 0.985 };
 const nonCacheableTools = ["WorkbenchPage", "ClipboardHistoryTool", "StickyNotesTool"];
 
+function suiteTool(id: string): NavTool {
+  const suite = toolSuites.find((item) => item.id === id);
+  if (!suite) throw new Error(`Unknown tool suite: ${id}`);
+  return { id: suite.id, to: suite.to, label: suite.label, icon: suite.icon, visible: true };
+}
+
 const defaultGroups: NavGroup[] = [
   {
     id: "images",
     label: "图片工作台",
     tools: [
       { id: "favicon", to: "/favicon", label: "图标生成", icon: "ri-star-smile-line", visible: true },
-      { id: "webp", to: "/webp", label: "图片转换", icon: "ri-image-edit-line", visible: true },
-      { id: "image-compress", to: "/image-compress", label: "图片压缩", icon: "ri-image-2-line", visible: true },
-      { id: "image-resize", to: "/image-resize", label: "尺寸调整", icon: "ri-crop-line", visible: true },
-      { id: "image-crop", to: "/image-crop", label: "自由裁剪", icon: "ri-scissors-cut-line", visible: true },
+      suiteTool("image-optimization"),
       { id: "watermark", to: "/watermark", label: "添加水印", icon: "ri-contrast-drop-2-line", visible: true },
-      { id: "image-placeholder", to: "/image-placeholder", label: "图片占位符", icon: "ri-blur-off-line", visible: true },
-      { id: "base64-image", to: "/base64-image", label: "Base64 图片", icon: "ri-code-line", visible: true },
       { id: "qr-code", to: "/qr-code", label: "二维码生成", icon: "ri-qr-code-line", visible: true }
     ]
   },
@@ -76,25 +80,16 @@ const defaultGroups: NavGroup[] = [
     id: "media",
     label: "音视频工作台",
     tools: [
-      { id: "video-background", to: "/video-background", label: "视频转化", icon: "ri-movie-2-line", visible: true },
-      { id: "video-animation", to: "/video-animation", label: "视频动图", icon: "ri-file-gif-line", visible: true },
-      { id: "sequence-animation", to: "/sequence-animation", label: "序列帧动图", icon: "ri-film-line", visible: true },
-      { id: "video-mute", to: "/video-mute", label: "视频去音频", icon: "ri-volume-mute-line", visible: true },
-      { id: "video-compress", to: "/video-compress", label: "视频压缩", icon: "ri-video-ai-line", visible: true },
-      { id: "video-loop", to: "/video-loop", label: "视频循环播放", icon: "ri-loop-left-line", visible: true },
-      { id: "audio-convert", to: "/audio-convert", label: "音频转换", icon: "ri-music-2-line", visible: true },
-      { id: "audio-compress", to: "/audio-compress", label: "音频压缩", icon: "ri-volume-down-line", visible: true }
+      { id: "video-background", to: "/video-background", label: "视频发布", icon: "ri-movie-2-line", visible: true },
+      suiteTool("video-processing"),
+      suiteTool("animation-generation"),
+      suiteTool("audio-processing")
     ]
   },
   {
     id: "font",
     label: "字体工作台",
-    tools: [
-      { id: "woff2", to: "/woff2", label: "WOFF2 转换", icon: "ri-font-size-2", visible: true },
-      { id: "font-preview", to: "/font-preview", label: "字体预览", icon: "ri-font-sans-serif", visible: true },
-      { id: "font-subset", to: "/font-subset", label: "字体子集化", icon: "ri-scissors-cut-line", visible: true },
-      { id: "font-face", to: "/font-face", label: "@font-face", icon: "ri-braces-line", visible: true }
-    ]
+    tools: [suiteTool("web-font")]
   },
   {
     id: "text",
@@ -103,43 +98,32 @@ const defaultGroups: NavGroup[] = [
       { id: "markdown-export", to: "/markdown-export", label: "Markdown", icon: "ri-markdown-line", visible: true },
       { id: "data-convert", to: "/data-convert", label: "JSON/YAML/TOML", icon: "ri-arrow-left-right-line", visible: true },
       { id: "diff", to: "/diff", label: "文本 Diff", icon: "ri-swap-line", visible: true },
-      { id: "jwt", to: "/jwt", label: "JWT 解析", icon: "ri-key-2-line", visible: true },
-      { id: "url-codec", to: "/url-codec", label: "URL 编解码", icon: "ri-links-line", visible: true },
+      suiteTool("encoding-security"),
       { id: "code-minify", to: "/code-minify", label: "CSS / JS 压缩", icon: "ri-braces-line", visible: true },
       { id: "regex-tester", to: "/regex-tester", label: "正则测试器", icon: "ri-parentheses-line", visible: true },
-      { id: "css-clamp", to: "/css-clamp", label: "Clamp 字号", icon: "ri-font-size", visible: true },
-      { id: "base64-text", to: "/base64-text", label: "Base64 文本", icon: "ri-text-block", visible: true },
-      { id: "color-converter", to: "/color-converter", label: "颜色转换器", icon: "ri-contrast-drop-line", visible: true }
+      suiteTool("css-lab")
     ]
   },
   {
     id: "seo",
     label: "SEO 发布工作台",
-    tools: [
-      { id: "seo-files", to: "/seo-files", label: "robots / sitemap", icon: "ri-road-map-line", visible: true },
-      { id: "meta-tags", to: "/meta-tags", label: "HTML Meta", icon: "ri-meta-line", visible: true },
-      { id: "og-image", to: "/og-image", label: "OG 图片", icon: "ri-image-add-line", visible: true }
-    ]
+    tools: [suiteTool("seo-publish")]
   },
   {
     id: "system-files",
     label: "文件与网络工作台",
     tools: [
       { id: "links", to: "/links", label: "网站与文档", icon: "ri-bookmark-3-line", visible: true },
-      { id: "ip-query", to: "/ip-query", label: "IP 查询", icon: "ri-router-line", visible: true },
+      suiteTool("network-diagnostics"),
       { id: "shared-disk", to: "/shared-disk", label: "共享盘登录", icon: "ri-hard-drive-3-line", visible: true },
       { id: "rename", to: "/rename", label: "文件重命名", icon: "ri-edit-2-line", visible: true },
-      { id: "asset-manifest", to: "/asset-manifest", label: "资源清单", icon: "ri-file-list-3-line", visible: true },
-      { id: "certificate-scan", to: "/certificate-scan", label: "证书扫描", icon: "ri-shield-check-line", visible: true }
+      { id: "asset-manifest", to: "/asset-manifest", label: "资源清单", icon: "ri-file-list-3-line", visible: true }
     ]
   },
   {
     id: "assist",
     label: "开发者快捷工作台",
     tools: [
-      { id: "timestamp", to: "/timestamp", label: "时间戳", icon: "ri-time-line", visible: true },
-      { id: "uuid", to: "/uuid", label: "UUID", icon: "ri-fingerprint-line", visible: true },
-      { id: "hash", to: "/hash", label: "Hash 生成", icon: "ri-shield-keyhole-line", visible: true },
       { id: "clipboard-history", to: "/clipboard-history", label: "剪贴板历史", icon: "ri-clipboard-line", visible: true },
       { id: "sticky-notes", to: "/sticky-notes", label: "桌面便签", icon: "ri-sticky-note-line", visible: true }
     ]
@@ -162,6 +146,10 @@ const legacyDefaultGroupLabels: Record<string, string> = {
   seo: "SEO 与发布",
   "system-files": "文件与网络",
   assist: "开发辅助"
+};
+
+const legacyDefaultToolLabels: Record<string, string> = {
+  "video-background": "视频转化"
 };
 
 const workbenchRoutes: Record<string, string> = {
@@ -198,6 +186,11 @@ const visibleGroups = computed(() =>
       .filter((group) => group.tools.length > 0)
   ]
 );
+const activeToolSuite = computed(() => getToolSuiteByPath(route.path));
+
+function isNavToolActive(tool: NavTool) {
+  return route.path === tool.to || activeToolSuite.value?.id === tool.id;
+}
 
 function toggleGroupCollapse(id: string) {
   collapsedGroups.value = { ...collapsedGroups.value, [id]: !collapsedGroups.value[id] };
@@ -221,47 +214,97 @@ function cloneGroups(input: NavGroup[]) {
   return JSON.parse(JSON.stringify(input)) as NavGroup[];
 }
 
+function normalizeToolId(toolId: string) {
+  return toolSuites.find((suite) => suite.id === toolId)?.id
+    ?? getToolSuiteForEntryId(toolId)?.id
+    ?? toolId;
+}
+
 function normalizeFavoriteToolIds(input: string[] | undefined) {
   const validToolIds = new Set(defaultGroups.flatMap((group) => group.tools.map((tool) => tool.id)));
-  return Array.from(new Set((input ?? []).filter((toolId) => validToolIds.has(toolId))));
+  const normalized: string[] = [];
+  const usedToolIds = new Set<string>();
+  for (const toolId of input ?? []) {
+    const normalizedId = normalizeToolId(toolId);
+    if (!validToolIds.has(normalizedId) || usedToolIds.has(normalizedId)) continue;
+    usedToolIds.add(normalizedId);
+    normalized.push(normalizedId);
+  }
+  return normalized;
 }
 
 function mergeGroups(saved: NavGroup[]) {
   const defaultGroupMap = new Map(defaultGroups.map((group) => [group.id, group]));
   const defaultToolMap = new Map(defaultGroups.flatMap((group) => group.tools.map((tool) => [tool.id, tool] as const)));
+  const savedGroups: NavGroup[] = [];
+  const legacySuiteVisibility = new Map<string, boolean>();
   const usedGroupIds = new Set<string>();
   const usedToolIds = new Set<string>();
-  const merged: NavGroup[] = [];
 
   for (const savedGroup of Array.isArray(saved) ? saved : []) {
     const sourceGroup = defaultGroupMap.get(savedGroup.id);
     if (!sourceGroup || usedGroupIds.has(savedGroup.id)) continue;
     usedGroupIds.add(savedGroup.id);
-    const tools: NavTool[] = [];
-    for (const savedTool of Array.isArray(savedGroup.tools) ? savedGroup.tools : []) {
-      const sourceTool = defaultToolMap.get(savedTool.id);
-      if (!sourceTool || usedToolIds.has(savedTool.id)) continue;
-      usedToolIds.add(savedTool.id);
-      tools.push({ ...sourceTool, label: savedTool.label || sourceTool.label, visible: savedTool.visible !== false });
-    }
     const savedLabel = savedGroup.label?.trim();
     const label = !savedLabel || savedLabel === legacyDefaultGroupLabels[savedGroup.id]
       ? sourceGroup.label
       : savedLabel;
-    merged.push({ ...sourceGroup, label, tools });
+    savedGroups.push({ ...sourceGroup, label, tools: Array.isArray(savedGroup.tools) ? savedGroup.tools : [] });
   }
 
-  for (const defaultGroup of defaultGroups) {
-    let targetGroup = merged.find((group) => group.id === defaultGroup.id);
-    if (!targetGroup) {
-      targetGroup = { ...defaultGroup, tools: [] };
-      merged.push(targetGroup);
+  for (const savedGroup of savedGroups) {
+    for (const savedTool of savedGroup.tools) {
+      const normalizedId = normalizeToolId(savedTool.id);
+      if (normalizedId === savedTool.id) continue;
+      legacySuiteVisibility.set(
+        normalizedId,
+        (legacySuiteVisibility.get(normalizedId) ?? false) || savedTool.visible !== false
+      );
     }
+  }
+
+  const toolsByGroup = new Map<string, NavTool[]>();
+  for (const defaultGroup of defaultGroups) {
+    const tools: NavTool[] = [];
+    const canonicalSavedGroup = savedGroups.find((group) => group.id === defaultGroup.id);
+    const sourceGroups = canonicalSavedGroup
+      ? [canonicalSavedGroup, ...savedGroups.filter((group) => group.id !== defaultGroup.id)]
+      : savedGroups;
+
+    for (const savedGroup of sourceGroups) {
+      for (const savedTool of savedGroup.tools) {
+        const normalizedId = normalizeToolId(savedTool.id);
+        const sourceTool = defaultToolMap.get(normalizedId);
+        const targetGroupId = getToolSuiteForEntryId(normalizedId)?.groupId ?? savedGroup.id;
+        if (!sourceTool || targetGroupId !== defaultGroup.id || usedToolIds.has(normalizedId)) continue;
+        usedToolIds.add(normalizedId);
+        const savedLabel = savedTool.label?.trim();
+        const canKeepSavedLabel = savedTool.id === normalizedId
+          && savedLabel
+          && savedLabel !== legacyDefaultToolLabels[savedTool.id];
+        tools.push({
+          ...sourceTool,
+          label: canKeepSavedLabel ? savedLabel : sourceTool.label,
+          visible: savedTool.id === normalizedId
+            ? savedTool.visible !== false
+            : legacySuiteVisibility.get(normalizedId) !== false
+        });
+      }
+    }
+
     for (const sourceTool of defaultGroup.tools) {
       if (!usedToolIds.has(sourceTool.id)) {
-        targetGroup.tools.push({ ...sourceTool });
+        tools.push({ ...sourceTool });
         usedToolIds.add(sourceTool.id);
       }
+    }
+    toolsByGroup.set(defaultGroup.id, tools);
+  }
+
+  const merged = savedGroups.map((group) => ({ ...group, tools: toolsByGroup.get(group.id) ?? [] }));
+  for (const defaultGroup of defaultGroups) {
+    if (!usedGroupIds.has(defaultGroup.id)) {
+      merged.push({ ...defaultGroup, tools: toolsByGroup.get(defaultGroup.id) ?? [] });
     }
   }
   return merged;
@@ -278,7 +321,6 @@ function loadNavGroups() {
 }
 
 async function loadNavConfig() {
-  let shouldSaveInitialConfig = false;
   try {
     const saved = await window.devToolbox.loadToolConfig("navigation") as Partial<NavConfig> | null;
     if (saved?.groups) groups.value = mergeGroups(saved.groups);
@@ -286,13 +328,12 @@ async function loadNavConfig() {
       collapsedGroups.value = saved.collapsedGroups;
     }
     favoriteToolIds.value = normalizeFavoriteToolIds(saved?.favoriteToolIds);
-    shouldSaveInitialConfig = !saved;
   } catch {
-    shouldSaveInitialConfig = true;
+    // Fall back to the already normalized local navigation state.
   } finally {
     navConfigLoaded.value = true;
   }
-  if (shouldSaveInitialConfig) saveNavConfig();
+  saveNavConfig();
 }
 
 function saveNavConfig() {
@@ -776,7 +817,13 @@ onBeforeUnmount(() => {
                 <i class="ri-arrow-right-s-line" aria-hidden="true"></i>
               </RouterLink>
               <div v-for="tool in group.tools" :key="`${group.id}:${tool.id}`" class="nav-item-row">
-                <RouterLink :to="tool.to" class="nav-item" @click="closeMobileNav">
+                <RouterLink
+                  :to="tool.to"
+                  class="nav-item"
+                  :class="{ 'router-link-active': isNavToolActive(tool) }"
+                  :aria-current="isNavToolActive(tool) ? 'page' : undefined"
+                  @click="closeMobileNav"
+                >
                   <i class="nav-icon" :class="tool.icon" aria-hidden="true"></i>
                   <span>{{ tool.label }}</span>
                 </RouterLink>
@@ -801,14 +848,17 @@ onBeforeUnmount(() => {
       <!-- <header class="topbar" aria-hidden="true"></header> -->
       <WorkspaceToast />
 
-      <div class="workspace-body dt-simplebar">
-        <RouterView v-slot="{ Component, route }">
-          <GsapTransition mode="out-in" :from="{ opacity: 0, y: 4 }" :to="{ opacity: 1, y: 0 }" :duration="0.14">
-            <KeepAlive :max="64" :exclude="nonCacheableTools">
-              <component :is="Component" :key="route.path" />
-            </KeepAlive>
-          </GsapTransition>
-        </RouterView>
+      <div class="workspace-body" :class="{ 'has-tool-suite': activeToolSuite }">
+        <ToolSuiteTabs v-if="activeToolSuite" :suite="activeToolSuite" />
+        <div class="workspace-route-stage dt-simplebar">
+          <RouterView v-slot="{ Component, route: currentRoute }">
+            <GsapTransition mode="out-in" :from="{ opacity: 0, y: 4 }" :to="{ opacity: 1, y: 0 }" :duration="0.14">
+              <KeepAlive :max="64" :exclude="nonCacheableTools">
+                <component :is="Component" :key="currentRoute.path" />
+              </KeepAlive>
+            </GsapTransition>
+          </RouterView>
+        </div>
       </div>
     </main>
 
@@ -962,3 +1012,34 @@ onBeforeUnmount(() => {
     </Teleport>
   </div>
 </template>
+
+<style scoped>
+.workspace-body {
+  --tool-page-viewport-offset: 72px;
+  display: flex;
+  flex-direction: column;
+}
+
+.workspace-body.has-tool-suite {
+  --tool-page-viewport-offset: 94px;
+  gap: 10px;
+  padding-top: 12px;
+}
+
+.workspace-route-stage {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.workspace-route-stage :deep(.simplebar-content-wrapper) {
+  padding-top: 40px;
+  padding-right: 10px;
+  padding-bottom: 12px;
+}
+
+.has-tool-suite .workspace-route-stage :deep(.simplebar-content-wrapper) {
+  padding-top: 0;
+}
+</style>
