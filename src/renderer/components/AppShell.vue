@@ -31,6 +31,7 @@ type NavConfig = {
 
 const navStorageKey = "dev-toolbox.nav.v1";
 const collapsedStorageKey = "dev-toolbox.nav-collapsed.v1";
+const sidebarCollapsedStorageKey = "dev-toolbox.sidebar-collapsed.v1";
 const theme = useThemeStore();
 const editingNav = ref(false);
 const navImportInput = ref<HTMLInputElement | null>(null);
@@ -43,6 +44,7 @@ const draftFavoriteToolIds = ref<string[]>([]);
 const isReloading = ref(false);
 const justReloaded = ref(false);
 const mobileNavOpen = ref(false);
+const sidebarCollapsed = ref(localStorage.getItem(sidebarCollapsedStorageKey) === "1");
 let stopWindowStateSync: (() => void) | null = null;
 let colorSchemeQuery: MediaQueryList | null = null;
 let reloadTimer: number | null = null;
@@ -588,6 +590,11 @@ function toggleMobileNav() {
   mobileNavOpen.value = !mobileNavOpen.value;
 }
 
+function toggleSidebar() {
+  sidebarCollapsed.value = !sidebarCollapsed.value;
+  localStorage.setItem(sidebarCollapsedStorageKey, sidebarCollapsed.value ? "1" : "0");
+}
+
 function closeMobileNav() {
   mobileNavOpen.value = false;
 }
@@ -671,14 +678,29 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="app-shell" :class="{ 'is-reloading': isReloading, 'just-reloaded': justReloaded }">
+  <div
+    class="app-shell"
+    :class="{ 'is-reloading': isReloading, 'just-reloaded': justReloaded, 'sidebar-collapsed': sidebarCollapsed }"
+  >
     <div class="window-drag-strip">
+      <button
+        type="button"
+        class="titlebar-window-button titlebar-sidebar-toggle"
+        :title="sidebarCollapsed ? '展开左侧导航栏' : '收起左侧导航栏'"
+        :aria-label="sidebarCollapsed ? '展开左侧导航栏' : '收起左侧导航栏'"
+        :aria-expanded="!sidebarCollapsed"
+        aria-controls="tool-sidebar"
+        @click="toggleSidebar"
+      >
+        <i :class="sidebarCollapsed ? 'ri-menu-unfold-line' : 'ri-menu-fold-line'" aria-hidden="true"></i>
+      </button>
       <button
         type="button"
         class="titlebar-window-button titlebar-mobile-menu"
         title="打开工具工作台"
         aria-label="打开工具工作台"
         :aria-expanded="mobileNavOpen"
+        aria-controls="tool-sidebar"
         @click="toggleMobileNav"
       >
         <i :class="mobileNavOpen ? 'ri-close-line' : 'ri-terminal-box-line'" aria-hidden="true"></i>
@@ -729,7 +751,7 @@ onBeforeUnmount(() => {
       <button v-if="mobileNavOpen" type="button" class="mobile-nav-scrim" aria-label="关闭工具工作台" @click="closeMobileNav"></button>
     </GsapTransition>
 
-    <aside class="sidebar" :class="{ 'mobile-open': mobileNavOpen }">
+    <aside id="tool-sidebar" class="sidebar" :class="{ 'mobile-open': mobileNavOpen }">
       <div class="brand">
         <div class="brand-mark"><img :src="brandIcon" alt="Dev Toolbox" width="30" height="30" /></div>
         <div>

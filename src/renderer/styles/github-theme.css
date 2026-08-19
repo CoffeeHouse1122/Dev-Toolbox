@@ -135,6 +135,14 @@ button {
   background-color: var(--surface);
 }
 
+.app-shell.sidebar-collapsed {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.app-shell.sidebar-collapsed .sidebar {
+  display: none;
+}
+
 .app-shell::after {
   content: "";
   position: absolute;
@@ -244,6 +252,10 @@ button {
 
 .titlebar-window-button i {
   pointer-events: none;
+}
+
+.titlebar-sidebar-toggle {
+  flex: 0 0 46px;
 }
 
 .titlebar-window-button i.is-spinning {
@@ -393,7 +405,7 @@ button {
   border-radius: 7px;
   background: color-mix(in srgb, var(--accent) 5%, var(--surface));
   color: var(--accent-strong);
-  font: 700 11px/1.2 var(--font-mono);
+  font: 700 12px/1.2 var(--font-ui);
   text-decoration: none;
 }
 
@@ -2117,6 +2129,14 @@ input,
 @media (max-width: 980px) {
   .app-shell {
     grid-template-columns: 1fr;
+  }
+
+  .app-shell.sidebar-collapsed .sidebar {
+    display: flex;
+  }
+
+  .titlebar-sidebar-toggle {
+    display: none;
   }
 
   .titlebar-mobile-menu {
