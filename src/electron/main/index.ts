@@ -1,4 +1,4 @@
-import { app, BrowserWindow, Menu, Tray, net, protocol, nativeImage, screen, session } from "electron";
+import { app, BrowserWindow, Menu, Tray, net, protocol, nativeImage, session } from "electron";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { registerIpc } from "./ipc";
@@ -199,14 +199,11 @@ function emitWindowState() {
 
 function createWindow() {
   const iconPath = getRuntimeIconPath();
-  const workArea = screen.getPrimaryDisplay().workAreaSize;
-  const minWidth = Math.min(900, workArea.width);
-  const minHeight = Math.min(600, workArea.height);
   const win = new BrowserWindow({
-    width: Math.min(1280, workArea.width),
-    height: Math.min(820, workArea.height),
-    minWidth,
-    minHeight,
+    width: 1280,
+    height: 820,
+    minWidth: 1280,
+    minHeight: 820,
     title: "Dev Toolbox",
     frame: false,
     backgroundColor: DEFAULT_TITLEBAR_THEME.surfaceColor,

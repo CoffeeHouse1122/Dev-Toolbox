@@ -176,3 +176,13 @@ test("every BrowserWindow enables webSecurity and the default session restricts 
   assert.match(mainSource, /setDevicePermissionHandler\(\(\)\s*=>\s*false\)/);
   assert.match(mainSource, /assertAuthorizedPath\(resolvedFilePath\)/);
 });
+
+test("main window uses 1280 by 820 as both default and minimum dimensions", () => {
+  const mainSource = fs.readFileSync(path.join(__dirname, "..", "src", "electron", "main", "index.ts"), "utf8");
+  const createWindowSource = mainSource.slice(mainSource.indexOf("function createWindow()"), mainSource.indexOf('app.on("second-instance"'));
+
+  assert.match(createWindowSource, /width:\s*1280/);
+  assert.match(createWindowSource, /height:\s*820/);
+  assert.match(createWindowSource, /minWidth:\s*1280/);
+  assert.match(createWindowSource, /minHeight:\s*820/);
+});
