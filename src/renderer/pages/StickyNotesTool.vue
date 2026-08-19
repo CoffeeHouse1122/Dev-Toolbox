@@ -1791,7 +1791,7 @@ onBeforeUnmount(() => {
               aria-controls="notes-sidebar"
               @click="toggleNotesSidebar"
             >
-              <i :class="notesSidebarCollapsed ? 'ri-sidebar-unfold-line' : 'ri-sidebar-fold-line'" aria-hidden="true"></i>
+              <i class="ri-side-bar-line" aria-hidden="true"></i>
             </button>
             <div class="note-editor-title-copy">
               <h2 :title="activeNote?.title || ''">{{ activeNote?.title || "未选择便签" }}</h2>
@@ -2172,7 +2172,7 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .sticky-notes-tool {
-  height: calc(100vh - 108px);
+  height: calc(100vh - 90px);
   min-height: 0;
   overflow: hidden;
 }
@@ -2401,6 +2401,7 @@ onBeforeUnmount(() => {
   height: 100%;
   min-height: 0;
   overflow: hidden;
+  padding-bottom: 8px;
 }
 
 .note-editor-head {
@@ -3069,7 +3070,7 @@ onBeforeUnmount(() => {
 @media (max-width: 960px) {
   .sticky-notes-tool {
     height: auto;
-    min-height: calc(100vh - 108px);
+    min-height: calc(100vh - 90px);
     overflow: visible;
   }
 
