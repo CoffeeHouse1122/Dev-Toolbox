@@ -143,6 +143,10 @@ button {
   display: none;
 }
 
+.app-shell.sidebar-collapsed .workspace {
+  border-top-left-radius: 0;
+}
+
 .app-shell::after {
   content: "";
   position: absolute;

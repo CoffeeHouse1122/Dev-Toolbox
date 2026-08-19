@@ -692,7 +692,7 @@ onBeforeUnmount(() => {
         aria-controls="tool-sidebar"
         @click="toggleSidebar"
       >
-        <i :class="sidebarCollapsed ? 'ri-menu-unfold-line' : 'ri-menu-fold-line'" aria-hidden="true"></i>
+        <i :class="sidebarCollapsed ? 'ri-sidebar-unfold-line' : 'ri-sidebar-fold-line'" aria-hidden="true"></i>
       </button>
       <button
         type="button"
