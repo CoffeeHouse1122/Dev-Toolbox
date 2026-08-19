@@ -59,7 +59,6 @@ function toolText(toolType: string) {
     watermark: "添加水印",
     sprite: "雪碧图",
     "image-placeholder": "图片占位符",
-    "mark-man": "Mark Man",
     "ip-query": "IP 查询",
     "qr-code": "二维码生成",
     "audio-convert": "音频转换",
@@ -76,12 +75,10 @@ function toolText(toolType: string) {
     jwt: "JWT 解析",
     "data-convert": "JSON / YAML / TOML",
     diff: "文本 Diff",
-    "code-screenshot": "代码截图",
     "clipboard-history": "剪贴板历史",
     "base64-text": "Base64 文本",
     hash: "Hash / 加解密",
     "color-converter": "颜色转换器",
-    "http-tester": "快速 HTTP 请求",
     "certificate-scan": "证书扫描",
     "sticky-notes": "桌面便签"
   };

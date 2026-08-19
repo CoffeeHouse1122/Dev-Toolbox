@@ -90,7 +90,6 @@ Module._load = function loadForMainServiceTests(request, parent, isMain) {
 
 const { minifyCode } = require("../dist/electron/main/services/code-minify.service.js");
 const { getIpInfo, lookupDomainIp } = require("../dist/electron/main/services/network.service.js");
-const { sendHttpRequest } = require("../dist/electron/main/services/http-request.service.js");
 const { convertFontsToWoff2 } = require("../dist/electron/main/services/font.service.js");
 const { convertAudio } = require("../dist/electron/main/services/audio.service.js");
 const { compressVideos, createVideoBackgroundPack } = require("../dist/electron/main/services/video.service.js");
@@ -147,71 +146,6 @@ test("code minifier drops every console call, emits a source map, and reports un
     assert.ok(sourceMap.sources.some((source) => source.endsWith("app.js")));
     assert.equal(history.finishes.at(-1)[1], "partial");
   });
-});
-
-test("HTTP requester strips unsafe headers and lets FormData own the multipart boundary", async () => {
-  let captured;
-  electronMock.net.fetch = async (url, init) => {
-    captured = { url, init };
-    return new Response('{"created":true}', {
-      status: 201,
-      statusText: "Created",
-      headers: { "content-type": "application/json; charset=utf-8", "x-response": "ok" }
-    });
-  };
-
-  const result = await sendHttpRequest({
-    url: "http://127.0.0.1:8080/items",
-    method: "post",
-    headers: {
-      Host: "attacker.invalid",
-      "Content-Length": "999",
-      "Content-Type": "multipart/form-data; boundary=wrong",
-      "X-Trace": "local"
-    },
-    multipartFields: [{ name: "name", value: "中文工具" }],
-    timeoutMs: 1000
-  });
-
-  assert.equal(captured.url, "http://127.0.0.1:8080/items");
-  assert.equal(captured.init.method, "POST");
-  assert.equal(captured.init.headers.get("host"), null);
-  assert.equal(captured.init.headers.get("content-length"), null);
-  assert.equal(captured.init.headers.get("content-type"), null);
-  assert.equal(captured.init.headers.get("x-trace"), "local");
-  assert.ok(captured.init.body instanceof FormData);
-  assert.equal(captured.init.body.get("name"), "中文工具");
-  assert.equal(result.status, 201);
-  assert.equal(result.bodyEncoding, "text");
-  assert.equal(result.body, '{"created":true}');
-});
-
-test("HTTP requester rejects dangerous targets and oversized request bodies before transport", async () => {
-  let calls = 0;
-  electronMock.net.fetch = async () => {
-    calls += 1;
-    return new Response("unexpected");
-  };
-  const base = { method: "GET", headers: {}, timeoutMs: 1000 };
-
-  await assert.rejects(sendHttpRequest({ ...base, url: "file:///C:/secret.txt" }), /仅支持 http 和 https/);
-  await assert.rejects(sendHttpRequest({ ...base, url: "http://user:pass@127.0.0.1/" }), /不要在 URL 中包含账号密码/);
-  await assert.rejects(sendHttpRequest({ ...base, url: "http://127.0.0.1/", method: "TRACE" }), /不支持的 HTTP 方法/);
-  await assert.rejects(
-    sendHttpRequest({ ...base, url: "http://127.0.0.1/", method: "POST", body: "x".repeat(5 * 1024 * 1024 + 1) }),
-    /请求体不能超过 5 MiB/
-  );
-  assert.equal(calls, 0);
-});
-
-test("HTTP requester returns non-text responses as Base64", async () => {
-  electronMock.net.fetch = async () => new Response(Uint8Array.from([0, 1, 2, 255]), {
-    headers: { "content-type": "application/octet-stream" }
-  });
-  const result = await sendHttpRequest({ url: "https://127.0.0.1/binary", method: "GET", headers: {}, timeoutMs: 1000 });
-  assert.equal(result.bodyEncoding, "base64");
-  assert.equal(result.body, Buffer.from([0, 1, 2, 255]).toString("base64"));
-  assert.equal(result.truncated, false);
 });
 
 test("domain lookup normalizes a full URL and maps IPv4/IPv6 records", async () => {

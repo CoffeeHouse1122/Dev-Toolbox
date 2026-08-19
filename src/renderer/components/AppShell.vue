@@ -67,9 +67,7 @@ const defaultGroups: NavGroup[] = [
       { id: "image-resize", to: "/image-resize", label: "尺寸调整", icon: "ri-crop-line", visible: true },
       { id: "image-crop", to: "/image-crop", label: "自由裁剪", icon: "ri-scissors-cut-line", visible: true },
       { id: "watermark", to: "/watermark", label: "添加水印", icon: "ri-contrast-drop-2-line", visible: true },
-      { id: "sprite", to: "/sprite", label: "雪碧图", icon: "ri-layout-grid-line", visible: true },
       { id: "image-placeholder", to: "/image-placeholder", label: "图片占位符", icon: "ri-blur-off-line", visible: true },
-      { id: "mark-man", to: "/mark-man", label: "Mark Man", icon: "ri-ruler-line", visible: true },
       { id: "base64-image", to: "/base64-image", label: "Base64 图片", icon: "ri-code-line", visible: true },
       { id: "qr-code", to: "/qr-code", label: "二维码生成", icon: "ri-qr-code-line", visible: true }
     ]
@@ -110,7 +108,6 @@ const defaultGroups: NavGroup[] = [
       { id: "code-minify", to: "/code-minify", label: "CSS / JS 压缩", icon: "ri-braces-line", visible: true },
       { id: "regex-tester", to: "/regex-tester", label: "正则测试器", icon: "ri-parentheses-line", visible: true },
       { id: "css-clamp", to: "/css-clamp", label: "Clamp 字号", icon: "ri-font-size", visible: true },
-      { id: "code-screenshot", to: "/code-screenshot", label: "代码截图", icon: "ri-camera-3-line", visible: true },
       { id: "base64-text", to: "/base64-text", label: "Base64 文本", icon: "ri-text-block", visible: true },
       { id: "color-converter", to: "/color-converter", label: "颜色转换器", icon: "ri-contrast-drop-line", visible: true }
     ]
@@ -133,7 +130,6 @@ const defaultGroups: NavGroup[] = [
       { id: "shared-disk", to: "/shared-disk", label: "共享盘登录", icon: "ri-hard-drive-3-line", visible: true },
       { id: "rename", to: "/rename", label: "文件重命名", icon: "ri-edit-2-line", visible: true },
       { id: "asset-manifest", to: "/asset-manifest", label: "资源清单", icon: "ri-file-list-3-line", visible: true },
-      { id: "http-tester", to: "/http-tester", label: "快速 HTTP 请求", icon: "ri-send-plane-line", visible: true },
       { id: "certificate-scan", to: "/certificate-scan", label: "证书扫描", icon: "ri-shield-check-line", visible: true }
     ]
   },

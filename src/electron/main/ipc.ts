@@ -4,17 +4,15 @@ import { createHistoryService } from "./services/history.service";
 import { applyWatermark, compressImages, createFaviconPackage, convertImages, cropImage, resizeImages } from "./services/image.service";
 import { convertFontsToWoff2 } from "./services/font.service";
 import { subsetFont } from "./services/font-tools.service";
-import { analyzeVideoLoop, compressVideos, convertVideoAnimation, createVideoBackgroundPack, getMediaInfo, removeVideoAudio } from "./services/video.service";
+import { compressVideos, convertVideoAnimation, createVideoBackgroundPack, getMediaInfo, removeVideoAudio } from "./services/video.service";
 import { compressAudio, convertAudio } from "./services/audio.service";
 import { minifyCode } from "./services/code-minify.service";
 import { convertSequenceAnimation } from "./services/sequence.service";
 import { base64ToImage, exportMarkdown, imageToBase64, renameFiles } from "./services/utility.service";
 import { generateQrCode } from "./services/qr.service";
 import { getIpInfo, lookupDomainIp } from "./services/network.service";
-import { sendHttpRequest } from "./services/http-request.service";
 import { scanCertificates } from "./services/certificate.service";
 import { generateAssetManifest } from "./services/asset-manifest.service";
-import { generateSprite } from "./services/sprite.service";
 import { generateSeoFiles } from "./services/seo-files.service";
 import { generateImagePlaceholders } from "./services/placeholder.service";
 import { generateOgImage } from "./services/og-image.service";
@@ -92,12 +90,10 @@ import type {
   StickyNoteExportOptions,
   StickyNoteStyle,
   StickyNotesPreferences,
-  SpriteOptions,
   CodeMinifyOptions,
   VideoBackgroundOptions,
   VideoAnimationOptions,
   VideoCompressOptions,
-  VideoLoopAnalyzeOptions,
   VideoMuteOptions,
   WebpOptions
 } from "../../shared/types";
@@ -317,11 +313,6 @@ const videoCompressSchema = z.object({
   audioBitrate: z.string().optional()
 });
 
-const videoLoopAnalyzeSchema = z.object({
-  inputPath: z.string().min(1),
-  edgeSeconds: z.number().min(0.02).max(2)
-});
-
 const audioConvertSchema = z.object({
   inputPaths: z.array(z.string().min(1)).min(1),
   outputDir: z.string().min(1),
@@ -384,15 +375,6 @@ const assetManifestSchema = z.object({
   outputDir: z.string().min(1),
   baseName: z.string().min(1),
   includeHash: z.boolean()
-});
-
-const spriteSchema = z.object({
-  inputPaths: z.array(z.string().min(1)).min(1),
-  outputDir: z.string().min(1),
-  spriteName: z.string().min(1),
-  classPrefix: z.string().min(1),
-  columns: z.number().int().min(1).max(24),
-  padding: z.number().int().min(0).max(256)
 });
 
 const seoFilesSchema = z.object({
@@ -601,12 +583,6 @@ export function registerIpc() {
     return compressVideos(options, history);
   });
 
-  handleTrustedIpc("media:video-loop", async (_event, raw: VideoLoopAnalyzeOptions) => {
-    const options = videoLoopAnalyzeSchema.parse(raw);
-    assertToolPaths(options);
-    return analyzeVideoLoop(options, history);
-  });
-
   handleTrustedIpc("media:info", async (_event, inputPath: string) => {
     const selectedPath = localPathSchema.parse(inputPath);
     assertAuthorizedPath(selectedPath);
@@ -657,24 +633,6 @@ export function registerIpc() {
     return lookupDomainIp(z.string().min(1).parse(domain));
   });
 
-  handleTrustedIpc("network:http-request", async (_event, input: unknown) => {
-    const options = z
-      .object({
-        url: z.string().min(1).max(8_192),
-        method: z.string().min(1).max(16),
-        headers: z.record(z.string().max(8_192)),
-        body: z.string().max(5 * 1024 * 1024).optional(),
-        timeoutMs: z.number().int().min(100).max(60_000),
-        multipartFields: z
-          .array(z.object({ name: z.string().min(1).max(256), value: z.string().max(5 * 1024 * 1024) }))
-          .max(200)
-          .optional()
-      })
-      .strict()
-      .parse(input);
-    return sendHttpRequest(options);
-  });
-
   handleTrustedIpc("network:certificate-scan", async (_event, raw: CertificateScanOptions) => {
     const options = certificateScanSchema.parse(raw);
     return scanCertificates(options);
@@ -684,12 +642,6 @@ export function registerIpc() {
     const options = assetManifestSchema.parse(raw);
     assertToolPaths(options);
     return generateAssetManifest(options, history);
-  });
-
-  handleTrustedIpc("assets:sprite", async (_event, raw: SpriteOptions) => {
-    const options = spriteSchema.parse(raw);
-    assertToolPaths(options);
-    return generateSprite(options, history);
   });
 
   handleTrustedIpc("assets:image-placeholder", async (_event, raw: ImagePlaceholderOptions) => {

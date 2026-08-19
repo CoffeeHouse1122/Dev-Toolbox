@@ -17,9 +17,7 @@ export type ToolType =
   | "image-resize"
   | "image-crop"
   | "watermark"
-  | "sprite"
   | "image-placeholder"
-  | "mark-man"
   | "seo-files"
   | "og-image"
   | "qr-code"
@@ -179,11 +177,6 @@ export interface VideoCompressOptions {
   audioBitrate?: string;
 }
 
-export interface VideoLoopAnalyzeOptions {
-  inputPath: string;
-  edgeSeconds: number;
-}
-
 export interface MediaInfo {
   durationSeconds: number | null;
   bitrate: string;
@@ -195,18 +188,6 @@ export interface MediaInfo {
   sampleRate: string;
   channels: string;
   raw: string;
-}
-
-export interface VideoLoopInfo extends MediaInfo {
-  firstFrameDataUrl?: string;
-  lastFrameDataUrl?: string;
-  frameDiffScore: number | null;
-  frameDiffSamples?: number[];
-  frameDiffMean?: number | null;
-  frameDiffStdDev?: number | null;
-  hasAudio?: boolean;
-  loopRisk: "low" | "medium" | "high" | "unknown";
-  summary: string;
 }
 
 export interface SequenceAnimationOptions {
@@ -297,25 +278,6 @@ export interface DomainIpLookupResult {
   errorMessage?: string;
 }
 
-export interface HttpRequestInput {
-  url: string;
-  method: string;
-  headers: Record<string, string>;
-  body?: string;
-  timeoutMs: number;
-  multipartFields?: Array<{ name: string; value: string }>;
-}
-
-export interface HttpRequestOutput {
-  status: number;
-  statusText: string;
-  headers: Record<string, string>;
-  body: string;
-  elapsedMs: number;
-  bodyEncoding: "text" | "base64";
-  truncated: boolean;
-}
-
 export interface CertificateScanOptions {
   domains: string[];
   timeoutMs?: number;
@@ -347,15 +309,6 @@ export interface AssetManifestOptions {
   outputDir: string;
   baseName: string;
   includeHash: boolean;
-}
-
-export interface SpriteOptions {
-  inputPaths: string[];
-  outputDir: string;
-  spriteName: string;
-  classPrefix: string;
-  columns: number;
-  padding: number;
 }
 
 export interface SeoFilesOptions {
@@ -536,7 +489,6 @@ export interface DevToolboxApi {
   resizeImages(options: ImageResizeOptions): Promise<ConversionResult>;
   cropImage(options: ImageCropOptions): Promise<ConversionResult>;
   applyWatermark(options: WatermarkOptions): Promise<ConversionResult>;
-  generateSprite(options: SpriteOptions): Promise<ConversionResult>;
   generateImagePlaceholders(options: ImagePlaceholderOptions): Promise<ConversionResult>;
   convertFontWoff2(options: FontWoff2Options): Promise<ConversionResult>;
   subsetFont(options: FontSubsetOptions): Promise<ConversionResult>;
@@ -545,7 +497,6 @@ export interface DevToolboxApi {
   convertVideoAnimation(options: VideoAnimationOptions): Promise<ConversionResult>;
   removeVideoAudio(options: VideoMuteOptions): Promise<ConversionResult>;
   compressVideos(options: VideoCompressOptions): Promise<ConversionResult>;
-  analyzeVideoLoop(options: VideoLoopAnalyzeOptions): Promise<ConversionResult & { info?: VideoLoopInfo }>;
   getMediaInfo(inputPath: string): Promise<MediaInfo>;
   convertAudio(options: AudioConvertOptions): Promise<ConversionResult>;
   compressAudio(options: AudioCompressOptions): Promise<ConversionResult>;
@@ -555,7 +506,6 @@ export interface DevToolboxApi {
   generateQrCode(options: QrCodeOptions): Promise<ConversionResult>;
   getIpInfo(): Promise<IpInfo>;
   lookupDomainIp(domain: string): Promise<DomainIpLookupResult>;
-  sendHttpRequest(input: HttpRequestInput): Promise<HttpRequestOutput>;
   scanCertificates(options: CertificateScanOptions): Promise<CertificateScanResult[]>;
   generateAssetManifest(options: AssetManifestOptions): Promise<ConversionResult>;
   generateSeoFiles(options: SeoFilesOptions): Promise<ConversionResult>;

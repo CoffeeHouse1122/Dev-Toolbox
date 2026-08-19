@@ -23,7 +23,6 @@ import type {
   RenameOptions,
   SeoFilesOptions,
   SharedDiskConfig,
-  SpriteOptions,
   StickyNoteExportOptions,
   StickyNoteStyle,
   StickyNotesPreferences,
@@ -36,11 +35,9 @@ import type {
   ToolConfigKey,
   CodeMinifyOptions,
   VideoCompressOptions,
-  VideoLoopAnalyzeOptions,
   WebpOptions,
   UpdateStatus,
-  TextFileEncoding,
-  HttpRequestInput
+  TextFileEncoding
 } from "../../shared/types";
 
 function toPlain<T>(value: T): T {
@@ -76,7 +73,6 @@ const api: DevToolboxApi = {
   resizeImages: (options: ImageResizeOptions) => ipcRenderer.invoke("convert:image-resize", toPlain(options)),
   cropImage: (options: ImageCropOptions) => ipcRenderer.invoke("convert:image-crop", toPlain(options)),
   applyWatermark: (options: WatermarkOptions) => ipcRenderer.invoke("convert:watermark", toPlain(options)),
-  generateSprite: (options: SpriteOptions) => ipcRenderer.invoke("assets:sprite", toPlain(options)),
   generateImagePlaceholders: (options: ImagePlaceholderOptions) =>
     ipcRenderer.invoke("assets:image-placeholder", toPlain(options)),
   convertFontWoff2: (options: FontWoff2Options) => ipcRenderer.invoke("convert:font-woff2", toPlain(options)),
@@ -88,7 +84,6 @@ const api: DevToolboxApi = {
   convertVideoAnimation: (options: VideoAnimationOptions) => ipcRenderer.invoke("convert:video-animation", toPlain(options)),
   removeVideoAudio: (options: VideoMuteOptions) => ipcRenderer.invoke("convert:video-mute", toPlain(options)),
   compressVideos: (options: VideoCompressOptions) => ipcRenderer.invoke("convert:video-compress", toPlain(options)),
-  analyzeVideoLoop: (options: VideoLoopAnalyzeOptions) => ipcRenderer.invoke("media:video-loop", toPlain(options)),
   getMediaInfo: (inputPath: string): Promise<MediaInfo> => ipcRenderer.invoke("media:info", inputPath),
   convertAudio: (options: AudioConvertOptions) => ipcRenderer.invoke("convert:audio", toPlain(options)),
   compressAudio: (options: AudioCompressOptions) => ipcRenderer.invoke("convert:audio-compress", toPlain(options)),
@@ -98,7 +93,6 @@ const api: DevToolboxApi = {
   generateQrCode: (options: QrCodeOptions) => ipcRenderer.invoke("qr:generate", toPlain(options)),
   getIpInfo: () => ipcRenderer.invoke("network:ip-info"),
   lookupDomainIp: (domain: string) => ipcRenderer.invoke("network:domain-ip", domain),
-  sendHttpRequest: (input: HttpRequestInput) => ipcRenderer.invoke("network:http-request", toPlain(input)),
   scanCertificates: (options: CertificateScanOptions) => ipcRenderer.invoke("network:certificate-scan", toPlain(options)),
   generateAssetManifest: (options: AssetManifestOptions) => ipcRenderer.invoke("assets:manifest", toPlain(options)),
   generateSeoFiles: (options: SeoFilesOptions) => ipcRenderer.invoke("seo:files", toPlain(options)),

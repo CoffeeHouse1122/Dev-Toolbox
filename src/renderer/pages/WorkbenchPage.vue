@@ -14,8 +14,7 @@ const workbenches: Record<string, Workbench> = {
       ["/favicon", "图标生成", "ri-star-smile-line", "Favicon / App Icon"], ["/webp", "图片转换", "ri-image-edit-line", "WebP / PNG / JPEG / AVIF"],
       ["/image-compress", "图片压缩", "ri-image-2-line", "批量体积优化"], ["/image-resize", "尺寸调整", "ri-crop-line", "批量缩放"],
       ["/image-crop", "自由裁剪", "ri-scissors-cut-line", "可视化裁剪"], ["/watermark", "添加水印", "ri-contrast-drop-2-line", "图片 / PDF 水印"],
-      ["/sprite", "雪碧图", "ri-layout-grid-line", "CSS Sprite"], ["/image-placeholder", "图片占位符", "ri-blur-off-line", "BlurHash / LQIP"],
-      ["/mark-man", "Mark Man", "ri-ruler-line", "测量与标注"], ["/base64-image", "Base64 图片", "ri-code-line", "Data URL"],
+      ["/image-placeholder", "图片占位符", "ri-blur-off-line", "BlurHash / LQIP"], ["/base64-image", "Base64 图片", "ri-code-line", "Data URL"],
       ["/qr-code", "二维码生成", "ri-qr-code-line", "PNG / SVG"]
     ].map(([to, label, icon, hint]) => ({ to, label, icon, hint }))
   },
@@ -24,7 +23,7 @@ const workbenches: Record<string, Workbench> = {
     tools: [
       ["/video-background", "视频转化", "ri-movie-2-line", "Web background package"], ["/video-animation", "视频动图", "ri-file-gif-line", "GIF / WebP"],
       ["/sequence-animation", "序列帧动图", "ri-film-line", "Frames to animation"], ["/video-mute", "视频去音频", "ri-volume-mute-line", "Remove audio track"],
-      ["/video-compress", "视频压缩", "ri-video-ai-line", "Web delivery"], ["/video-loop", "视频循环播放", "ri-loop-left-line", "Loop analysis"],
+      ["/video-compress", "视频压缩", "ri-video-ai-line", "Web delivery"], ["/video-loop", "视频循环播放", "ri-loop-left-line", "网页背景循环预览"],
       ["/audio-convert", "音频转换", "ri-music-2-line", "Format conversion"], ["/audio-compress", "音频压缩", "ri-volume-down-line", "Bitrate optimization"]
     ].map(([to, label, icon, hint]) => ({ to, label, icon, hint }))
   },
@@ -43,7 +42,7 @@ const workbenches: Record<string, Workbench> = {
       ["/url-codec", "URL 编解码", "ri-links-line", "URIComponent"], ["/code-minify", "CSS / JS 压缩", "ri-braces-line", "Build optimization"],
       ["/regex-tester", "正则测试器", "ri-parentheses-line", "Match inspector"],
       ["/css-clamp", "Clamp 字号", "ri-font-size", "Fluid scale"],
-      ["/code-screenshot", "代码截图", "ri-camera-3-line", "Shareable snippet"], ["/base64-text", "Base64 文本", "ri-text-block", "Multi-encoding"],
+      ["/base64-text", "Base64 文本", "ri-text-block", "Multi-encoding"],
       ["/color-converter", "颜色转换器", "ri-contrast-drop-line", "HEX / RGB / HSL / CMYK"]
     ].map(([to, label, icon, hint]) => ({ to, label, icon, hint }))
   },
@@ -59,7 +58,7 @@ const workbenches: Record<string, Workbench> = {
     tools: [
       ["/links", "网站与文档", "ri-bookmark-3-line", "Developer bookmarks"], ["/ip-query", "IP 查询", "ri-router-line", "IP / DNS"],
       ["/shared-disk", "共享盘登录", "ri-hard-drive-3-line", "Windows share"], ["/rename", "文件重命名", "ri-edit-2-line", "Batch planner"],
-      ["/asset-manifest", "资源清单", "ri-file-list-3-line", "Hash manifest"], ["/http-tester", "快速 HTTP 请求", "ri-send-plane-line", "JSON / Bearer / 临时请求"],
+      ["/asset-manifest", "资源清单", "ri-file-list-3-line", "Hash manifest"],
       ["/certificate-scan", "证书扫描", "ri-shield-check-line", "TLS inspector"]
     ].map(([to, label, icon, hint]) => ({ to, label, icon, hint }))
   },
