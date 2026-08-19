@@ -593,8 +593,12 @@ function handleDocumentPointerDown(event: PointerEvent) {
   const target = event.target;
   if (!(target instanceof Node)) return;
   const targetElement = target instanceof Element ? target : target.parentElement;
-  if (editorRef.value?.contains(target)) return;
-  if (targetElement?.closest(".note-format-toolbar, .note-context-menu, .note-link-dialog")) return;
+  if (targetElement?.closest(".note-color-menu, .note-font-menu, .note-color-trigger, .note-font-trigger, .note-context-menu, .note-link-dialog")) return;
+  if (editorRef.value?.contains(target) || targetElement?.closest(".note-format-toolbar")) {
+    colorPaletteOpen.value = "";
+    fontMenuOpen.value = false;
+    return;
+  }
   colorPaletteOpen.value = "";
   fontMenuOpen.value = false;
   clearActiveInlineSelection();
@@ -2655,6 +2659,7 @@ onBeforeUnmount(() => {
 }
 
 .note-size-input {
+  appearance: textfield;
   width: 58px;
   height: 28px;
   min-width: 0;
@@ -2667,6 +2672,13 @@ onBeforeUnmount(() => {
   line-height: 1;
   text-align: center;
   box-shadow: none;
+}
+
+.note-size-input::-webkit-inner-spin-button,
+.note-size-input::-webkit-outer-spin-button {
+  margin: 0;
+  -webkit-appearance: none;
+  appearance: none;
 }
 
 .note-step-button {
