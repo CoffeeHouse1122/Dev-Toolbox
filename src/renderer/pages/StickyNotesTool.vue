@@ -57,6 +57,8 @@ const preferences = ref<StickyNotesPreferences>({ ...defaultPreferences });
 const draftStyle = ref<StickyNoteStyle>({ ...defaultPreferences });
 const fontMenuOpen = ref(false);
 const colorPaletteOpen = ref<ColorPaletteKind | "">("");
+const notesSidebarCollapsed = ref(false);
+const formatToolbarExpanded = ref(false);
 const lastExportedFiles = ref<string[]>([]);
 const contextMenu = ref({ visible: false, x: 0, y: 0 });
 const toolbarState = ref({
@@ -74,6 +76,18 @@ const previewScale = ref(1);
 const previewOffset = ref({ x: 0, y: 0 });
 const pendingDeleteNote = ref<StickyNote | null>(null);
 const pendingLinkEdit = ref<LinkEditDraft | null>(null);
+
+function toggleNotesSidebar() {
+  notesSidebarCollapsed.value = !notesSidebarCollapsed.value;
+}
+
+function toggleFormatToolbar() {
+  formatToolbarExpanded.value = !formatToolbarExpanded.value;
+  if (!formatToolbarExpanded.value) {
+    fontMenuOpen.value = false;
+    colorPaletteOpen.value = "";
+  }
+}
 
 const noteDialogEnter = { opacity: 0, y: 16, scale: 0.975 };
 const noteDialogVisible = { opacity: 1, y: 0, scale: 1 };
@@ -1682,8 +1696,8 @@ onBeforeUnmount(() => {
 
 <template>
   <section class="tool-page sticky-notes-tool">
-    <div class="notes-workbench">
-      <aside class="notes-side">
+    <div class="notes-workbench" :class="{ 'sidebar-collapsed': notesSidebarCollapsed }">
+      <aside id="notes-sidebar" class="notes-side">
         <section class="tool-main notes-control-panel">
           <div class="section-title notes-panel-title">
             <h2>桌面便签</h2>
@@ -1767,12 +1781,38 @@ onBeforeUnmount(() => {
 
       <section class="tool-main note-editor-panel">
         <div class="section-title note-editor-head">
-          <div>
-            <h2 :title="activeNote?.title || ''">{{ activeNote?.title || "未选择便签" }}</h2>
-            <span :title="activeNote?.fileName || ''">{{ activeNote?.fileName || "" }}</span>
+          <div class="note-editor-identity">
+            <button
+              type="button"
+              class="icon-button note-sidebar-toggle"
+              :title="notesSidebarCollapsed ? '展开便签管理栏' : '收起便签管理栏'"
+              :aria-label="notesSidebarCollapsed ? '展开便签管理栏' : '收起便签管理栏'"
+              :aria-expanded="!notesSidebarCollapsed"
+              aria-controls="notes-sidebar"
+              @click="toggleNotesSidebar"
+            >
+              <i :class="notesSidebarCollapsed ? 'ri-sidebar-unfold-line' : 'ri-sidebar-fold-line'" aria-hidden="true"></i>
+            </button>
+            <div class="note-editor-title-copy">
+              <h2 :title="activeNote?.title || ''">{{ activeNote?.title || "未选择便签" }}</h2>
+              <span :title="activeNote?.fileName || ''">{{ activeNote?.fileName || "" }}</span>
+            </div>
           </div>
           <div class="header-actions note-editor-actions">
             <span class="status-pill note-save-state">{{ saveState }}</span>
+            <button
+              type="button"
+              class="secondary-button note-toolbar-toggle"
+              :title="formatToolbarExpanded ? '收起格式工具栏' : '展开格式工具栏'"
+              :aria-label="formatToolbarExpanded ? '收起格式工具栏' : '展开格式工具栏'"
+              :aria-expanded="formatToolbarExpanded"
+              aria-controls="note-format-toolbar"
+              @click="toggleFormatToolbar"
+            >
+              <i class="ri-font-family" aria-hidden="true"></i>
+              格式工具
+              <i :class="formatToolbarExpanded ? 'ri-arrow-up-s-line' : 'ri-arrow-down-s-line'" aria-hidden="true"></i>
+            </button>
             <button type="button" class="secondary-button" :disabled="!activeNote" @click="exportActiveAsText">
               <i class="ri-file-text-line" aria-hidden="true"></i>
               导出TXT
@@ -1783,7 +1823,14 @@ onBeforeUnmount(() => {
             </button>
           </div>
         </div>
-        <div class="note-format-toolbar" :class="{ disabled: !activeNote }" aria-label="便签格式工具栏" @mousedown="captureEditorSelection">
+        <div
+          v-show="formatToolbarExpanded"
+          id="note-format-toolbar"
+          class="note-format-toolbar"
+          :class="{ disabled: !activeNote }"
+          aria-label="便签格式工具栏"
+          @mousedown="captureEditorSelection"
+        >
           <button type="button" class="icon-button" :class="{ active: toolbarState.bold }" title="粗体" :disabled="!activeNote" @mousedown.prevent="captureEditorSelection" @click="applyBold">
             <i class="ri-bold" aria-hidden="true"></i>
           </button>
@@ -2138,6 +2185,14 @@ onBeforeUnmount(() => {
   min-height: 0;
 }
 
+.notes-workbench.sidebar-collapsed {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.notes-workbench.sidebar-collapsed .notes-side {
+  display: none;
+}
+
 .notes-side {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
@@ -2356,6 +2411,23 @@ onBeforeUnmount(() => {
   min-width: 0;
 }
 
+.note-editor-identity {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+}
+
+.note-editor-title-copy {
+  min-width: 0;
+}
+
+.note-sidebar-toggle {
+  width: 34px;
+  height: 34px;
+  padding: 0;
+}
+
 .note-editor-head h2,
 .note-editor-head span {
   display: block;
@@ -2373,6 +2445,13 @@ onBeforeUnmount(() => {
 .note-editor-actions {
   flex: 0 0 auto;
   align-items: center;
+}
+
+.note-toolbar-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
 }
 
 .note-save-state {
