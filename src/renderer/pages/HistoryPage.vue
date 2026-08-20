@@ -35,6 +35,8 @@ function statusClass(status: string) {
 function toolText(toolType: string) {
   const map: Record<string, string> = {
     favicon: "图标生成",
+    "svg-toolbox": "SVG 工具箱",
+    "pwa-icons": "PWA 图标包",
     webp: "图片转换",
     woff2: "WOFF2 转换",
     "video-background": "视频转化",

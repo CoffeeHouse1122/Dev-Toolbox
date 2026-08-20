@@ -62,6 +62,8 @@ const defaultGroups: NavGroup[] = [
     label: "图片工作台",
     tools: [
       { id: "favicon", to: "/favicon", label: "图标生成", icon: "ri-star-smile-line", visible: true },
+      { id: "svg-toolbox", to: "/svg-toolbox", label: "SVG 工具箱", icon: "ri-shapes-line", visible: true },
+      { id: "pwa-icons", to: "/pwa-icons", label: "PWA 图标包", icon: "ri-smartphone-line", visible: true },
       { id: "webp", to: "/webp", label: "图片转换", icon: "ri-image-edit-line", visible: true },
       { id: "image-compress", to: "/image-compress", label: "图片压缩", icon: "ri-image-2-line", visible: true },
       { id: "image-resize", to: "/image-resize", label: "尺寸调整", icon: "ri-crop-line", visible: true },

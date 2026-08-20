@@ -2,6 +2,8 @@ import { app, dialog, shell } from "electron";
 import { z } from "zod";
 import { createHistoryService } from "./services/history.service";
 import { applyWatermark, compressImages, createFaviconPackage, convertImages, cropImage, resizeImages } from "./services/image.service";
+import { processSvgFiles } from "./services/svg.service";
+import { generatePwaIconPackages } from "./services/pwa-icon.service";
 import { convertFontsToWoff2 } from "./services/font.service";
 import { subsetFont } from "./services/font-tools.service";
 import { compressVideos, convertVideoAnimation, createVideoBackgroundPack, getMediaInfo, removeVideoAudio } from "./services/video.service";
@@ -73,6 +75,8 @@ import type {
   AudioConvertOptions,
   CertificateScanOptions,
   FaviconOptions,
+  SvgToolboxOptions,
+  PwaIconPackageOptions,
   FontSubsetOptions,
   FontWoff2Options,
   ImageCompressOptions,
@@ -105,6 +109,28 @@ const faviconSchema = z.object({
   includePng: z.boolean(),
   includeManifest: z.boolean()
 });
+
+const svgToolboxSchema = z.object({
+  inputPaths: z.array(z.string().min(1).regex(/\.svg$/i, "只支持 SVG 文件")).min(1).max(100),
+  outputDir: z.string().min(1),
+  outputFormat: z.enum(["svg", "png", "webp"]),
+  precision: z.number().int().min(0).max(6),
+  removeDimensions: z.boolean(),
+  cleanupIds: z.boolean(),
+  width: z.number().int().min(1).max(8_192).optional(),
+  height: z.number().int().min(1).max(8_192).optional(),
+  quality: z.number().int().min(1).max(100).optional()
+}).strict();
+
+const pwaIconPackageSchema = z.object({
+  inputPaths: z.array(z.string().min(1).regex(/\.(?:png|jpe?g|webp|svg)$/i, "不支持的图片格式")).min(1).max(100),
+  outputDir: z.string().min(1),
+  appName: z.string().trim().min(1).max(80),
+  shortName: z.string().trim().min(1).max(24),
+  themeColor: z.string().regex(/^#[0-9a-f]{6}$/i),
+  backgroundColor: z.string().regex(/^#[0-9a-f]{6}$/i),
+  maskablePadding: z.number().min(0.1).max(0.4)
+}).strict();
 
 const localPathSchema = z.string().min(1).max(32_768);
 const dialogFiltersSchema = z.array(z.object({
@@ -509,6 +535,18 @@ export function registerIpc() {
     const options = faviconSchema.parse(raw);
     assertToolPaths(options);
     return createFaviconPackage(options, history);
+  });
+
+  handleTrustedIpc("convert:svg-toolbox", async (_event, raw: SvgToolboxOptions) => {
+    const options = svgToolboxSchema.parse(raw);
+    assertToolPaths(options);
+    return processSvgFiles(options, history);
+  });
+
+  handleTrustedIpc("convert:pwa-icons", async (_event, raw: PwaIconPackageOptions) => {
+    const options = pwaIconPackageSchema.parse(raw);
+    assertToolPaths(options);
+    return generatePwaIconPackages(options, history);
   });
 
   handleTrustedIpc("convert:webp", async (_event, raw: WebpOptions) => {

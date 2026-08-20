@@ -1,5 +1,7 @@
 export type ToolType =
   | "favicon"
+  | "svg-toolbox"
+  | "pwa-icons"
   | "webp"
   | "woff2"
   | "video-background"
@@ -72,6 +74,30 @@ export interface FaviconOptions {
   sizes: number[];
   includePng: boolean;
   includeManifest: boolean;
+}
+
+export type SvgOutputFormat = "svg" | "png" | "webp";
+
+export interface SvgToolboxOptions {
+  inputPaths: string[];
+  outputDir: string;
+  outputFormat: SvgOutputFormat;
+  precision: number;
+  removeDimensions: boolean;
+  cleanupIds: boolean;
+  width?: number;
+  height?: number;
+  quality?: number;
+}
+
+export interface PwaIconPackageOptions {
+  inputPaths: string[];
+  outputDir: string;
+  appName: string;
+  shortName: string;
+  themeColor: string;
+  backgroundColor: string;
+  maskablePadding: number;
 }
 
 export type ImageOutputFormat = "webp" | "png" | "jpeg" | "avif";
@@ -484,6 +510,8 @@ export interface DevToolboxApi {
   pathExists(targetPath: string): Promise<boolean>;
   openDirectory(targetPath: string): Promise<OpenDirectoryResult>;
   convertFavicon(options: FaviconOptions): Promise<ConversionResult>;
+  processSvgFiles(options: SvgToolboxOptions): Promise<ConversionResult>;
+  generatePwaIconPackages(options: PwaIconPackageOptions): Promise<ConversionResult>;
   convertWebp(options: WebpOptions): Promise<ConversionResult>;
   compressImages(options: ImageCompressOptions): Promise<ConversionResult>;
   resizeImages(options: ImageResizeOptions): Promise<ConversionResult>;

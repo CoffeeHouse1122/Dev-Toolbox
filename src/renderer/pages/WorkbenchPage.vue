@@ -11,7 +11,8 @@ const workbenches: Record<string, Workbench> = {
   images: {
     title: "图片工作台", code: "IMAGE_PIPELINE", description: "前端资源生产、体积优化、尺寸处理与交付格式。",
     tools: [
-      ["/favicon", "图标生成", "ri-star-smile-line", "Favicon / App Icon"], ["/webp", "图片转换", "ri-image-edit-line", "WebP / PNG / JPEG / AVIF"],
+      ["/favicon", "图标生成", "ri-star-smile-line", "Favicon / App Icon"], ["/svg-toolbox", "SVG 工具箱", "ri-shapes-line", "Optimize / PNG / WebP"],
+      ["/pwa-icons", "PWA 图标包", "ri-smartphone-line", "PWA / Android / iOS"], ["/webp", "图片转换", "ri-image-edit-line", "WebP / PNG / JPEG / AVIF"],
       ["/image-compress", "图片压缩", "ri-image-2-line", "批量体积优化"], ["/image-resize", "尺寸调整", "ri-crop-line", "批量缩放"],
       ["/image-crop", "自由裁剪", "ri-scissors-cut-line", "可视化裁剪"], ["/watermark", "添加水印", "ri-contrast-drop-2-line", "图片 / PDF 水印"],
       ["/image-placeholder", "图片占位符", "ri-blur-off-line", "BlurHash / LQIP"], ["/base64-image", "Base64 图片", "ri-code-line", "Data URL"],
