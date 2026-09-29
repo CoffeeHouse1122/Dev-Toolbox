@@ -448,7 +448,6 @@ button {
 .nav-workbench-link.router-link-exact-active {
   background: color-mix(in srgb, var(--accent) 10%, var(--surface));
   color: var(--accent-strong);
-  box-shadow: inset 2px 0 var(--accent);
 }
 
 .nav-group-head:focus-visible,
