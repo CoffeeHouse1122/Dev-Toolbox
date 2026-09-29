@@ -2,7 +2,7 @@
 
 基于 Electron 43、Vue 3 和 TypeScript 的本地优先桌面工具箱，提供图片、音视频、字体、文本与样式、SEO、文件与网络及开发辅助工具。
 
-侧栏点击分类名称进入该分类工具总览，点击左侧箭头展开或收起工具；置顶和自定义导航保持独立。
+侧栏点击分类标题（含箭头、名称和数量）展开或收起工具，点击右侧“总览”进入分类页面；展开状态与页面切换独立。总览与侧栏共用名称、排序和可见性配置，置顶和自定义导航继续保留。
 
 主进程负责本地能力，preload 暴露受限 IPC，renderer 负责界面；沿用 `tsc + Vite + electron-builder` 构建链。开发约定见 [docs/AGENTS.md](docs/AGENTS.md)。
 
@@ -45,17 +45,17 @@ npm run dev
 
 推送新的 `v*` 标签会触发 [Release Dev Toolbox](https://github.com/CoffeeHouse1122/Dev-Toolbox/actions/workflows/release.yml)，自动检查、打包并发布，无需手动创建 Release 或上传安装包。
 
-先提交待发布代码，确认在 `main`、与远程同步且工作区干净。以下以 **0.1.7** 为例，后续发布统一替换版本号：
+先提交待发布代码，确认在 `main`、与远程同步且工作区干净。以下以 **0.1.8** 为例，后续发布统一替换版本号：
 
 ```powershell
-npm version 0.1.7 --no-git-tag-version
+npm version 0.1.8 --no-git-tag-version
 git diff -- package.json package-lock.json
 git status --short
 git add -- package.json package-lock.json
-git commit -m "发布 0.1.7 版本"
-git tag -a v0.1.7 -m "发布 0.1.7 版本"
+git commit -m "发布 0.1.8 版本"
+git tag -a v0.1.8 -m "发布 0.1.8 版本"
 git push origin main
-git push origin v0.1.7
+git push origin v0.1.8
 ```
 
 按顺序执行，任一步失败先处理再继续。标签须与 `package.json` 版本一致，不重复创建或覆盖已发布标签。

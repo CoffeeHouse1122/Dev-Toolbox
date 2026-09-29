@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { gsap, type TweenVars } from "gsap";
+import { gsap } from "gsap";
+type TweenVars = gsap.TweenVars;
 import { onBeforeUnmount } from "vue";
 
 const props = withDefaults(defineProps<{

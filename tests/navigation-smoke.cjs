@@ -13,7 +13,14 @@ const reducedMotion = !process.argv.includes("--motion");
 // Exercise both OS animation preferences explicitly instead of inheriting the CI desktop.
 app.commandLine.appendSwitch(reducedMotion ? "force-prefers-reduced-motion" : "force-prefers-no-reduced-motion");
 let navigation = {
-  groups: ["seo", "system-files", "assist"].map(id => ({ id, tools: [] })),
+  groups: [
+    { id: "seo", tools: [] },
+    { id: "system-files", tools: [
+      { id: "links", label: "团队资料" }, { id: "shared-disk", label: "共享盘登录" },
+      { id: "certificate-scan", visible: false }, { id: "rename" }, { id: "ip-query" }, { id: "uuid" }
+    ] },
+    { id: "assist", tools: [] }
+  ],
   collapsedGroups: { favorites: true, images: true, media: true, font: true, text: true },
   favoriteToolIds: []
 };
@@ -48,7 +55,8 @@ app.whenReady().then(async () => {
   const toggle = id => `.nav-group-toggle[aria-controls='nav-group-${id}']`;
   const active = ".nav-workbench-link[aria-current=page]";
   const page = path.resolve(__dirname, "../dist/renderer/index.html");
-  await win.loadFile(page, { hash: "/workbench/seo" });
+  if (process.env.NAVIGATION_UI_DEV_URL) await win.loadURL(process.env.NAVIGATION_UI_DEV_URL + "/#/workbench/seo");
+  else await win.loadFile(page, { hash: "/workbench/seo" });
   console.log("Navigation smoke: page loaded");
   assert.equal(await evaluate("matchMedia('(prefers-reduced-motion: reduce)').matches"), reducedMotion);
   await waitFor("document.querySelector('.workbench-page h2')?.textContent === 'SEO 发布工作台'");
@@ -56,9 +64,10 @@ app.whenReady().then(async () => {
   assert.equal(await evaluate("document.querySelectorAll('.nav-workbench-link').length"), 7);
   assert.equal(await evaluate("new Set([...document.querySelectorAll('.nav-workbench-link')].map(el => el.getAttribute('aria-label'))).size"), 7);
   assert.equal(await evaluate(`document.querySelectorAll('${active}').length`), 1);
+  assert.equal(await evaluate("[...document.querySelectorAll('.nav-workbench-link')].every(el => el.textContent.trim() === '总览')"), true);
 
   // Collapsing must not navigate. The overview remains reachable while collapsed.
-  await click(toggle("system-files"));
+  await click(toggle("system-files") + " .nav-workbench-label");
   assert.equal(await evaluate("location.hash"), "#/workbench/seo");
   assert.equal(await evaluate(`${query(toggle("system-files"))}.getAttribute('aria-expanded')`), "false");
   await click(heading("system"));
@@ -66,15 +75,29 @@ app.whenReady().then(async () => {
   console.log("Navigation smoke: category navigation passed");
   assert.equal(await evaluate(`${query(active)}.getAttribute('href')`), "#/workbench/system");
   assert.equal(await evaluate(`${query(toggle("system-files"))}.getAttribute('aria-expanded')`), "false");
-  await click(toggle("system-files"));
+  // The count belongs to the same collapse target; overview navigation never collapses tools.
+  await click(toggle("system-files") + " .nav-group-count");
   assert.equal(await evaluate("location.hash"), "#/workbench/system");
+  assert.equal(await evaluate(`${query(toggle("system-files"))}.getAttribute('aria-expanded')`), "true");
+  assert.deepEqual(await evaluate("[...document.querySelectorAll('.workbench-tool-card')].map(el => [el.getAttribute('href'), el.querySelector('strong').textContent])"),
+    await evaluate("[...document.querySelectorAll('#nav-group-system-files .nav-item')].map(el => [el.getAttribute('href'), el.querySelector('span').textContent])"));
+  assert.equal(await evaluate("document.querySelector('.workbench-header .status-pill').textContent.trim()"),
+    (await evaluate(`${query(toggle("system-files") + " .nav-group-count")}.textContent.trim()`)) + " 项工具");
+  assert.equal(await evaluate("[...document.querySelectorAll('.workbench-tool-card strong')].some(el => el.textContent === '共享连接')"), true);
+  assert.equal(await evaluate("!!document.querySelector('.workbench-tool-card[href=\"#/certificate-scan\"]')"), false);
+  assert.equal(await evaluate("!!document.querySelector('.workbench-tool-card[href=\"#/uuid\"]')"), true);
+  assert.equal(await evaluate("!!document.querySelector('#nav-group-assist .nav-item[href=\"#/uuid\"]')"), false);
 
   // Tool routes have no active overview. Pinning still updates the favorites group.
   await click("#nav-group-system-files .nav-item-pin");
-  await waitFor("document.querySelector('#nav-group-favorites').textContent.includes('网站与文档')");
+  await waitFor("document.querySelector('#nav-group-favorites').textContent.includes('团队资料')");
   await click("#nav-group-assist .nav-item[href='#/timestamp']");
   await waitFor("location.hash === '#/timestamp'");
   assert.equal(await evaluate(`document.querySelectorAll('${active}').length`), 0);
+  await click(toggle("assist") + " .nav-workbench-label");
+  assert.equal(await evaluate("location.hash"), "#/timestamp", "collapsing the current category must keep the active tool");
+  assert.equal(await evaluate(`${query(toggle("system-files"))}.getAttribute('aria-expanded')`), "true", "other categories stay expanded");
+  await click(toggle("assist") + " .nav-group-count");
   await evaluate(`${query(heading("seo"))}.focus()`);
   win.webContents.sendInputEvent({ type: "keyDown", keyCode: "Return" });
   win.webContents.sendInputEvent({ type: "keyUp", keyCode: "Return" });
@@ -93,6 +116,15 @@ app.whenReady().then(async () => {
   }
   assert.deepEqual(errors, []);
   assert.ok(navigation.favoriteToolIds.includes("links"));
+  // Persistence includes customized labels, moved tools, hidden tools and collapse state.
+  await win.webContents.reload();
+  await waitFor("document.querySelector('.workbench-page h2')?.textContent === 'SEO 发布工作台'");
+  await waitFor("document.querySelector('#nav-group-favorites').textContent.includes('团队资料')");
+  await click(heading("system"));
+  await waitFor("document.querySelector('.workbench-page h2')?.textContent === '文件与网络工作台'");
+  assert.equal(await evaluate(`${query(toggle("system-files"))}.getAttribute('aria-expanded')`), "true");
+  assert.deepEqual(await evaluate("[...document.querySelectorAll('.workbench-tool-card')].map(el => el.querySelector('strong').textContent)"),
+    await evaluate("[...document.querySelectorAll('#nav-group-system-files .nav-item span')].map(el => el.textContent)"));
   console.log(`Navigation UI passed (${reducedMotion ? "reduced" : "normal"} motion): unique category entries, separate expand/navigation, exact active state, keyboard activation, pinning and both themes.`);
   win.destroy();
   clearTimeout(watchdog);

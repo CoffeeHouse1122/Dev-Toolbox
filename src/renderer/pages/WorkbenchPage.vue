@@ -1,79 +1,44 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, inject } from "vue";
 import { RouterLink } from "vue-router";
-
-type WorkbenchTool = { to: string; label: string; icon: string; hint: string };
-type Workbench = { title: string; description: string; tools: WorkbenchTool[] };
+import { navigationGroupsKey, workbenchRoutes } from "../navigation";
 
 const props = defineProps<{ id: string }>();
-
-const workbenches: Record<string, Workbench> = {
-  images: {
-    title: "图片工作台", description: "前端资源生产、体积优化、尺寸处理与交付格式。",
-    tools: [
-      ["/favicon", "图标生成", "ri-star-smile-line", "Favicon / App Icon"], ["/svg-toolbox", "SVG 工具箱", "ri-shapes-line", "Optimize / PNG / WebP"],
-      ["/pwa-icons", "PWA 图标包", "ri-smartphone-line", "PWA / Android / iOS"], ["/webp", "图片转换", "ri-image-edit-line", "WebP / PNG / JPEG / AVIF"],
-      ["/image-compress", "图片压缩", "ri-image-2-line", "批量体积优化"], ["/image-resize", "尺寸调整", "ri-crop-line", "批量缩放"],
-      ["/image-crop", "自由裁剪", "ri-scissors-cut-line", "可视化裁剪"], ["/watermark", "添加水印", "ri-contrast-drop-2-line", "图片 / PDF 水印"],
-      ["/image-placeholder", "图片占位符", "ri-blur-off-line", "BlurHash / LQIP"], ["/base64-image", "Base64 图片", "ri-code-line", "Data URL"],
-      ["/qr-code", "二维码生成", "ri-qr-code-line", "PNG / SVG"]
-    ].map(([to, label, icon, hint]) => ({ to, label, icon, hint }))
-  },
-  media: {
-    title: "音视频工作台", description: "基于 FFmpeg 的网页媒体兼容、压缩与动画资源生成。",
-    tools: [
-      ["/video-background", "视频转化", "ri-movie-2-line", "Web background package"], ["/video-animation", "视频动图", "ri-file-gif-line", "GIF / WebP"],
-      ["/sequence-animation", "序列帧动图", "ri-film-line", "Frames to animation"], ["/video-mute", "视频去音频", "ri-volume-mute-line", "Remove audio track"],
-      ["/video-compress", "视频压缩", "ri-video-ai-line", "Web delivery"], ["/video-loop", "视频循环播放", "ri-loop-left-line", "网页背景循环预览"],
-      ["/audio-convert", "音频转换", "ri-music-2-line", "Format conversion"], ["/audio-compress", "音频压缩", "ri-volume-down-line", "Bitrate optimization"]
-    ].map(([to, label, icon, hint]) => ({ to, label, icon, hint }))
-  },
-  font: {
-    title: "字体工作台", description: "Web Font 检查、子集化、转换与 CSS 接入。",
-    tools: [
-      ["/woff2", "WOFF2 转换", "ri-font-size-2", "Web font conversion"], ["/font-preview", "字体预览", "ri-font-sans-serif", "Glyph preview"],
-      ["/font-subset", "字体子集化", "ri-scissors-cut-line", "Reduce payload"], ["/font-face", "@font-face", "ri-braces-line", "CSS generator"]
-    ].map(([to, label, icon, hint]) => ({ to, label, icon, hint }))
-  },
-  text: {
-    title: "文本与样式工作台", description: "配置、编码、调试、CSS 与代码交付的前端高频操作。",
-    tools: [
-      ["/markdown-export", "Markdown", "ri-markdown-line", "HTML / PNG / PDF"], ["/data-convert", "JSON/YAML/TOML", "ri-arrow-left-right-line", "Config conversion"],
-      ["/diff", "文本 Diff", "ri-swap-line", "Line comparison"], ["/jwt", "JWT 解析", "ri-key-2-line", "Decode claims"],
-      ["/url-codec", "URL 编解码", "ri-links-line", "URIComponent"], ["/code-minify", "CSS / JS 压缩", "ri-braces-line", "Build optimization"],
-      ["/regex-tester", "正则测试器", "ri-parentheses-line", "Match inspector"],
-      ["/css-clamp", "Clamp 字号", "ri-font-size", "Fluid scale"],
-      ["/base64-text", "Base64 文本", "ri-text-block", "Multi-encoding"],
-      ["/color-converter", "颜色转换器", "ri-contrast-drop-line", "HEX / RGB / HSL / CMYK"]
-    ].map(([to, label, icon, hint]) => ({ to, label, icon, hint }))
-  },
-  seo: {
-    title: "SEO 发布工作台", description: "站点发布前的搜索、分享卡片与元数据资源。",
-    tools: [
-      ["/seo-files", "robots / sitemap", "ri-road-map-line", "Crawler files"], ["/meta-tags", "HTML Meta", "ri-meta-line", "Head metadata"],
-      ["/og-image", "OG 图片", "ri-image-add-line", "Social preview"]
-    ].map(([to, label, icon, hint]) => ({ to, label, icon, hint }))
-  },
-  system: {
-    title: "文件与网络工作台", description: "文件系统、接口、域名证书与本地网络调试。",
-    tools: [
-      ["/links", "网站与文档", "ri-bookmark-3-line", "Developer bookmarks"], ["/ip-query", "IP 查询", "ri-router-line", "IP / DNS"],
-      ["/shared-disk", "共享连接", "ri-hard-drive-3-line", "Windows share"], ["/rename", "文件重命名", "ri-edit-2-line", "Batch planner"],
-      ["/asset-manifest", "资源清单", "ri-file-list-3-line", "Hash manifest"],
-      ["/certificate-scan", "证书扫描", "ri-shield-check-line", "TLS inspector"]
-    ].map(([to, label, icon, hint]) => ({ to, label, icon, hint }))
-  },
-  assist: {
-    title: "开发者快捷工作台", description: "前端主职、全栈副职日常会反复使用的小型操作。",
-    tools: [
-      ["/timestamp", "时间戳", "ri-time-line", "Date / epoch"], ["/uuid", "UUID", "ri-fingerprint-line", "UUID v4"],
-      ["/hash", "Hash / 加解密", "ri-shield-keyhole-line", "Digest / AES-GCM"], ["/clipboard-history", "剪贴板历史", "ri-clipboard-line", "Local clipboard"],
-      ["/sticky-notes", "桌面便签", "ri-sticky-note-line", "Developer notes"]
-    ].map(([to, label, icon, hint]) => ({ to, label, icon, hint }))
-  }
+const groups = inject(navigationGroupsKey);
+const descriptions: Record<string, string> = {
+  images: "前端资源生产、体积优化、尺寸处理与交付格式。",
+  media: "基于 FFmpeg 的网页媒体兼容、压缩与动画资源生成。",
+  font: "Web Font 检查、子集化、转换与 CSS 接入。",
+  text: "配置、编码、调试、CSS 与代码交付的前端高频操作。",
+  seo: "站点发布前的搜索、分享卡片与元数据资源。",
+  system: "文件系统、接口、域名证书与本地网络调试。",
+  assist: "前端主职、全栈副职日常会反复使用的小型操作。"
 };
-
-const workbench = computed(() => workbenches[props.id] ?? workbenches.text);
+const toolHints: Record<string, string> = {
+  favicon: "Favicon / App Icon", "svg-toolbox": "Optimize / PNG / WebP", "pwa-icons": "PWA / Android / iOS",
+  webp: "WebP / PNG / JPEG / AVIF", "image-compress": "批量体积优化", "image-resize": "批量缩放",
+  "image-crop": "可视化裁剪", watermark: "图片 / PDF 水印", "image-placeholder": "BlurHash / LQIP",
+  "base64-image": "Data URL", "qr-code": "PNG / SVG", "video-background": "Web background package",
+  "video-animation": "GIF / WebP", "sequence-animation": "Frames to animation", "video-mute": "Remove audio track",
+  "video-compress": "Web delivery", "video-loop": "网页背景循环预览", "audio-convert": "Format conversion",
+  "audio-compress": "Bitrate optimization", woff2: "Web font conversion", "font-preview": "Glyph preview",
+  "font-subset": "Reduce payload", "font-face": "CSS generator", "markdown-export": "HTML / PNG / PDF",
+  "data-convert": "Config conversion", diff: "Line comparison", jwt: "Decode claims", "url-codec": "URIComponent",
+  "code-minify": "Build optimization", "regex-tester": "Match inspector", "css-clamp": "Fluid scale",
+  "base64-text": "Multi-encoding", "color-converter": "HEX / RGB / HSL / CMYK", "seo-files": "Crawler files",
+  "meta-tags": "Head metadata", "og-image": "Social preview", links: "Developer bookmarks", "ip-query": "IP / DNS",
+  "shared-disk": "Windows share", rename: "Batch planner", "asset-manifest": "Hash manifest",
+  "certificate-scan": "TLS inspector", timestamp: "Time / epoch", uuid: "UUID v4", hash: "Digest / AES-GCM",
+  "clipboard-history": "Clipboard history", "sticky-notes": "Desktop notes", history: "Task history", settings: "Preferences"
+};
+const workbench = computed(() => {
+  const group = groups?.value.find(item => workbenchRoutes[item.id] === `/workbench/${props.id}`);
+  return {
+    title: group?.label ?? "工具总览",
+    description: descriptions[props.id] ?? "从分类中选择工具。",
+    tools: (group?.tools ?? []).filter(tool => tool.visible).map(tool => ({ ...tool, hint: toolHints[tool.id] ?? "打开工具" }))
+  };
+});
 </script>
 
 <template>
@@ -103,6 +68,7 @@ const workbench = computed(() => workbenches[props.id] ?? workbenches.text);
         <i class="ri-arrow-right-up-line workbench-arrow" aria-hidden="true"></i>
       </RouterLink>
     </div>
+    <p v-if="!workbench.tools.length" class="empty-state">该分类暂无可见工具，可在导航设置中调整。</p>
   </section>
 </template>
 

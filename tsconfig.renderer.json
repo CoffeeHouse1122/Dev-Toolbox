@@ -15,7 +15,8 @@
       "DOM.Iterable"
     ],
     "types": [
-      "vite/client"
+      "vite/client",
+      "node"
     ],
     "plugins": [
       {
@@ -31,4 +32,3 @@
     "src/shared/**/*.ts"
   ]
 }
-

@@ -400,7 +400,7 @@ button {
 
 .nav-workbench-head {
   display: grid;
-  grid-template-columns: 28px minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: 2px;
   min-height: 36px;
@@ -416,18 +416,22 @@ button {
 }
 
 .nav-group-toggle {
-  display: grid;
-  place-items: center;
-  padding: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  padding: 6px;
+  font: 700 12px/1.2 var(--font-ui);
+  text-align: left;
   cursor: pointer;
 }
 
 .nav-workbench-link {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 2px;
   min-width: 0;
-  padding: 6px 8px;
+  padding: 6px 4px;
   font: 700 12px/1.2 var(--font-ui);
   text-decoration: none;
 }
@@ -438,6 +442,9 @@ button {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+.nav-group-toggle > .nav-group-chevron,
+.nav-group-toggle > .nav-group-count { flex-shrink: 0; }
 
 .nav-group-toggle:hover,
 .nav-workbench-link:hover {

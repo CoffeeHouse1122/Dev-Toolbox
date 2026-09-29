@@ -1,5 +1,6 @@
 import type { App, ObjectDirective } from "vue";
-import { gsap, type TweenVars } from "gsap";
+import { gsap } from "gsap";
+type TweenVars = gsap.TweenVars;
 import GsapTransition from "../components/GsapTransition.vue";
 
 type EnterOptions = {

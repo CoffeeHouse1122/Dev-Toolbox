@@ -42,7 +42,7 @@ async function computeHash() {
 async function md5(data: Uint8Array): Promise<string> {
   function rotl(x: number, n: number) { return (x << n) | (x >>> (32 - n)); }
   function cmn(q: number, a: number, b: number, x: number, s: number, t: number) {
-    return ((a + q + x + t) >>> 0, rotl((a + q + x + t) >>> 0, s) + b) >>> 0;
+    return (rotl((a + q + x + t) >>> 0, s) + b) >>> 0;
   }
   function ff(a: number, b: number, c: number, d: number, x: number, s: number, t: number) {
     return cmn((b & c) | (~b & d), a, b, x, s, t);
@@ -65,8 +65,7 @@ async function md5(data: Uint8Array): Promise<string> {
   let a = 0x67452301, b = 0xefcdab89, c = 0x98badcfe, d = 0x10325476;
   for (let i = 0; i < words.length; i += 16) {
     const oldA = a, oldB = b, oldC = c, oldD = d;
-    const w = words.slice(i, i + 16);
-    while (w.length < 16) w.push(0);
+    const w = Array.from({ length: 16 }, (_, offset) => words[i + offset] ?? 0);
     a = ff(a,b,c,d,w[0],7,0xd76aa478);d=ff(d,a,b,c,w[1],12,0xe8c7b756);c=ff(c,d,a,b,w[2],17,0x242070db);b=ff(b,c,d,a,w[3],22,0xc1bdceee);
     a = ff(a,b,c,d,w[4],7,0xf57c0faf);d=ff(d,a,b,c,w[5],12,0x4787c62a);c=ff(c,d,a,b,w[6],17,0xa8304613);b=ff(b,c,d,a,w[7],22,0xfd469501);
     a = ff(a,b,c,d,w[8],7,0x698098d8);d=ff(d,a,b,c,w[9],12,0x8b44f7af);c=ff(c,d,a,b,w[10],17,0xffff5bb1);b=ff(b,c,d,a,w[11],22,0x895cd7be);
@@ -113,7 +112,7 @@ function base64ToBytes(value: string) {
   return bytes;
 }
 
-async function deriveKey(password: string, salt: Uint8Array): Promise<CryptoKey> {
+async function deriveKey(password: string, salt: Uint8Array<ArrayBuffer>): Promise<CryptoKey> {
   const enc = new TextEncoder();
   const material = await crypto.subtle.importKey("raw", enc.encode(password), "PBKDF2", false, ["deriveKey"]);
   return crypto.subtle.deriveKey(

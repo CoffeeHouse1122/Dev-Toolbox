@@ -4,6 +4,10 @@ import type { ConversionRecord } from "../../shared/types";
 
 const records = ref<ConversionRecord[]>([]);
 
+function revealOutput(outputPath: string) {
+  if (outputPath) void window.devToolbox.revealPath(outputPath);
+}
+
 async function refresh() {
   records.value = await window.devToolbox.listHistory(120);
 }
@@ -116,7 +120,7 @@ onMounted(refresh);
         :key="record.id"
         type="button"
         class="history-row"
-        @click="record.outputPath && window.devToolbox.revealPath(record.outputPath)"
+        @click="revealOutput(record.outputPath)"
       >
         <span>{{ toolText(record.toolType) }}</span>
         <span class="status-pill" :class="statusClass(record.status)">{{ statusText(record.status) }}</span>
