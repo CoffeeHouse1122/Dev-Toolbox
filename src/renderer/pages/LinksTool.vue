@@ -108,15 +108,6 @@ function categoryTabStyle(value: string): CSSProperties {
   return categoryTagStyle(value);
 }
 
-function linkCardEnter(index: number) {
-  return {
-    from: { opacity: 0, y: 10, x: index % 2 === 0 ? -8 : 8, rotateZ: index % 2 === 0 ? -0.5 : 0.5 },
-    to: { opacity: 1, y: 0, x: 0, rotateZ: 0 },
-    delay: Math.min(index * 0.035, 0.18),
-    duration: 0.24
-  };
-}
-
 function normalizeUrl(url: string) {
   const trimmed = url.trim();
   if (!trimmed) return "";
@@ -387,7 +378,7 @@ watch(
 
       <div class="links-grid">
         <article
-          v-for="(item, index) in filteredLinks"
+          v-for="item in filteredLinks"
           :key="item.id"
           class="link-card"
           :class="{
@@ -395,8 +386,6 @@ watch(
             'drop-before': item.id === dragOverLinkId && dragPlacement === 'before',
             'drop-after': item.id === dragOverLinkId && dragPlacement === 'after'
           }"
-          v-gsap-enter="linkCardEnter(index)"
-          v-gsap-lift
           draggable="true"
           @dragstart="startLinkDrag($event, item.id)"
           @dragover="handleLinkDragOver($event, item.id)"
@@ -562,7 +551,10 @@ watch(
 
 .link-card {
   cursor: grab;
+  transition: border-color .14s ease;
 }
+
+.link-card:hover, .link-card:focus-within { border-color: var(--accent); }
 
 .link-card:active {
   cursor: grabbing;

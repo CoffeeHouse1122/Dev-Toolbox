@@ -387,11 +387,19 @@ export interface SharedDiskConnectResult {
   message: string;
 }
 
+export interface SharedDiskSession {
+  shareRoot: string;
+  username: string;
+  openFiles: number;
+}
+
 export interface SharedDiskStatus {
   connected: boolean;
   shareRoot: string;
   message: string;
   state?: "connected" | "disconnected" | "unknown";
+  username?: string;
+  sessions?: SharedDiskSession[];
 }
 
 export type AppCloseBehavior = "minimize-to-tray" | "exit";
@@ -549,6 +557,7 @@ export interface DevToolboxApi {
   getSharedDiskStatus(config: { sharePath: string }): Promise<SharedDiskStatus>;
   forgetSharedDiskCredentials(): Promise<SharedDiskConfig>;
   openSharedDiskDirectory(targetPath: string): Promise<string>;
+  openExistingSharedDiskDirectory(config: { sharePath: string; defaultDirectory: string }): Promise<string>;
   imageToBase64(inputPath: string): Promise<Base64ImageResult>;
   base64ToImage(data: string, outputDir: string, fileName: string): Promise<ConversionResult>;
   listHistory(limit?: number): Promise<ConversionRecord[]>;

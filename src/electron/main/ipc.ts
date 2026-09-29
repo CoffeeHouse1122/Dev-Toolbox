@@ -66,6 +66,7 @@ import {
   forgetSharedDiskCredentials,
   loadSharedDiskConfig,
   openSharedDiskDirectory,
+  openExistingSharedDiskDirectory,
   saveSharedDiskConfig
 } from "./services/shared-disk.service";
 import type {
@@ -749,6 +750,11 @@ export function registerIpc() {
     const selectedPath = localPathSchema.parse(targetPath);
     assertSharedDiskTarget(config, selectedPath);
     return openSharedDiskDirectory(selectedPath);
+  });
+
+  handleTrustedIpc("shared-disk:open-existing", async (_event, raw: unknown) => {
+    const config = sharedDiskTargetSchema.extend({ defaultDirectory: z.string().max(32_768) }).parse(raw);
+    return openExistingSharedDiskDirectory(config);
   });
 
   handleTrustedIpc("settings:load", async () => loadAppSettings());

@@ -11,10 +11,11 @@ let encryptionAvailable = true;
 let nativeResult = { code: 0 };
 let nativeAction = async () => nativeResult;
 const nativeCalls = [];
+const openedPaths = [];
 const originalLoad = Module._load;
 Module._load = function(request, parent, main) {
   if (request === "electron") return {
-    app: { getPath: () => root }, shell: { openPath: async () => "" },
+    app: { getPath: () => root }, shell: { openPath: async (target) => { openedPaths.push(target); return ""; } },
     safeStorage: {
       isEncryptionAvailable: () => encryptionAvailable,
       encryptString: (value) => Buffer.from(`sealed:${value}`),
@@ -42,6 +43,7 @@ async function withProfile(run) {
   root = await fs.mkdtemp(path.join(os.tmpdir(), "toolbox-share-test-"));
   encryptionAvailable = true;
   nativeCalls.length = 0;
+  openedPaths.length = 0;
   nativeResult = { code: 0 };
   nativeAction = async () => nativeResult;
   try { await run(path.join(root, "data", "shared-disk.json")); }
@@ -161,4 +163,39 @@ test("status uses native codes and sends only the target", async () => withProfi
   nativeResult = { code: 5 };
   assert.equal((await getSharedDiskStatus(fixture)).state, "unknown");
   assert.ok(nativeCalls.every((call) => !('password' in call) && !('username' in call)));
+}));
+
+test("implicit SMB sessions expose only this server and discovery failure is not disconnected", async () => withProfile(async () => {
+  nativeResult = { code: 0, status: 0, username: "DOMAIN\\tester", sessions: [
+    { shareRoot: "\\\\files.example.test\\team", username: "DOMAIN\\tester", openFiles: 1 },
+    { shareRoot: "\\\\other.example.test\\private", username: "other", openFiles: 2 },
+    { shareRoot: "invalid", username: "other", openFiles: 0 }
+  ] };
+  const result = await getSharedDiskStatus(fixture);
+  assert.equal(result.connected, true);
+  assert.equal(result.username, "DOMAIN\\tester");
+  assert.equal(result.sessions.length, 1);
+  nativeResult = { code: 2250, discoveryUnavailable: true };
+  assert.equal((await getSharedDiskStatus(fixture)).state, "unknown");
+}));
+
+test("opening an existing session never authenticates, saves, or disconnects", { skip: process.platform !== "win32" }, async () => withProfile(async file => {
+  nativeResult = { code: 0, status: 0 };
+  assert.equal(await service.openExistingSharedDiskDirectory(fixture), fixture.sharePath);
+  assert.deepEqual(openedPaths, [fixture.sharePath]);
+  assert.deepEqual(nativeCalls, [{ action: "status", shareRoot: "\\\\files.example.test\\team" }]);
+  await assert.rejects(fs.stat(file), /ENOENT/);
+  await assert.rejects(service.openExistingSharedDiskDirectory({ ...fixture, defaultDirectory: "\\\\other\\share" }));
+  assert.equal(nativeCalls.length, 1);
+  nativeResult = { code: 2250 };
+  await assert.rejects(service.openExistingSharedDiskDirectory(fixture), /未检测到/);
+  assert.equal(openedPaths.length, 1);
+}));
+
+test("disconnect verifies implicit sessions instead of falsely reporting success", async () => withProfile(async () => {
+  nativeAction = async request => request.action === "disconnect" ? { code: 2250 } : { code: 0, status: 0 };
+  await assert.rejects(service.disconnectSharedDisk(fixture), /仍被/);
+  assert.deepEqual(nativeCalls.map(call => call.action), ["disconnect", "status"]);
+  nativeAction = async request => request.action === "disconnect" ? { code: 0 } : { code: 2250, discoveryUnavailable: true };
+  await assert.rejects(service.disconnectSharedDisk(fixture), /无法确认/);
 }));

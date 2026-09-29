@@ -39,6 +39,8 @@ npm run dev
 
 本地打包不会上传或发布。安装包为 `release/Dev-Toolbox-版本号-x64.exe`，当前未签名。发布前执行 `npm run check`；仅运行回归测试可用 `npm test`。
 
+构建后可用 `npm run test:workspace-ui` 验证共享连接布局、确认弹窗和链接卡片；测试使用隔离数据及模拟共享，不会操作真实 Windows 连接。
+
 ## 发布到 GitHub
 
 推送新的 `v*` 标签会触发 [Release Dev Toolbox](https://github.com/CoffeeHouse1122/Dev-Toolbox/actions/workflows/release.yml)，自动检查、打包并发布，无需手动创建 Release 或上传安装包。
@@ -75,3 +77,4 @@ git push origin v0.1.7
 - 便签、设置和历史记录保存在 Electron `userData`；升级前退出应用并备份该目录。目前无须手动执行数据库迁移，升级时不要删除数据目录。
 - Windows 共享连接使用 `\\server\share` 格式，可选当前 Windows 身份或指定账号；仅勾选“记住凭据”才在应用内加密保存密码。旧 HTTP 形式的配置会转换为 SMB 路径，旧明文密码需重新输入；不再提供无盘符的“持久连接”。“忘记凭据”只清除应用副本，旧版写入 Windows 凭据管理器的记录需自行管理。
 - 曾使用旧版 HTTPS 抓包功能的用户，如已不再需要其证书，请自行在 Windows `certmgr.msc` 中移除受信任根证书 `NodeMITMProxyCA`；应用不会自动清理。
+- 共享页会识别资源管理器已有的 SMB 会话，点击“使用现有连接打开”无需重新登录。遇到 1219 账号冲突时可沿用现有连接；如需更换账号，请先关闭文件并自行断开该服务器的旧会话，应用不会自动清理其他连接。

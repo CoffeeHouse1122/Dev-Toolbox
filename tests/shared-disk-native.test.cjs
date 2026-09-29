@@ -17,7 +17,11 @@ Module._load = function(request, parent, main) {
     child.kill = () => { call.killed = true; };
     child.stdin.on("data", (chunk) => { call.input += chunk.toString(); });
     child.stdin.on("finish", () => queueMicrotask(() => {
-      if (!hanging) { child.stdout.write(response); child.emit("close", exitCode); }
+      if (!hanging) {
+        // Include splits inside multi-byte Chinese characters.
+        for (const byte of Buffer.from(response)) child.stdout.write(Buffer.from([byte]));
+        child.emit("close", exitCode);
+      }
     }));
     return child;
   } };
@@ -35,6 +39,8 @@ test("native credentials travel only over stdin, with no interpolation, persiste
   const script = Buffer.from(latest.args.at(-1), "base64").toString("utf16le");
   assert.match(script, /In\.ReadToEnd/);
   assert.match(script, /WNetAddConnection2W/);
+  assert.match(script, /Get-SmbConnection -ErrorAction Stop/);
+  assert.match(script, /ServerName -ieq \$server/);
   assert.match(script, /WNetCancelConnection2W\(\$request.shareRoot, 0, \$false\)/);
   assert.doesNotMatch(script, /cmdkey|\/pass:|net use/);
   assert.equal(latest.options.windowsHide, true);
@@ -58,4 +64,17 @@ test("common Windows errors have actionable messages", () => {
   assert.match(sharedDiskError(1219), /不会自动清理/);
   assert.match(sharedDiskError(1326), /身份验证/);
   assert.match(sharedDiskError(2401), /打开的文件/);
+});
+
+test("native session output preserves UTF-8 and rejects malformed session lists", { skip: process.platform !== "win32" }, async () => {
+  const request = { action: "status", shareRoot: "\\\\server.example.test\\素材" };
+  const result = { code: 0, status: 0, username: "测试用户", sessions: [{ shareRoot: request.shareRoot, username: "测试用户", openFiles: 1 }] };
+  try {
+    response = JSON.stringify(result);
+    assert.deepEqual(await runSharedDiskNative(request), result);
+    for (const sessions of ["bad", [null], [{ shareRoot: request.shareRoot, username: "test", openFiles: -1 }], Array(33).fill(result.sessions[0])]) {
+      response = JSON.stringify({ code: 0, sessions });
+      await assert.rejects(runSharedDiskNative(request), /无效结果/);
+    }
+  } finally { response = '{"code":0}'; }
 });

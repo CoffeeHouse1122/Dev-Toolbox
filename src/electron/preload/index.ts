@@ -112,6 +112,7 @@ const api: DevToolboxApi = {
   getSharedDiskStatus: (config: { sharePath: string }) => ipcRenderer.invoke("shared-disk:status", toPlain(config)),
   forgetSharedDiskCredentials: () => ipcRenderer.invoke("shared-disk:forget"),
   openSharedDiskDirectory: (targetPath: string) => ipcRenderer.invoke("shared-disk:open", targetPath),
+  openExistingSharedDiskDirectory: (config: { sharePath: string; defaultDirectory: string }) => ipcRenderer.invoke("shared-disk:open-existing", toPlain(config)),
   imageToBase64: (inputPath: string) => ipcRenderer.invoke("base64:image-to-base64", inputPath),
   base64ToImage: (data: string, outputDir: string, fileName: string) =>
     ipcRenderer.invoke("base64:base64-to-image", data, outputDir, fileName),

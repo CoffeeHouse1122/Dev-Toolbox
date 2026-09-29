@@ -6,6 +6,7 @@ import type { SharedDiskConfig, SharedDiskConnectResult } from "../../../shared/
 import { parseSharedPath, sharedDirectory } from "../../../shared/shared-disk";
 import { readJsonWithBackup, writeFileAtomic } from "./atomic-file";
 import { runSharedDiskNative, sharedDiskError } from "./shared-disk-native";
+import { getSharedDiskStatus } from "./shared-disk-status.service";
 
 interface StoredConfig {
   version: 2;
@@ -166,6 +167,9 @@ export async function disconnectSharedDisk(config: { sharePath: string }): Promi
     const { shareRoot, baseRoot } = parseSharedPath(config.sharePath);
     const result = await runSharedDiskNative({ action: "disconnect", shareRoot });
     if (result.code !== 0 && result.code !== 2250) throw new Error(sharedDiskError(result.code));
+    const current = await getSharedDiskStatus(config);
+    if (current.connected) throw new Error("共享仍被资源管理器或其他程序使用，请先关闭相关目录和文件；未强制断开连接");
+    if (current.state === "unknown") throw new Error("已尝试断开，但无法确认 Windows 会话状态；请刷新检查，未强制断开其他连接");
     return { shareRoot, baseUncPath: baseRoot, defaultDirectory: baseRoot, message: result.code === 2250 ? "该共享当前没有连接" : "共享已断开，保存的凭据未删除" };
   });
 }
@@ -174,4 +178,11 @@ export async function openSharedDiskDirectory(targetPath: string) {
   const error = await shell.openPath(targetPath);
   if (error) throw new Error("无法打开共享目录，请检查连接状态及目录权限");
   return targetPath;
+}
+
+export async function openExistingSharedDiskDirectory(config: { sharePath: string; defaultDirectory: string }) {
+  const target = sharedDirectory(config.sharePath, config.defaultDirectory);
+  const status = await getSharedDiskStatus(config);
+  if (!status.connected) throw new Error("未检测到目标共享的现有连接，请刷新状态或先连接");
+  return openSharedDiskDirectory(target);
 }
