@@ -19,16 +19,23 @@ npm run dev
 
 默认无需创建 `.env`。需调整开发代理或资源前缀时，参考 [.env.example](.env.example) 创建本地 `.env`；Electron 本地包的 `VITE_CDN_BASE` 保持 `./`。不要提交真实环境文件。
 
-## 检查与打包
+## 构建与打包
 
-```powershell
-npm run check           # 环境、类型、回归测试、Electron 冒烟及完整构建
-npm run dist:win        # 生成 Windows x64 安装包并校验更新产物
-```
+以下输出目录以 Windows x64 为例：
 
-安装包输出为 `release/Dev-Toolbox-版本号-x64.exe`，当前未签名。本地打包不会上传或发布。
+| 命令 | 用途 | 输出目录 |
+| --- | --- | --- |
+| `npm run build` | 编译主进程、preload 和共享代码，构建 renderer | `dist/` |
+| `npm run check` | 检查环境、类型，运行回归测试及 Electron 冒烟，完成构建 | `dist/` |
+| `npm run pack` | 构建并生成当前平台免安装目录包 | `release/win-unpacked/` |
+| `npm run dist:win:dir` | 构建并生成 Windows x64 免安装目录包 | `release/win-unpacked/` |
+| `npm run dist` | 构建并生成当前平台安装包 | `release/` |
+| `npm run dist:win` | 构建并生成 Windows x64 NSIS 安装包，校验更新产物 | `release/` |
+| `npm run verify:release` | 校验已有安装包、更新清单及包内容，需先完成打包 | 不生成新产物，读取 `release/` |
 
-按需使用：`npm test` 运行回归测试，`npm run build` 仅构建，`npm run pack` 生成目录包，`npm run verify:release` 校验已有发布产物。
+`dist/` 下包含 `electron/`、`shared/` 和 `renderer/`。目录包可直接运行其中的 `Dev Toolbox.exe`，无需安装；`npm run build` 本身不会生成可独立运行的安装包。
+
+本地打包不会上传或发布。安装包为 `release/Dev-Toolbox-版本号-x64.exe`，当前未签名。发布前执行 `npm run check`；仅运行回归测试可用 `npm test`。
 
 ## 发布到 GitHub
 
