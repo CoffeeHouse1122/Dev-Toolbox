@@ -3,13 +3,13 @@ import { computed } from "vue";
 import { RouterLink } from "vue-router";
 
 type WorkbenchTool = { to: string; label: string; icon: string; hint: string };
-type Workbench = { title: string; code: string; description: string; tools: WorkbenchTool[] };
+type Workbench = { title: string; description: string; tools: WorkbenchTool[] };
 
 const props = defineProps<{ id: string }>();
 
 const workbenches: Record<string, Workbench> = {
   images: {
-    title: "图片工作台", code: "IMAGE_PIPELINE", description: "前端资源生产、体积优化、尺寸处理与交付格式。",
+    title: "图片工作台", description: "前端资源生产、体积优化、尺寸处理与交付格式。",
     tools: [
       ["/favicon", "图标生成", "ri-star-smile-line", "Favicon / App Icon"], ["/svg-toolbox", "SVG 工具箱", "ri-shapes-line", "Optimize / PNG / WebP"],
       ["/pwa-icons", "PWA 图标包", "ri-smartphone-line", "PWA / Android / iOS"], ["/webp", "图片转换", "ri-image-edit-line", "WebP / PNG / JPEG / AVIF"],
@@ -20,7 +20,7 @@ const workbenches: Record<string, Workbench> = {
     ].map(([to, label, icon, hint]) => ({ to, label, icon, hint }))
   },
   media: {
-    title: "音视频工作台", code: "MEDIA_PIPELINE", description: "基于 FFmpeg 的网页媒体兼容、压缩与动画资源生成。",
+    title: "音视频工作台", description: "基于 FFmpeg 的网页媒体兼容、压缩与动画资源生成。",
     tools: [
       ["/video-background", "视频转化", "ri-movie-2-line", "Web background package"], ["/video-animation", "视频动图", "ri-file-gif-line", "GIF / WebP"],
       ["/sequence-animation", "序列帧动图", "ri-film-line", "Frames to animation"], ["/video-mute", "视频去音频", "ri-volume-mute-line", "Remove audio track"],
@@ -29,14 +29,14 @@ const workbenches: Record<string, Workbench> = {
     ].map(([to, label, icon, hint]) => ({ to, label, icon, hint }))
   },
   font: {
-    title: "字体工作台", code: "FONT_PIPELINE", description: "Web Font 检查、子集化、转换与 CSS 接入。",
+    title: "字体工作台", description: "Web Font 检查、子集化、转换与 CSS 接入。",
     tools: [
       ["/woff2", "WOFF2 转换", "ri-font-size-2", "Web font conversion"], ["/font-preview", "字体预览", "ri-font-sans-serif", "Glyph preview"],
       ["/font-subset", "字体子集化", "ri-scissors-cut-line", "Reduce payload"], ["/font-face", "@font-face", "ri-braces-line", "CSS generator"]
     ].map(([to, label, icon, hint]) => ({ to, label, icon, hint }))
   },
   text: {
-    title: "文本与样式工作台", code: "FRONTEND_UTILS", description: "配置、编码、调试、CSS 与代码交付的前端高频操作。",
+    title: "文本与样式工作台", description: "配置、编码、调试、CSS 与代码交付的前端高频操作。",
     tools: [
       ["/markdown-export", "Markdown", "ri-markdown-line", "HTML / PNG / PDF"], ["/data-convert", "JSON/YAML/TOML", "ri-arrow-left-right-line", "Config conversion"],
       ["/diff", "文本 Diff", "ri-swap-line", "Line comparison"], ["/jwt", "JWT 解析", "ri-key-2-line", "Decode claims"],
@@ -48,14 +48,14 @@ const workbenches: Record<string, Workbench> = {
     ].map(([to, label, icon, hint]) => ({ to, label, icon, hint }))
   },
   seo: {
-    title: "SEO 发布工作台", code: "WEB_RELEASE", description: "站点发布前的搜索、分享卡片与元数据资源。",
+    title: "SEO 发布工作台", description: "站点发布前的搜索、分享卡片与元数据资源。",
     tools: [
       ["/seo-files", "robots / sitemap", "ri-road-map-line", "Crawler files"], ["/meta-tags", "HTML Meta", "ri-meta-line", "Head metadata"],
       ["/og-image", "OG 图片", "ri-image-add-line", "Social preview"]
     ].map(([to, label, icon, hint]) => ({ to, label, icon, hint }))
   },
   system: {
-    title: "文件与网络工作台", code: "FULLSTACK_IO", description: "文件系统、接口、域名证书与本地网络调试。",
+    title: "文件与网络工作台", description: "文件系统、接口、域名证书与本地网络调试。",
     tools: [
       ["/links", "网站与文档", "ri-bookmark-3-line", "Developer bookmarks"], ["/ip-query", "IP 查询", "ri-router-line", "IP / DNS"],
       ["/shared-disk", "共享连接", "ri-hard-drive-3-line", "Windows share"], ["/rename", "文件重命名", "ri-edit-2-line", "Batch planner"],
@@ -64,7 +64,7 @@ const workbenches: Record<string, Workbench> = {
     ].map(([to, label, icon, hint]) => ({ to, label, icon, hint }))
   },
   assist: {
-    title: "开发者快捷工作台", code: "QUICK_CONSOLE", description: "前端主职、全栈副职日常会反复使用的小型操作。",
+    title: "开发者快捷工作台", description: "前端主职、全栈副职日常会反复使用的小型操作。",
     tools: [
       ["/timestamp", "时间戳", "ri-time-line", "Date / epoch"], ["/uuid", "UUID", "ri-fingerprint-line", "UUID v4"],
       ["/hash", "Hash / 加解密", "ri-shield-keyhole-line", "Digest / AES-GCM"], ["/clipboard-history", "剪贴板历史", "ri-clipboard-line", "Local clipboard"],
@@ -80,11 +80,11 @@ const workbench = computed(() => workbenches[props.id] ?? workbenches.text);
   <section class="tool-page workbench-page">
     <header class="tool-header workbench-header">
       <div>
-        <span class="workbench-code">{{ workbench.code }}</span>
+        <span class="workbench-code">分类工具总览</span>
         <h2>{{ workbench.title }}</h2>
         <p>{{ workbench.description }}</p>
       </div>
-      <span class="status-pill success">{{ workbench.tools.length }} TOOLS</span>
+      <span class="status-pill">{{ workbench.tools.length }} 项工具</span>
     </header>
 
     <div class="workbench-grid">

@@ -2,6 +2,8 @@
 
 基于 Electron 43、Vue 3 和 TypeScript 的本地优先桌面工具箱，提供图片、音视频、字体、文本与样式、SEO、文件与网络及开发辅助工具。
 
+侧栏点击分类名称进入该分类工具总览，点击左侧箭头展开或收起工具；置顶和自定义导航保持独立。
+
 主进程负责本地能力，preload 暴露受限 IPC，renderer 负责界面；沿用 `tsc + Vite + electron-builder` 构建链。开发约定见 [docs/AGENTS.md](docs/AGENTS.md)。
 
 ## 环境与启动

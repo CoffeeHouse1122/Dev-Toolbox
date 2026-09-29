@@ -760,23 +760,36 @@ onBeforeUnmount(() => {
       <div class="sidebar-body dt-simplebar">
         <nav class="nav-list grouped-nav" aria-label="工具">
           <section v-for="group in visibleGroups" :key="group.id" class="nav-group" :class="{ collapsed: collapsedGroups[group.id] }">
-            <button type="button" class="nav-group-head" @click="toggleGroupCollapse(group.id)">
+            <div v-if="workbenchRoute(group.id)" class="nav-workbench-head">
+              <button
+                type="button"
+                class="nav-group-toggle"
+                :title="`${collapsedGroups[group.id] ? '展开' : '收起'}${group.label}工具`"
+                :aria-label="`${collapsedGroups[group.id] ? '展开' : '收起'}${group.label}工具`"
+                :aria-expanded="!collapsedGroups[group.id]"
+                :aria-controls="`nav-group-${group.id}`"
+                @click="toggleGroupCollapse(group.id)"
+              >
+                <i class="nav-group-chevron" :class="collapsedGroups[group.id] ? 'ri-arrow-right-s-line' : 'ri-arrow-down-s-line'" aria-hidden="true"></i>
+              </button>
+              <RouterLink
+                :to="workbenchRoute(group.id)"
+                class="nav-workbench-link"
+                :title="`${group.label} · 工具总览`"
+                :aria-label="`${group.label} · 工具总览`"
+                @click="closeMobileNav"
+              >
+                <span class="nav-workbench-label">{{ group.label }}</span>
+                <span class="nav-group-count" aria-hidden="true">{{ group.tools.length }}</span>
+              </RouterLink>
+            </div>
+            <button v-else type="button" class="nav-group-head" :aria-expanded="!collapsedGroups[group.id]" :aria-controls="`nav-group-${group.id}`" @click="toggleGroupCollapse(group.id)">
               <i class="nav-group-chevron" :class="collapsedGroups[group.id] ? 'ri-arrow-right-s-line' : 'ri-arrow-down-s-line'" aria-hidden="true"></i>
               <span>{{ group.label }}</span>
               <span class="nav-group-count">{{ group.tools.length }}</span>
             </button>
-            <div v-show="!collapsedGroups[group.id]" class="nav-group-items">
+            <div v-show="!collapsedGroups[group.id]" :id="`nav-group-${group.id}`" class="nav-group-items">
               <p v-if="group.id === 'favorites' && !group.tools.length" class="nav-group-empty">点击工具右侧图钉加入置顶</p>
-              <RouterLink
-                v-if="workbenchRoute(group.id)"
-                :to="workbenchRoute(group.id)"
-                class="workbench-overview-link"
-                @click="closeMobileNav"
-              >
-                <i class="ri-terminal-box-line" aria-hidden="true"></i>
-                <span>工作台总览</span>
-                <i class="ri-arrow-right-s-line" aria-hidden="true"></i>
-              </RouterLink>
               <div v-for="tool in group.tools" :key="`${group.id}:${tool.id}`" class="nav-item-row">
                 <RouterLink :to="tool.to" class="nav-item" @click="closeMobileNav">
                   <i class="nav-icon" :class="tool.icon" aria-hidden="true"></i>
