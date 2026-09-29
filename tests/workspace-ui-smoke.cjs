@@ -8,13 +8,21 @@ app.setPath("userData", fs.mkdtempSync(path.join(output, "profile-")));
 app.disableHardwareAcceleration();
 app.commandLine.appendSwitch("force-prefers-no-reduced-motion");
 const calls = [];
+const statusRequests = [];
+let statusGate;
 const config = { sharePath: "\\\\files.example.test\\素材", defaultDirectory: "", authMode: "account", username: "DOMAIN\\tester", password: "", rememberCredentials: true, hasSavedPassword: true, migrationNotice: "旧配置已转换为 SMB 路径；Windows 凭据未更改。" };
 const status = { connected: true, state: "connected", shareRoot: config.sharePath, username: config.username, message: "检测到 Windows 已有连接，可直接打开，无需重复登录", sessions: [{ shareRoot: config.sharePath, username: config.username, openFiles: 1 }] };
 for (const [channel, handler] of Object.entries({
   "config:load": () => null, "config:save": (_e, _key, value) => value,
   "window:get-state": () => ({ isMaximized: false, isAlwaysOnTop: false }),
   "update:current-version": () => "0.1.7", "update:state": () => ({ status: "disabled", activeTasks: 0 }),
-  "shared-disk:load": () => config, "shared-disk:status": () => status,
+  "shared-disk:load": () => config,
+  "shared-disk:status": async (_e, value) => {
+    statusRequests.push(value);
+    const snapshot = structuredClone(status);
+    if (statusGate) await statusGate;
+    return snapshot;
+  },
   "shared-disk:open-existing": (_e, value) => { calls.push(["open", value]); return value.sharePath; },
   "shared-disk:connect": (_e, value) => {
     calls.push(["connect", value]);
@@ -60,6 +68,29 @@ app.whenReady().then(async () => {
   assert.equal(await evaluate("getComputedStyle(document.querySelector('.workspace-toast-region')).position"), "absolute");
   assert.equal(await evaluate("!!document.querySelector('.workspace-toast')"), false, "loading migrated config must not display a migration toast");
   await screenshot("shared");
+  assert.equal(await evaluate("document.querySelector('.status-checked-at').textContent.includes('15 秒')"), false);
+  await pause(700);
+  const idleRequests = statusRequests.length;
+  await pause(16_000);
+  assert.equal(statusRequests.length, idleRequests, "idle page must not poll after 15 seconds");
+  await evaluate("window.dispatchEvent(new Event('focus')); document.dispatchEvent(new Event('visibilitychange'))");
+  await pause(400);
+  await waitFor("!document.querySelector('.shared-primary-action').disabled");
+  assert.equal(statusRequests.length, idleRequests + 1, "foreground events are coalesced into one check");
+  let releaseStatus;
+  statusGate = new Promise(resolve => { releaseStatus = resolve; });
+  await click("[aria-label='刷新连接状态']");
+  await waitFor("document.querySelector('.shared-primary-action').textContent.includes('检查中')");
+  const editedPath = config.sharePath + "\\资料";
+  const setPath = value => evaluate(`(() => { const input = document.querySelector('.target-fields input'); input.value = ${JSON.stringify(value)}; input.dispatchEvent(new Event('input', { bubbles: true })); })()`);
+  await setPath(editedPath);
+  await pause(600);
+  statusGate = undefined; releaseStatus();
+  await waitFor("document.querySelector('.shared-primary-action').textContent.trim() === '打开目录' && !document.querySelector('.shared-primary-action').disabled");
+  assert.equal(statusRequests.at(-1).sharePath, editedPath, "an edit during a pending check must refresh the latest target");
+  await setPath(config.sharePath);
+  await waitFor("document.querySelector('.shared-primary-action').textContent.trim() === '打开目录' && !document.querySelector('.shared-primary-action').disabled");
+  assert.equal(statusRequests.at(-1).sharePath, config.sharePath);
   await click(".shared-primary-action");
   await waitFor("!document.querySelector('.shared-primary-action').disabled");
   assert.deepEqual(calls, [["open", { sharePath: config.sharePath, defaultDirectory: "" }]]);
@@ -108,6 +139,11 @@ app.whenReady().then(async () => {
   const links = Array.from({ length: 21 }, (_, i) => ({ id: `fixture-${i}`, title: `文档 ${i}`, url: `https://example.test/docs/${i}`, category: i % 2 ? "技术文档" : "工具", description: "仅用于隔离测试的示例链接" }));
   await evaluate(`localStorage.setItem('dev-toolbox.links.v1', ${JSON.stringify(JSON.stringify(links))}); location.hash = '/links'`);
   await waitFor("document.querySelectorAll('.link-card').length === 21");
+  await pause(200);
+  const inactiveRequests = statusRequests.length;
+  await evaluate("window.dispatchEvent(new Event('focus')); document.dispatchEvent(new Event('visibilitychange'))");
+  await pause(300);
+  assert.equal(statusRequests.length, inactiveRequests, "cached inactive shared page must not check on focus");
   const visibleCards = "[...document.querySelectorAll('.link-card')].every(el => getComputedStyle(el).opacity === '1' && getComputedStyle(el).visibility === 'visible' && el.getBoundingClientRect().height > 50)";
   // Hover during mount/filter must not leave cards transparent.
   await evaluate("document.querySelectorAll('.link-card').forEach(el => { el.dispatchEvent(new MouseEvent('mouseenter')); el.dispatchEvent(new MouseEvent('mouseleave')); })");
@@ -125,6 +161,8 @@ app.whenReady().then(async () => {
   await click(".links-category-tabs button:first-child");
   await evaluate("location.hash = '/shared-disk'");
   await waitFor("!!document.querySelector('.shared-connection')");
+  await waitFor("!document.querySelector('.shared-primary-action').disabled");
+  assert.ok(statusRequests.length > inactiveRequests, "returning to the shared page refreshes its status");
   await evaluate("location.hash = '/links'");
   await waitFor("document.querySelectorAll('.link-card').length === 21");
   await pause(400); assert.equal(await evaluate(visibleCards), true); await screenshot("links");

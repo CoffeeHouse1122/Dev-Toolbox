@@ -22,7 +22,7 @@ const baseline = ref("");
 let disposed = false;
 let active = true;
 let revision = 0;
-let pollTimer: ReturnType<typeof setInterval> | undefined;
+let foregroundTimer: ReturnType<typeof setTimeout> | undefined;
 let editTimer: ReturnType<typeof setTimeout> | undefined;
 
 function payload(): SharedDiskConfig {
@@ -63,6 +63,8 @@ function applySaved(value: SharedDiskConfig) {
 }
 async function refreshStatus() {
   if (disposed || !active || document.hidden || checking.value || busy.value || validation.value) return;
+  clearTimeout(editTimer);
+  clearTimeout(foregroundTimer);
   const capturedRevision = revision;
   checking.value = true;
   try {
@@ -73,7 +75,11 @@ async function refreshStatus() {
     }
   } catch (cause) {
     if (!disposed && capturedRevision === revision) status.value = { connected: false, state: "unknown", shareRoot: "", message: friendly(cause) };
-  } finally { checking.value = false; }
+  } finally {
+    checking.value = false;
+    // An edit may invalidate an in-flight response; check the latest target without polling.
+    if (!disposed && active && capturedRevision !== revision) void refreshStatus();
+  }
 }
 watch(() => [config.value.sharePath, config.value.defaultDirectory], () => {
   revision++;
@@ -102,6 +108,7 @@ async function saveConfig() {
     applySaved(await window.devToolbox.saveSharedDiskConfig(payload()));
     showWorkspaceToast("配置已保存", "success");
   });
+  await refreshStatus();
 }
 async function openExisting() {
   await run("open", async () => {
@@ -147,24 +154,30 @@ async function confirmAction() {
     });
   }
 }
-function onVisibility() { if (!document.hidden) void refreshStatus(); }
+function onForeground() {
+  if (disposed || !active || document.hidden) return;
+  // Restoring a window can emit both visibilitychange and focus.
+  clearTimeout(foregroundTimer);
+  foregroundTimer = setTimeout(() => void refreshStatus(), 150);
+}
 onMounted(async () => {
   await run("load", async () => applySaved(await window.devToolbox.loadSharedDiskConfig()));
   if (disposed) return;
   await refreshStatus();
   if (disposed) return;
-  pollTimer = setInterval(() => void refreshStatus(), 15_000);
-  document.addEventListener("visibilitychange", onVisibility);
+  document.addEventListener("visibilitychange", onForeground);
+  window.addEventListener("focus", onForeground);
 });
 onActivated(() => { active = true; void refreshStatus(); });
-onDeactivated(() => { active = false; revision++; dialog.value = null; config.value.password = ""; showPassword.value = false; });
+onDeactivated(() => { active = false; revision++; clearTimeout(foregroundTimer); clearTimeout(editTimer); dialog.value = null; config.value.password = ""; showPassword.value = false; });
 onBeforeUnmount(() => {
   disposed = true;
   revision++;
-  clearInterval(pollTimer);
+  clearTimeout(foregroundTimer);
   clearTimeout(editTimer);
   config.value.password = "";
-  document.removeEventListener("visibilitychange", onVisibility);
+  document.removeEventListener("visibilitychange", onForeground);
+  window.removeEventListener("focus", onForeground);
 });
 </script>
 
@@ -209,7 +222,7 @@ onBeforeUnmount(() => {
         <button class="text-action forget-action" :disabled="locked || !hasStoredPassword" @click="dialog = 'forget'">忘记已保存凭据</button>
       </div>
       <details v-if="status.sessions?.length" class="session-details"><summary>此服务器的现有共享（{{ status.sessions.length }}）</summary><ul><li v-for="session in status.sessions" :key="session.shareRoot + session.username"><code>{{ session.shareRoot }}</code><span>{{ session.username }} · {{ session.openFiles }} 个打开项</span></li></ul></details>
-      <p class="muted-note">{{ checkedAt ? '上次检查 ' + checkedAt : '等待检查' }} · 页面可见时每 15 秒刷新</p>
+      <p class="muted-note status-checked-at">{{ checkedAt ? '上次检查 ' + checkedAt : '等待检查' }}</p>
     </template>
     <template #summary><button v-if="error" class="text-action error-detail" @click="dialog = 'error'">操作未完成 · 查看详情</button><span v-else><i class="ri-shield-check-line" aria-hidden="true"></i> {{ status.connected ? '已有连接可直接打开，无需重复登录' : '连接成功后自动打开目录' }}</span></template>
     <template #actions>
