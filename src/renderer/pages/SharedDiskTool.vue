@@ -205,7 +205,6 @@ onBeforeUnmount(() => {
       </div>
       <div class="target-summary"><span>打开位置</span><code>{{ openTarget || '尚未设置' }}</code><template v-if="status.username"><span>现有会话账号</span><code>{{ status.username }}</code></template></div>
       <div class="status-actions">
-        <button v-if="canOpen" class="primary-button open-existing" :disabled="locked" @click="openExisting"><i class="ri-folder-open-line" aria-hidden="true"></i>使用现有连接打开</button>
         <button class="secondary-button disconnect-action" :disabled="locked || !!validation" @click="dialog = 'disconnect'">断开此共享</button>
         <button class="text-action forget-action" :disabled="locked || !hasStoredPassword" @click="dialog = 'forget'">忘记已保存凭据</button>
       </div>
@@ -215,7 +214,7 @@ onBeforeUnmount(() => {
     <template #summary><button v-if="error" class="text-action error-detail" @click="dialog = 'error'">操作未完成 · 查看详情</button><span v-else><i class="ri-shield-check-line" aria-hidden="true"></i> {{ status.connected ? '已有连接可直接打开，无需重复登录' : '连接成功后自动打开目录' }}</span></template>
     <template #actions>
       <button class="secondary-button" :disabled="locked || !!validation || (config.authMode === 'account' && !config.username.trim())" @click="saveConfig">{{ busy === 'save' ? '保存中…' : '保存配置' }}</button>
-      <button class="primary-button connect-action" :disabled="locked || !canConnect" @click="connect"><i class="ri-link" aria-hidden="true"></i>{{ busy === 'connect' ? '连接中…' : '连接并打开' }}</button>
+      <button class="primary-button shared-primary-action" :disabled="locked || checking || (!canOpen && !canConnect)" :title="canOpen ? '使用 Windows 现有会话打开，不提交或保存填写的登录凭据' : '使用填写的登录方式连接共享'" @click="canOpen ? openExisting() : connect()"><i :class="canOpen ? 'ri-folder-open-line' : 'ri-link'" aria-hidden="true"></i>{{ busy === 'open' ? '打开中…' : busy === 'connect' ? '连接中…' : checking ? '检查中…' : canOpen ? '打开目录' : '连接并打开' }}</button>
       <AppDialog :open="!!dialog" :title="dialog === 'disconnect' ? '确认断开此共享？' : dialog === 'forget' ? '确认忘记应用凭据？' : '操作未完成'" @close="dialog = null">
     <p v-if="dialog === 'error'">{{ error }}</p>
     <template v-else><p>{{ dialog === 'disconnect' ? '可能影响其他程序对同一共享的访问；有文件正在使用时不会强制断开。保存的凭据将保留。' : '只删除本应用保存的密码，不断开当前连接，也不删除 Windows 凭据管理器中的记录。' }}</p><code>{{ dialog === 'disconnect' ? config.sharePath : savedSharePath }}</code></template>

@@ -194,7 +194,7 @@ test("opening an existing session never authenticates, saves, or disconnects", {
 
 test("disconnect verifies implicit sessions instead of falsely reporting success", async () => withProfile(async () => {
   nativeAction = async request => request.action === "disconnect" ? { code: 2250 } : { code: 0, status: 0 };
-  await assert.rejects(service.disconnectSharedDisk(fixture), /仍被/);
+  await assert.rejects(service.disconnectSharedDisk(fixture), /Windows 仍报告该共享已连接/);
   assert.deepEqual(nativeCalls.map(call => call.action), ["disconnect", "status"]);
   nativeAction = async request => request.action === "disconnect" ? { code: 0 } : { code: 2250, discoveryUnavailable: true };
   await assert.rejects(service.disconnectSharedDisk(fixture), /无法确认/);

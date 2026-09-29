@@ -168,7 +168,7 @@ export async function disconnectSharedDisk(config: { sharePath: string }): Promi
     const result = await runSharedDiskNative({ action: "disconnect", shareRoot });
     if (result.code !== 0 && result.code !== 2250) throw new Error(sharedDiskError(result.code));
     const current = await getSharedDiskStatus(config);
-    if (current.connected) throw new Error("共享仍被资源管理器或其他程序使用，请先关闭相关目录和文件；未强制断开连接");
+    if (current.connected) throw new Error("断开后 Windows 仍报告该共享已连接，尚无法确认具体原因。可关闭相关目录和文件后刷新重试；应用未强制断开连接");
     if (current.state === "unknown") throw new Error("已尝试断开，但无法确认 Windows 会话状态；请刷新检查，未强制断开其他连接");
     return { shareRoot, baseUncPath: baseRoot, defaultDirectory: baseRoot, message: result.code === 2250 ? "该共享当前没有连接" : "共享已断开，保存的凭据未删除" };
   });

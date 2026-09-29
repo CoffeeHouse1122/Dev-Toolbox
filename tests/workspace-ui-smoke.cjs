@@ -16,7 +16,14 @@ for (const [channel, handler] of Object.entries({
   "update:current-version": () => "0.1.7", "update:state": () => ({ status: "disabled", activeTasks: 0 }),
   "shared-disk:load": () => config, "shared-disk:status": () => status,
   "shared-disk:open-existing": (_e, value) => { calls.push(["open", value]); return value.sharePath; },
-  "shared-disk:disconnect": () => { calls.push(["disconnect"]); throw new Error("共享仍被使用，未强制断开连接"); },
+  "shared-disk:connect": (_e, value) => {
+    calls.push(["connect", value]);
+    Object.assign(config, value);
+    Object.assign(status, { connected: true, state: "connected" });
+    return { shareRoot: config.sharePath, baseUncPath: config.sharePath, defaultDirectory: config.sharePath, message: "共享已连接" };
+  },
+  "shared-disk:open": (_e, value) => { calls.push(["open-after-connect", value]); return value; },
+  "shared-disk:disconnect": () => { calls.push(["disconnect"]); throw new Error("断开后 Windows 仍报告该共享已连接，尚无法确认具体原因；应用未强制断开连接"); },
   "shared-disk:forget": () => { calls.push(["forget"]); return { ...config, hasSavedPassword: false }; }
 })) ipcMain.handle(channel, handler);
 
@@ -42,7 +49,9 @@ app.whenReady().then(async () => {
   const screenshot = async name => fs.writeFileSync(path.join(output, name + ".png"), (await win.webContents.capturePage()).toPNG());
   if (process.env.WORKSPACE_UI_DEV_URL) await win.loadURL(process.env.WORKSPACE_UI_DEV_URL + "/#/shared-disk");
   else await win.loadFile(path.resolve(__dirname, "../dist/renderer/index.html"), { hash: "/shared-disk" });
-  await waitFor("document.querySelector('.open-existing') && !document.querySelector('.open-existing').disabled");
+  await waitFor("document.querySelector('.shared-primary-action')?.textContent.trim() === '打开目录' && !document.querySelector('.shared-primary-action').disabled");
+  assert.equal(await evaluate("document.querySelectorAll('.shared-connection .primary-button').length"), 1);
+  assert.equal(await evaluate("!!document.querySelector('.open-existing, .connect-action')"), false);
   await evaluate("document.documentElement.dataset.uiFont = 'wdxl-lubrifont'; document.fonts.ready");
   await pause(350);
   assert.equal(await evaluate("document.querySelector('.task-flow-action-bar').getBoundingClientRect().bottom <= innerHeight"), true);
@@ -51,8 +60,8 @@ app.whenReady().then(async () => {
   assert.equal(await evaluate("getComputedStyle(document.querySelector('.workspace-toast-region')).position"), "absolute");
   assert.equal(await evaluate("!!document.querySelector('.workspace-toast')"), false, "loading migrated config must not display a migration toast");
   await screenshot("shared");
-  await click(".open-existing");
-  await waitFor("!document.querySelector('.open-existing').disabled");
+  await click(".shared-primary-action");
+  await waitFor("!document.querySelector('.shared-primary-action').disabled");
   assert.deepEqual(calls, [["open", { sharePath: config.sharePath, defaultDirectory: "" }]]);
   await waitFor("document.querySelector('.workspace-toast')?.textContent.includes('已使用 Windows 现有连接')");
   const height = await evaluate("document.querySelector('.shared-connection').getBoundingClientRect().height");
@@ -70,13 +79,32 @@ app.whenReady().then(async () => {
   await click(".confirm-action");
   await waitFor("!!document.querySelector('.error-detail')");
   await click(".error-detail");
-  await waitFor("document.querySelector('.app-dialog').textContent.includes('共享仍被使用')");
+  await waitFor("document.querySelector('.app-dialog').textContent.includes('Windows 仍报告该共享已连接')");
   await click(".app-dialog .secondary-button");
   await click(".forget-action");
   await waitFor("document.querySelector('.app-dialog').open");
   await click(".confirm-action");
   await waitFor("document.querySelector('.forget-action').disabled && !document.querySelector('.app-dialog').open");
   assert.deepEqual(calls.map(call => call[0]), ["open", "disconnect", "forget"]);
+  // Existing sessions stay usable without stored passwords; never re-authenticate implicitly.
+  await waitFor("!document.querySelector('.shared-primary-action').disabled");
+  await click(".shared-primary-action");
+  await waitFor("!document.querySelector('.shared-primary-action').disabled");
+  assert.equal(calls.at(-1)[0], "open");
+  Object.assign(status, { connected: false, state: "disconnected", sessions: [], message: "尚未连接该共享" });
+  await click("[aria-label='刷新连接状态']");
+  await waitFor("document.querySelector('.shared-primary-action').textContent.trim() === '连接并打开'");
+  assert.equal(await evaluate("document.querySelector('.shared-primary-action').disabled"), true, "account login requires a password when disconnected");
+  await click(".auth-options button:first-child");
+  await waitFor("!document.querySelector('.shared-primary-action').disabled");
+  await pause(250);
+  await screenshot("shared-disconnected");
+  await click(".shared-primary-action");
+  await waitFor("document.querySelector('.shared-primary-action').textContent.trim() === '打开目录' && !document.querySelector('.shared-primary-action').disabled");
+  assert.deepEqual(calls.slice(-2).map(call => call[0]), ["connect", "open-after-connect"]);
+  assert.equal(calls.at(-2)[1].authMode, "windows");
+  assert.equal(calls.at(-2)[1].password, "");
+  assert.equal(await evaluate("document.querySelectorAll('.shared-connection .primary-button').length"), 1);
   const links = Array.from({ length: 21 }, (_, i) => ({ id: `fixture-${i}`, title: `文档 ${i}`, url: `https://example.test/docs/${i}`, category: i % 2 ? "技术文档" : "工具", description: "仅用于隔离测试的示例链接" }));
   await evaluate(`localStorage.setItem('dev-toolbox.links.v1', ${JSON.stringify(JSON.stringify(links))}); location.hash = '/links'`);
   await waitFor("document.querySelectorAll('.link-card').length === 21");
