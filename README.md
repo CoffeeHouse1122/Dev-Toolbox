@@ -16,9 +16,11 @@ Dev Toolbox 是面向前端开发、兼顾全栈调试的本地优先 Electron �
 ## 环境要求
 
 - Windows 10 / 11（共享盘和安装更新目前为 Windows 能力）。
-- Node.js 22.12.0 或更高版本。
+- Node.js 22.14.0 或更高版本，且支持 Node-API 10；CI 和发布工作流统一读取 `.nvmrc`。
 - npm 10 或更高版本，只使用 npm 和 `package-lock.json`。
 - 安装依赖时需允许 `electron-builder install-app-deps` 重建原生模块。
+
+`better-sqlite3` 需要 Node-API 10，旧版 Node 22.12.0 会导致便签测试进程崩溃。安装依赖、执行 `npm test` 或 `npm run check` 时会先检查运行环境；也可执行 `npm run check:runtime` 单独检查。
 
 ```bash
 npm install
