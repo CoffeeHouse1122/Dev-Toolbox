@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { inject, onMounted, onUnmounted, ref } from "vue";
+import { computed, inject, onMounted, onUnmounted, ref } from "vue";
 import { useThemeStore, type ThemeMode, type UiFont } from "../stores/theme";
 import type { AppCloseBehavior, AppDiagnostics, AppSettings, UpdateStatus } from "../../shared/types";
 import Checkbox from "../components/Checkbox.vue";
@@ -14,9 +14,13 @@ const diagnosticsBusy = ref(false);
 // 更新相关状态
 const currentVersion = ref("");
 const updateStatus = ref<UpdateStatus | null>(null);
-const updateChecking = ref(false);
-const updateDownloading = ref(false);
-const updateInstalling = ref(false);
+const updateChecking = computed(() => updateStatus.value?.status === "checking");
+const updateDownloading = computed(() => updateStatus.value?.status === "downloading");
+const updateInstalling = computed(() => updateStatus.value?.status === "installing");
+const updatePending = ref(false);
+const canCheckUpdate = computed(() => !updatePending.value && ["idle", "available", "not-available", "error"].includes(updateStatus.value?.status || ""));
+let updateEventCount = 0;
+let unmounted = false;
 let unsubUpdate: (() => void) | null = null;
 const openProvidedNavEditor = inject<() => void>("openNavEditor");
 const fontOptions: Array<{ value: UiFont; label: string; sample: string }> = [
@@ -65,94 +69,47 @@ function openNavEditor() {
   openProvidedNavEditor?.();
 }
 
-function notifyUpdateStatus(value: UpdateStatus) {
-  if (value.status === "checking") {
-    showWorkspaceToast("正在检查更新…");
-  } else if (value.status === "not-available") {
-    showWorkspaceToast("当前已是最新版本", "success");
-  } else if (value.status === "available") {
-    showWorkspaceToast(`发现新版本 v${value.version ?? "--"}`);
-  } else if (value.status === "downloading") {
-    showWorkspaceToast(`正在下载更新 ${value.percent ?? 0}%`);
-  } else if (value.status === "downloaded") {
-    showWorkspaceToast(`v${value.version ?? "--"} 已下载完成，可立即安装`, "success");
-  } else {
-    showWorkspaceToast(value.message || "更新检查失败", "error");
+function applyUpdateStatus(value: UpdateStatus, notify = false) {
+  const previous = updateStatus.value?.status;
+  updateStatus.value = value;
+  if (notify && previous !== value.status && ["available", "downloaded", "error"].includes(value.status)) {
+    showWorkspaceToast(value.message || "更新状态已变化", value.status === "error" ? "error" : "info");
   }
 }
 
-// 手动检查更新
-async function handleCheckUpdate() {
-  updateChecking.value = true;
-  updateStatus.value = { status: "checking" };
-  notifyUpdateStatus(updateStatus.value);
-  try {
-    await window.devToolbox.checkForUpdates();
-  } catch {
-    // 错误通过 onUpdateStatus 事件推送
-  } finally {
-    updateChecking.value = false;
-  }
+async function runUpdateAction(action: () => Promise<void>) {
+  if (updatePending.value) return;
+  updatePending.value = true;
+  try { await action(); }
+  catch (error) {
+    showWorkspaceToast(error instanceof Error ? error.message : "更新操作失败，请重试", "error");
+  } finally { updatePending.value = false; }
 }
 
-// 下载更新
-async function handleDownloadUpdate() {
-  updateDownloading.value = true;
-  try {
-    await window.devToolbox.downloadUpdate();
-  } catch {
-    // 错误通过 onUpdateStatus 事件推送
-  } finally {
-    updateDownloading.value = false;
-  }
-}
-
-// Keep the action locked after a successful request because the main process
-// intentionally waits for the installer spawn event before quitting the app.
-async function handleInstallUpdate() {
-  if (updateInstalling.value) return;
-  updateInstalling.value = true;
-  showWorkspaceToast("正在启动安装…");
-  try {
-    await window.devToolbox.installUpdate();
-  } catch (error) {
-    updateInstalling.value = false;
-    updateStatus.value = {
-      status: "error",
-      message: error instanceof Error ? error.message : String(error)
-    };
-    notifyUpdateStatus(updateStatus.value);
-  }
-}
+function handleCheckUpdate() { void runUpdateAction(() => window.devToolbox.checkForUpdates()); }
+function handleDownloadUpdate() { void runUpdateAction(() => window.devToolbox.downloadUpdate()); }
+function handleInstallUpdate() { void runUpdateAction(() => window.devToolbox.installUpdate()); }
 
 onMounted(async () => {
-  loadSettings();
-  loadDiagnostics();
-  // 获取当前版本号
-  try {
-    currentVersion.value = await window.devToolbox.getCurrentVersion();
-  } catch {
-    currentVersion.value = "--";
-  }
-  // 监听更新状态推送
-  unsubUpdate = window.devToolbox.onUpdateStatus((s) => {
-    updateStatus.value = s;
-    notifyUpdateStatus(s);
-    if (s.status === "checking") {
-      updateChecking.value = true;
-    } else {
-      updateChecking.value = false;
-    }
-    if (s.status === "downloading") {
-      updateDownloading.value = true;
-    } else {
-      updateDownloading.value = false;
-    }
-    if (s.status === "error") updateInstalling.value = false;
+  // Subscribe before requesting a snapshot; a delayed snapshot must not overwrite a newer event.
+  unsubUpdate = window.devToolbox.onUpdateStatus((state) => {
+    updateEventCount += 1;
+    applyUpdateStatus(state, true);
   });
+  const eventCount = updateEventCount;
+  void window.devToolbox.getUpdateState().then((state) => {
+    if (!unmounted && updateEventCount === eventCount) applyUpdateStatus(state);
+  }).catch(() => {
+    if (!unmounted && updateEventCount === eventCount) applyUpdateStatus({ status: "error", message: "无法读取更新状态，请重新检查" });
+  });
+  void loadSettings();
+  void loadDiagnostics();
+  try { currentVersion.value = await window.devToolbox.getCurrentVersion(); }
+  catch { currentVersion.value = "--"; }
 });
 
 onUnmounted(() => {
+  unmounted = true;
   unsubUpdate?.();
 });
 </script>
@@ -268,14 +225,18 @@ onUnmounted(() => {
         <p>
           当前版本：<strong>v{{ currentVersion }}</strong>
         </p>
-        <p>启动后会自动检查一次新版本。也可随时手动点击下方按钮检测更新。</p>
+        <p>从 GitHub Releases 获取稳定版更新。启动 12 秒后自动检查，下载和安装由你确认。</p>
+
+        <p role="status" aria-live="polite">{{ updateStatus?.message || "正在读取更新状态…" }}</p>
+        <progress v-if="updateDownloading" :value="updateStatus?.percent || 0" max="100" aria-label="更新下载进度"></progress>
+        <p v-if="updateStatus?.activeTasks" class="settings-helper-text">文件任务正在处理，完成后可安装更新。</p>
 
         <!-- 操作按钮 -->
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;">
           <button
             type="button"
             class="secondary-button"
-            :disabled="updateChecking || updateDownloading"
+            :disabled="!canCheckUpdate"
             @click="handleCheckUpdate"
           >
             <i class="ri-search-line" aria-hidden="true" style="margin-right:6px;"></i>
@@ -285,17 +246,17 @@ onUnmounted(() => {
             v-if="updateStatus?.status === 'available'"
             type="button"
             class="primary-button"
-            :disabled="updateDownloading"
+            :disabled="updatePending || updateDownloading"
             @click="handleDownloadUpdate"
           >
             <i class="ri-download-line" aria-hidden="true" style="margin-right:6px;"></i>
             {{ updateDownloading ? '下载中...' : '下载更新' }}
           </button>
           <button
-            v-if="updateStatus?.status === 'downloaded'"
+            v-if="updateStatus?.status === 'downloaded' || updateInstalling"
             type="button"
             class="primary-button"
-            :disabled="updateInstalling"
+            :disabled="updatePending || updateInstalling || Boolean(updateStatus?.activeTasks)"
             @click="handleInstallUpdate"
           >
             <i :class="updateInstalling ? 'ri-loader-4-line ri-spin' : 'ri-restart-line'" aria-hidden="true" style="margin-right:6px;"></i>

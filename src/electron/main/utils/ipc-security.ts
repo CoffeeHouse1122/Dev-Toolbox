@@ -6,6 +6,7 @@ import path from "node:path";
 import { domainToASCII, fileURLToPath } from "node:url";
 import { z } from "zod";
 import { getRendererIndexPath } from "./app-paths";
+import { isUpdateBlockingTask, updateTaskGate } from "../services/update-task-gate";
 
 type IpcResult<T> = T | Promise<T>;
 
@@ -254,6 +255,7 @@ export function handleTrustedIpc<Args extends unknown[], Result>(
 ) {
   ipcMain.handle(channel, (event, ...args) => {
     assertTrustedIpcSender(event);
+    if (isUpdateBlockingTask(channel)) return updateTaskGate.run(() => listener(event, ...(args as Args)));
     return listener(event, ...(args as Args));
   });
 }

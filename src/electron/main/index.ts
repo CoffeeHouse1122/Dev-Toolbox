@@ -15,7 +15,7 @@ import {
   parseTitleBarThemePayload,
   parseWindowActionReadyPayload
 } from "./utils/ipc-security";
-import { initAutoUpdater, checkForUpdates, downloadUpdate, installUpdate } from "./services/autoUpdater.service";
+import { initAutoUpdater, checkForUpdates, downloadUpdate, installUpdate, getUpdateState, stopAutoUpdater } from "./services/autoUpdater.service";
 import type { ThemeTitleBarPayload, WindowFrameState } from "../../shared/types";
 import fs from "node:fs";
 import fsp from "node:fs/promises";
@@ -342,11 +342,10 @@ handleTrustedIpc("update:download", async () => {
 
 // 渲染进程手动触发更新安装
 handleTrustedIpc("update:install", async () => {
-  if (mainWindow && !(await flushRendererBeforeAction(mainWindow, "install-update"))) {
-    throw new Error("便签或草稿保存失败，已取消安装更新");
-  }
-  installUpdate();
+  await installUpdate();
 });
+
+handleTrustedIpc("update:state", () => getUpdateState());
 
 // 获取当前版本号
 handleTrustedIpc("update:current-version", () => {
@@ -383,9 +382,17 @@ app.whenReady().then(async () => {
   createWindow();
 
   // 初始化自动更新（仅在打包后的生产环境生效）
-  if (mainWindow) {
-    initAutoUpdater(mainWindow);
-  }
+  initAutoUpdater(
+    async () => mainWindow ? flushRendererBeforeAction(mainWindow, "install-update") : true,
+    (installing) => {
+      quitting = installing;
+      // The install barrier already saved drafts; do not cancel quitAndInstall with a second flush.
+      if (mainWindow) {
+        if (installing) closeAfterFlush.add(mainWindow);
+        else closeAfterFlush.delete(mainWindow);
+      }
+    }
+  );
 
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) {
@@ -403,6 +410,7 @@ app.on("window-all-closed", () => {
 });
 
 app.on("before-quit", () => {
+  stopAutoUpdater();
   quitting = true;
   void clearPreviewCache();
 });

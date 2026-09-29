@@ -574,6 +574,7 @@ export interface DevToolboxApi {
   installUpdate(): Promise<void>;
   /** 获取当前应用版本号 */
   getCurrentVersion(): Promise<string>;
+  getUpdateState(): Promise<UpdateStatus>;
   /** 监听更新状态变化，返回取消监听的函数 */
   onUpdateStatus(handler: (status: UpdateStatus) => void): () => void;
   /** 通知主进程更新标题栏背景色 */
@@ -605,7 +606,8 @@ export interface DevToolboxApi {
 
 /** 更新状态 */
 export interface UpdateStatus {
-  status: "checking" | "available" | "not-available" | "downloading" | "downloaded" | "error";
+  status: "idle" | "disabled" | "checking" | "available" | "not-available" | "downloading" | "downloaded" | "installing" | "error";
+  activeTasks?: number;
   version?: string;
   percent?: number;
   message?: string;

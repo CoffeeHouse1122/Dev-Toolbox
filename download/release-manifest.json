@@ -3,20 +3,18 @@
   "appName": "Dev Toolbox",
   "title": "Dev Toolbox 开发工具箱",
   "heroDescription": "本地优先的前端资源转换桌面工具箱，支持图片、字体、音视频、CSS、文本等常见开发资产的格式转换与处理。页面会根据更新清单自动展示当前版本号、下载入口和更新日志。",
-  "latestVersion": "0.1.5",
+  "latestVersion": "0.1.6",
   "system": "Windows 10 / 11",
   "packageType": "NSIS 安装程序",
   "recommendedEnvironment": "4GB 内存以上",
-  "downloadHint": "如需调整下载包地址或更新日志，只需要维护这一份 release-manifest.json。",
+  "downloadHint": "安装包与最新版本以 GitHub Releases 为准；本页版本与日志为维护快照。",
   "downloads": [
     {
-      "label": "下载 Windows x64",
-      "url": "./release/Dev Toolbox-0.1.5-x64.exe",
+      "label": "前往 GitHub 下载 Windows x64",
+      "url": "https://github.com/CoffeeHouse1122/Dev-Toolbox/releases/latest",
       "platform": "win32",
       "arch": "x64",
-      "size": 157592192,
-      "sha256": "f43fb5e2b0464e33387952eacb052b235ec08b6ec9e9a1e885f959e4350e62fa",
-      "note": "适用于 64 位 Windows 桌面环境",
+      "note": "适用于 Windows x64；在 GitHub Release 的 Assets 中下载 .exe 安装包。旧版需要手动覆盖安装一次。",
       "primary": true
     }
   ],
@@ -40,6 +38,17 @@
     "部分工具依赖本地二进制文件（如 ffmpeg），首次使用时会自动加载。"
   ],
   "releaseNotes": [
+    {
+      "version": "0.1.6",
+      "publishedAt": "待发布",
+      "summary": "接入 GitHub Releases 应用内更新，旧版需手动覆盖安装一次。",
+      "changes": [
+        "Windows x64 启动后检查稳定版，用户确认下载和安装",
+        "安装前保存便签与草稿，文件任务运行期间阻止安装",
+        "切换设置页后恢复更新状态和下载进度",
+        "新增标签发布工作流、更新产物校验和 README 发布命令"
+      ]
+    },
     {
       "version": "0.1.5",
       "publishedAt": "2026-08-19",

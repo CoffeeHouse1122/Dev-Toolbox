@@ -2,7 +2,6 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { spawn } = require("node:child_process");
 const waitOn = require("wait-on");
-const { prepareBuildConfig } = require("./prepare-build-config.cjs");
 
 const projectRoot = path.resolve(__dirname, "..");
 const electronExecutable = require("electron");
@@ -135,8 +134,6 @@ async function runBuildCycle() {
     const compiled = await compileMain();
     if (compiled && !shuttingDown) {
       try {
-        const config = prepareBuildConfig(projectRoot);
-        log(`Update feed build config: ${config.configured ? "configured" : "disabled"}.`);
         await restartElectron();
       } catch (error) {
         console.error(`[electron-dev] Build configuration failed: ${error instanceof Error ? error.message : String(error)}`);

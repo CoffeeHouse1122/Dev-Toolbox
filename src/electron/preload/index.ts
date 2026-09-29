@@ -142,6 +142,7 @@ const api: DevToolboxApi = {
   downloadUpdate: () => ipcRenderer.invoke("update:download"),
   installUpdate: () => ipcRenderer.invoke("update:install"),
   getCurrentVersion: () => ipcRenderer.invoke("update:current-version"),
+  getUpdateState: () => ipcRenderer.invoke("update:state"),
   onUpdateStatus: (handler: (status: UpdateStatus) => void) => {
     const listener = (_event: unknown, status: UpdateStatus) => handler(status);
     ipcRenderer.on("update:status", listener);

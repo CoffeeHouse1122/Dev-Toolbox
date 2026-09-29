@@ -30,9 +30,8 @@ npm install
 
 - `VITE_CDN_BASE`：renderer 生产资源前缀。Electron 本地包保持 `./`；若使用远程 CDN，还必须同步调整 CSP。
 - `VITE_API_PROXY_TARGET`：Vite 开发环境 `/api`、`/media` 的代理目标，默认 `http://localhost:3000`。
-- `DESKTOP_APP_UPDATE_URL`：可选的更新清单地址。支持个人内网 HTTP 和相对下载 URL；构建时会写入忽略提交的 `dist/electron/update-config.json` 并随应用打包，安装后无需再配置。不配置时跳过更新检查，系统环境变量或 exe 同目录 `.env` 仍可覆盖打包值。
 
-HTTP 更新源不提供来源认证。清单中的 `size` 和 `sha256` 能检查下载完整性，但不能替代 HTTPS 或代码签名。
+桌面更新固定使用公开仓库 [CoffeeHouse1122/Dev-Toolbox Releases](https://github.com/CoffeeHouse1122/Dev-Toolbox/releases)。更新源由 `package.json` 的 `build.publish` 配置，打包时生成 `resources/app-update.yml`。客户端不需要 GitHub Token，也不再读取 `DESKTOP_APP_UPDATE_URL`、`AUTOUPDATE_FEED_URL` 或旧 `update-config.json`；已有 `.env` 中的旧更新变量可以移除。
 
 ## 常用命令
 
@@ -50,7 +49,8 @@ HTTP 更新源不提供来源认证。清单中的 `size` 和 `sha256` 能检查
 | `npm run check` | 聚合类型检查、测试、Electron 冒烟和完整构建 |
 | `npm run pack` | 生成当前平台目录包 |
 | `npm run dist` | 生成当前平台安装包 |
-| `npm run dist:win` | 生成 Windows NSIS 安装包 |
+| `npm run dist:win` | 生成 Windows x64 NSIS 安装包并校验更新产物，不上传 |
+| `npm run verify:release` | 校验安装包、更新清单、SHA-512、应用入口和 GitHub 更新源 |
 
 开发模式下，renderer 修改由 Vite HMR 直接更新当前窗口，不重启桌面进程；`src/electron`、`src/shared` 或 `tsconfig.node.json` 修改会先重新编译 main/preload，编译成功后自动重启 Electron。编译失败时保留上一次正常运行的桌面进程，修复并保存后会再次构建。依赖、`package.json` 或环境变量变化仍需重新执行 `npm run dev`。按 `Ctrl+C` 会同时清理 Vite、Electron 及其子进程。
 
@@ -83,6 +83,8 @@ tests/                       文件安全、便签、更新器和编码回归测
 运行数据位于 Electron `userData`，不写入安装目录或源码目录。配置和数据库写入采用临时文件、flush、原子替换及备份恢复；便签在窗口关闭、重载和安装更新前执行保存屏障。
 
 当前没有需要人工执行的数据库迁移命令。既有本地数据库由对应 service 以兼容方式初始化；升级前应备份 `userData`。如果后续引入独立、版本化 migration，需同时增加 `db:revision`、`db:migrate` 和 `db:status` 命令。
+
+从 `0.1.5` 及更早的 JSON 更新源版本迁移时，需要从 GitHub Releases 手动下载并覆盖安装一次 `0.1.6` 或更高版本。应用标识、名称和 `userData` 目录保持不变，不需要卸载或删除便签、设置、历史记录。旧版不会自动识别 GitHub 的 `latest.yml`，旧服务器无需发布过渡清单。
 
 从包含抓包工具的旧版本升级时，应用不会删除 `userData` 中遗留的 CA 文件，也不会修改操作系统证书。若曾启用 HTTPS 抓包，请在确认不再依赖后，通过 Windows `certmgr.msc` 的“受信任的根证书颁发机构 / 证书”手动移除 `NodeMITMProxyCA`；遗留 CA 目录也只由用户自行清理。
 
@@ -124,12 +126,92 @@ npm audit
 npm run pack
 ```
 
-Windows 正式发布流程：
+### 本地 Windows 打包
 
-1. 升级 `package.json` 版本。
-2. 设置真实的 `DESKTOP_APP_UPDATE_URL`。
-3. 执行 `npm run dist:win`。
-4. 计算安装包大小与 SHA-256，并同步更新 `download/release-manifest.json`。
-5. 在干净用户目录执行安装、启动、更新和便签保存冒烟测试。
+```powershell
+npm run dist:win
+```
+
+生成 `release/Dev-Toolbox-<版本>-x64.exe`、同名 `.exe.blockmap` 和 `release/latest.yml`，随后自动校验版本、大小、SHA-512、更新源和应用入口。文件名统一使用连字符，避免 GitHub 资源名与清单不一致；应用显示名称仍为 Dev Toolbox。所有本地打包命令均使用 `--publish never`，不会发布到 GitHub。首期仅支持 Windows x64、稳定版本、不降级。
+
+### 首次发布到 GitHub
+
+仓库地址：`https://github.com/CoffeeHouse1122/Dev-Toolbox.git`。GitHub Actions 必须可运行并允许发布工作流写入仓库内容。发布前将本次修改提交到 `main`，确认 `git status --short` 没有输出；不要把安装包、`.env` 或依赖目录提交到 Git。
+
+本次接入版本是 `0.1.6`。以下命令在仓库根目录的 PowerShell 中逐步执行，任一步骤失败都应先解决，不继续推送标签：
+
+```powershell
+git switch main
+git pull --ff-only origin main
+npm ci
+if ($LASTEXITCODE -ne 0) { throw '安装依赖失败' }
+npm run check
+if ($LASTEXITCODE -ne 0) { throw '检查失败，停止发布' }
+git status --short
+
+# 确认本次修改已提交且工作区干净，再推送发布提交
+git push origin main
+if ($LASTEXITCODE -ne 0) { throw '推送 main 失败' }
+
+# 标签必须与 package.json、package-lock.json 的版本一致
+$releaseTag = 'v' + (node -p "require('./package.json').version")
+git tag -a $releaseTag -m "Dev Toolbox $releaseTag"
+if ($LASTEXITCODE -ne 0) { throw '创建标签失败；不要覆盖已有标签' }
+git push origin $releaseTag
+```
+
+若功能修改尚未提交，先按实际文件路径提交，例如仅修改版本文件时：
+
+```powershell
+git add -- package.json package-lock.json
+git commit -m "准备发布版本"
+```
+
+功能修改应明确列出对应源码、工作流和文档路径一起提交，避免遗漏。无需手动创建 Release；标签推送后，在 [Actions](https://github.com/CoffeeHouse1122/Dev-Toolbox/actions) 查看 **Release Dev Toolbox**。
+
+### 后续版本发布
+
+先提交功能修改，确认工作区干净、当前位于 `main` 并与远程同步，然后执行：
+
+```powershell
+npm ci
+if ($LASTEXITCODE -ne 0) { throw '安装依赖失败' }
+npm run check
+if ($LASTEXITCODE -ne 0) { throw '检查失败，停止发布' }
+
+# 同步更新两个版本文件，创建版本提交和本地标签，例如 0.1.6 → 0.1.7
+npm version patch -m "发布 v%s"
+if ($LASTEXITCODE -ne 0) { throw '版本更新失败' }
+$releaseTag = 'v' + (node -p "require('./package.json').version")
+git push origin main
+if ($LASTEXITCODE -ne 0) { throw '推送 main 失败' }
+git push origin $releaseTag
+```
+
+新增兼容功能可将 `patch` 改为 `minor`，不兼容变化使用 `major`。每次只推送本次标签，不使用 `git push --tags`。工作流拒绝预发布版本和版本不一致的标签。
+
+### 工作流、重跑和签名
+
+发布工作流依次执行：版本校验、检查 Release 是否已公开、`npm ci`、`npm run check`、Windows x64 打包、产物校验、上传草稿、公开 Release 并标记 Latest。文件齐全前不会暴露更新清单；已公开版本禁止覆盖，修复需发布新的补丁版本。
+
+失败后可在 Actions 重跑失败任务，或在 **Run workflow** 填写已存在的标签。安装了 GitHub CLI 并已登录时，也可以执行：
+
+```powershell
+gh workflow run release.yml --repo CoffeeHouse1122/Dev-Toolbox -f release_tag=v0.1.6
+gh run list --repo CoffeeHouse1122/Dev-Toolbox --workflow release.yml --limit 5
+gh release view v0.1.6 --repo CoffeeHouse1122/Dev-Toolbox
+```
+
+重跑仅用于尚未公开的版本。Release 应包含安装包、`.blockmap`、`latest.yml`，只有 GitHub 自动生成的源码压缩包不足以支持更新。
+
+首期未签名，`win.verifyUpdateCodeSignature` 为 `false`，Windows 可能提示未知发布者或 SmartScreen。下载仍校验更新清单中的 SHA-512，但哈希校验不等同于发布者身份验证。后续使用签名证书时，在 GitHub 仓库 Secrets 配置 `WIN_CSC_LINK` 和 `WIN_CSC_KEY_PASSWORD`；工作流检测到证书后启用签名和发布者校验。客户端没有发布凭据，工作流使用 GitHub 提供的临时 Token。
+
+### 更新行为与验收
+
+已安装的 Windows x64 版本启动 12 秒后检查一次，设置页可手动检查。下载和安装均由用户点击触发，普通退出不会自动安装。安装前保存便签和草稿，文件转换、导入导出等任务运行期间禁止安装；保存失败保留已下载安装包并允许重试。开发模式和其他平台不检查更新。
+
+发布后用两个不同版本的已安装应用验收检查、下载、安装及自动重启，并确认便签、设置、历史记录保留；另测网络失败重试、托盘模式退出、草稿保存失败和任务运行中阻止安装。类型检查、模拟测试和本地打包不能替代真实 GitHub 升级验收。
+
+`download/release-manifest.json` 仅供静态下载页展示，下载入口指向 GitHub 最新 Release 页面；客户端不再读取它。页面版本与日志是手动维护的快照，后续发布若需要同步展示，应更新该 JSON 并重新部署下载页；无需维护安装包大小和哈希。
 
 构建产物、安装包、依赖目录、真实环境文件、数据库、日志和临时文件均由 `.gitignore` 排除，不应提交 Git。

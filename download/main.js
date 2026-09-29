@@ -27,7 +27,7 @@ const DEFAULT_MANIFEST = {
     '确保设备满足最低系统要求（4GB 内存以上）。',
     '部分工具依赖本地二进制文件（如 ffmpeg），首次使用时会自动加载。'
   ],
-  downloads: [],
+  downloads: [{ label: '前往 GitHub 下载 Windows x64', url: 'https://github.com/CoffeeHouse1122/Dev-Toolbox/releases/latest', primary: true }],
   releaseNotes: []
 }
 
