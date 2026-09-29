@@ -49,10 +49,12 @@ app.whenReady().then(async () => {
   assert.equal(await evaluate("document.querySelector('.task-flow-settings-content').scrollHeight <= document.querySelector('.task-flow-settings-content').clientHeight + 1"), true);
   assert.equal(await evaluate("!!document.querySelector('.connection-notice, .confirm-box')"), false);
   assert.equal(await evaluate("getComputedStyle(document.querySelector('.workspace-toast-region')).position"), "absolute");
-  await click(".workspace-toast"); await pause(250); await screenshot("shared");
+  assert.equal(await evaluate("!!document.querySelector('.workspace-toast')"), false, "loading migrated config must not display a migration toast");
+  await screenshot("shared");
   await click(".open-existing");
   await waitFor("!document.querySelector('.open-existing').disabled");
   assert.deepEqual(calls, [["open", { sharePath: config.sharePath, defaultDirectory: "" }]]);
+  await waitFor("document.querySelector('.workspace-toast')?.textContent.includes('已使用 Windows 现有连接')");
   const height = await evaluate("document.querySelector('.shared-connection').getBoundingClientRect().height");
   await evaluate("document.querySelector('.disconnect-action').focus(); document.querySelector('.disconnect-action').click()");
   await waitFor("document.querySelector('.app-dialog')?.matches(':modal')");

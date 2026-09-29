@@ -19,7 +19,6 @@ const savedIdentity = ref("");
 const savedSharePath = ref("");
 const hasStoredPassword = ref(false);
 const baseline = ref("");
-const shownNotices = new Set<string>();
 let disposed = false;
 let active = true;
 let revision = 0;
@@ -61,10 +60,6 @@ function applySaved(value: SharedDiskConfig) {
   savedIdentity.value = identity(value);
   savedSharePath.value = value.sharePath;
   hasStoredPassword.value = Boolean(value.hasSavedPassword);
-  if (value.migrationNotice && !shownNotices.has(value.migrationNotice)) {
-    shownNotices.add(value.migrationNotice);
-    showWorkspaceToast(value.migrationNotice, "info", 6500);
-  }
 }
 async function refreshStatus() {
   if (disposed || !active || document.hidden || checking.value || busy.value || validation.value) return;
