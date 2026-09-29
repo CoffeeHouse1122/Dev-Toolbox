@@ -92,7 +92,7 @@ function beforeEnter(element: Element) {
 function enter(element: Element, done: () => void) {
   killTransition(element);
   if (reducedMotion.matches) {
-    done();
+    queueMicrotask(done);
     return;
   }
   const { timeline, targets } = createTimeline(element, done);
@@ -104,7 +104,8 @@ function enter(element: Element, done: () => void) {
 function leave(element: Element, done: () => void) {
   killTransition(element);
   if (reducedMotion.matches) {
-    done();
+    // Let Vue finish the current out-in patch before mounting the next route.
+    queueMicrotask(done);
     return;
   }
   const { timeline, targets } = createTimeline(element, done);

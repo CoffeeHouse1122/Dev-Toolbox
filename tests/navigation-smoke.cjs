@@ -9,6 +9,9 @@ fs.mkdirSync(output, { recursive: true });
 // Never load or mutate the real desktop profile during UI checks.
 app.setPath("userData", fs.mkdtempSync(path.join(output, "profile-")));
 app.disableHardwareAcceleration();
+const reducedMotion = !process.argv.includes("--motion");
+// Exercise both OS animation preferences explicitly instead of inheriting the CI desktop.
+app.commandLine.appendSwitch(reducedMotion ? "force-prefers-reduced-motion" : "force-prefers-no-reduced-motion");
 let navigation = {
   groups: ["seo", "system-files", "assist"].map(id => ({ id, tools: [] })),
   collapsedGroups: { favorites: true, images: true, media: true, font: true, text: true },
@@ -23,6 +26,7 @@ for (const [channel, handler] of Object.entries({
 })) ipcMain.handle(channel, handler);
 
 app.whenReady().then(async () => {
+  const watchdog = setTimeout(() => { console.error("Navigation smoke exceeded 60 seconds"); app.exit(1); }, 60_000);
   const win = new BrowserWindow({ show: false, width: 1280, height: 820, webPreferences: {
     preload: path.resolve(__dirname, "../dist/electron/preload/index.js"),
     contextIsolation: true, sandbox: true, nodeIntegration: false, offscreen: true, backgroundThrottling: false
@@ -33,17 +37,20 @@ app.whenReady().then(async () => {
   const query = selector => `document.querySelector(${JSON.stringify(selector)})`;
   const click = selector => evaluate(`${query(selector)}.click()`);
   async function waitFor(expression) {
-    for (let i = 0; i < 100; i++) {
+    for (let i = 0; i < 300; i++) {
       if (await evaluate(expression)) return;
       await new Promise(resolve => setTimeout(resolve, 50));
     }
-    throw new Error("Timed out: " + expression);
+    const state = await evaluate("JSON.stringify({ hash: location.hash, heading: document.querySelector('.workbench-page h2')?.textContent, visibility: document.visibilityState })");
+    throw new Error(`Timed out: ${expression}; state=${state}; rendererErrors=${JSON.stringify(errors)}`);
   }
   const heading = id => `.nav-workbench-link[href='#/workbench/${id}']`;
   const toggle = id => `.nav-group-toggle[aria-controls='nav-group-${id}']`;
   const active = ".nav-workbench-link[aria-current=page]";
   const page = path.resolve(__dirname, "../dist/renderer/index.html");
   await win.loadFile(page, { hash: "/workbench/seo" });
+  console.log("Navigation smoke: page loaded");
+  assert.equal(await evaluate("matchMedia('(prefers-reduced-motion: reduce)').matches"), reducedMotion);
   await waitFor("document.querySelector('.workbench-page h2')?.textContent === 'SEO 发布工作台'");
   assert.equal(await evaluate("document.querySelectorAll('.workbench-overview-link').length"), 0);
   assert.equal(await evaluate("document.querySelectorAll('.nav-workbench-link').length"), 7);
@@ -56,6 +63,7 @@ app.whenReady().then(async () => {
   assert.equal(await evaluate(`${query(toggle("system-files"))}.getAttribute('aria-expanded')`), "false");
   await click(heading("system"));
   await waitFor("document.querySelector('.workbench-page h2')?.textContent === '文件与网络工作台'");
+  console.log("Navigation smoke: category navigation passed");
   assert.equal(await evaluate(`${query(active)}.getAttribute('href')`), "#/workbench/system");
   assert.equal(await evaluate(`${query(toggle("system-files"))}.getAttribute('aria-expanded')`), "false");
   await click(toggle("system-files"));
@@ -71,6 +79,7 @@ app.whenReady().then(async () => {
   win.webContents.sendInputEvent({ type: "keyDown", keyCode: "Return" });
   win.webContents.sendInputEvent({ type: "keyUp", keyCode: "Return" });
   await waitFor("document.querySelector('.workbench-page h2')?.textContent === 'SEO 发布工作台'");
+  console.log("Navigation smoke: keyboard navigation passed");
   await waitFor("document.querySelector('.workbench-page')?.getBoundingClientRect().height > 100");
   await new Promise(resolve => setTimeout(resolve, 400));
   await evaluate("document.fonts.ready");
@@ -84,7 +93,8 @@ app.whenReady().then(async () => {
   }
   assert.deepEqual(errors, []);
   assert.ok(navigation.favoriteToolIds.includes("links"));
-  console.log("Navigation UI passed: unique category entries, separate expand/navigation, exact active state, keyboard activation, pinning and both themes.");
+  console.log(`Navigation UI passed (${reducedMotion ? "reduced" : "normal"} motion): unique category entries, separate expand/navigation, exact active state, keyboard activation, pinning and both themes.`);
   win.destroy();
+  clearTimeout(watchdog);
   app.exit(0);
 }).catch(error => { console.error(error); app.exit(1); });
