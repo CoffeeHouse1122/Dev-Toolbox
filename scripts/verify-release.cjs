@@ -43,6 +43,7 @@ async function verifyRelease(directory, version, signed = Boolean(process.env.CS
   }
   assert.ok(!entries.includes("/dist/electron/update-config.json"), "Legacy feed must not be packaged");
   assert.ok(!entries.includes("/.env"), "Local environment must not be packaged");
+  assert.ok(!entries.some((entry) => /^\/dist\/(?:main|preload)\//.test(entry)), "Legacy compiled directories must not be packaged");
   if (projectRoot) {
     for (const relativePath of ["dist/electron/main/index.js", "dist/electron/main/services/update-controller.js", "dist/electron/main/services/update-task-gate.js", "dist/electron/main/services/autoUpdater.service.js", "dist/electron/main/utils/ipc-security.js", "dist/electron/preload/index.js"]) {
       assert.deepEqual(asar.extractFile(archive, path.normalize(relativePath)), await fs.readFile(path.join(projectRoot, relativePath)), `Stale packaged code: ${relativePath}`);

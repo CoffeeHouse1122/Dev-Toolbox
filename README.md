@@ -71,4 +71,5 @@ git push origin v0.1.7
 - 首次从 [Releases](https://github.com/CoffeeHouse1122/Dev-Toolbox/releases) 下载并安装 `.exe`。已打包的 Windows x64 版本启动后自动检查更新，下载和安装由用户确认；开发模式不启用更新。
 - `0.1.5` 及更早的旧更新源版本需手动覆盖安装一次 `0.1.6` 或更高版本，无需先卸载。更新源固定为 GitHub Releases，客户端无需 Token。
 - 便签、设置和历史记录保存在 Electron `userData`；升级前退出应用并备份该目录。目前无须手动执行数据库迁移，升级时不要删除数据目录。
+- Windows 共享连接使用 `\\server\share` 格式，可选当前 Windows 身份或指定账号；仅勾选“记住凭据”才在应用内加密保存密码。旧 HTTP 形式的配置会转换为 SMB 路径，旧明文密码需重新输入；不再提供无盘符的“持久连接”。“忘记凭据”只清除应用副本，旧版写入 Windows 凭据管理器的记录需自行管理。
 - 曾使用旧版 HTTPS 抓包功能的用户，如已不再需要其证书，请自行在 Windows `certmgr.msc` 中移除受信任根证书 `NodeMITMProxyCA`；应用不会自动清理。

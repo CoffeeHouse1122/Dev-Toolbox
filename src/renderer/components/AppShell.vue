@@ -129,7 +129,7 @@ const defaultGroups: NavGroup[] = [
     tools: [
       { id: "links", to: "/links", label: "网站与文档", icon: "ri-bookmark-3-line", visible: true },
       { id: "ip-query", to: "/ip-query", label: "IP 查询", icon: "ri-router-line", visible: true },
-      { id: "shared-disk", to: "/shared-disk", label: "共享盘登录", icon: "ri-hard-drive-3-line", visible: true },
+      { id: "shared-disk", to: "/shared-disk", label: "共享连接", icon: "ri-hard-drive-3-line", visible: true },
       { id: "rename", to: "/rename", label: "文件重命名", icon: "ri-edit-2-line", visible: true },
       { id: "asset-manifest", to: "/asset-manifest", label: "资源清单", icon: "ri-file-list-3-line", visible: true },
       { id: "certificate-scan", to: "/certificate-scan", label: "证书扫描", icon: "ri-shield-check-line", visible: true }

@@ -110,7 +110,9 @@
       "buildResources": "build"
     },
     "files": [
-      "dist/**/*",
+      "dist/electron/**/*",
+      "dist/shared/**/*",
+      "dist/renderer/**/*",
       "package.json",
       "node_modules/**/*",
       "!dist/electron/update-config.json"

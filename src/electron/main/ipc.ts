@@ -63,6 +63,7 @@ import {
 import {
   connectSharedDisk,
   disconnectSharedDisk,
+  forgetSharedDiskCredentials,
   loadSharedDiskConfig,
   openSharedDiskDirectory,
   saveSharedDiskConfig
@@ -448,13 +449,14 @@ const appSettingsSchema = z.object({
 const toolConfigKeySchema = z.enum(["navigation", "output-picker"]);
 
 const sharedDiskSchema = z.object({
-  url: z.string().min(1).max(2_048),
-  username: z.string(),
-  password: z.string(),
-  basePath: z.string().min(1).max(2_048),
+  sharePath: z.string().min(1).max(2_048),
+  authMode: z.enum(["windows", "account"]),
+  username: z.string().max(512).refine((value) => !value.includes("\0")),
+  password: z.string().max(4096).refine((value) => !value.includes("\0")),
   defaultDirectory: z.string().max(32_768),
-  persistent: z.boolean()
+  rememberCredentials: z.boolean()
 });
+const sharedDiskTargetSchema = z.object({ sharePath: z.string().min(1).max(2_048) }).strict();
 
 function assertSharedDiskConfig(config: SharedDiskConfig) {
   getSharedDiskShareRoot(config);
@@ -728,15 +730,17 @@ export function registerIpc() {
     return connectSharedDisk(options);
   });
 
-  handleTrustedIpc("shared-disk:disconnect", async (_event, raw: SharedDiskConfig) => {
-    const options = sharedDiskSchema.parse(raw);
-    assertSharedDiskConfig(options);
+  handleTrustedIpc("shared-disk:forget", async () => forgetSharedDiskCredentials());
+
+  handleTrustedIpc("shared-disk:disconnect", async (_event, raw: unknown) => {
+    const options = sharedDiskTargetSchema.parse(raw);
+    getSharedDiskShareRoot(options);
     return disconnectSharedDisk(options);
   });
 
-  handleTrustedIpc("shared-disk:status", async (_event, raw: SharedDiskConfig) => {
-    const options = sharedDiskSchema.parse(raw);
-    assertSharedDiskConfig(options);
+  handleTrustedIpc("shared-disk:status", async (_event, raw: unknown) => {
+    const options = sharedDiskTargetSchema.parse(raw);
+    getSharedDiskShareRoot(options);
     return getSharedDiskStatus(options);
   });
 

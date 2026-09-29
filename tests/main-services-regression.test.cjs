@@ -11,6 +11,7 @@ const actualChildProcess = require("node:child_process");
 let userDataDir = os.tmpdir();
 let encryptionAvailable = true;
 let netUseOutput = "";
+let sharedNativeResult = { code: 0, status: 0 };
 let dnsLookup = async () => [];
 const spawnCalls = [];
 const failingSpawnCalls = new Set();
@@ -82,6 +83,7 @@ function mockedSpawn(command, args, options) {
 }
 
 Module._load = function loadForMainServiceTests(request, parent, isMain) {
+  if (request === "./shared-disk-native") return { runSharedDiskNative: async () => sharedNativeResult, sharedDiskError: (code) => `共享错误 ${code}` };
   if (request === "electron") return electronMock;
   if (request === "node:dns/promises") return { lookup: (...args) => dnsLookup(...args) };
   if (request === "node:child_process") return { ...actualChildProcess, spawn: mockedSpawn };
@@ -282,47 +284,44 @@ test("shared-disk config never persists plaintext and decrypts only through safe
     userDataDir = directory;
     encryptionAvailable = true;
     const config = {
-      url: "http://files.example.test:5000",
+      sharePath: "\\\\files.example.test\\team\\assets",
+      authMode: "account",
       username: " developer ",
       password: "top-secret-password",
-      basePath: "team/assets",
       defaultDirectory: "",
-      persistent: true
+      rememberCredentials: true
     };
     await saveSharedDiskConfig(config);
     const storedPath = path.join(directory, "data", "shared-disk.json");
     const storedText = await fs.readFile(storedPath, "utf8");
     assert.doesNotMatch(storedText, /top-secret-password/);
     const stored = JSON.parse(storedText);
-    assert.equal(stored.encrypted, true);
+    assert.ok(stored.passwordCiphertext);
     const loaded = await loadSharedDiskConfig();
     assert.equal(loaded.username, "developer");
-    assert.equal(loaded.password, "top-secret-password");
+    assert.equal(loaded.password, "");
+    assert.equal(loaded.hasSavedPassword, true);
 
     encryptionAvailable = false;
-    await saveSharedDiskConfig({ ...config, password: "must-not-hit-disk" });
+    await assert.rejects(saveSharedDiskConfig({ ...config, password: "must-not-hit-disk" }), /安全存储不可用/);
+    await saveSharedDiskConfig({ ...config, rememberCredentials: false, password: "must-not-hit-disk" });
     const unavailable = JSON.parse(await fs.readFile(storedPath, "utf8"));
-    assert.equal(unavailable.password, "");
-    assert.equal(unavailable.encrypted, false);
-    await assert.rejects(connectSharedDisk({ ...config, basePath: "" }), /基础路径至少需要包含共享名/);
+    assert.equal(unavailable.passwordCiphertext, "");
+    assert.equal(unavailable.password, undefined);
+    await assert.rejects(connectSharedDisk({ ...config, sharePath: "" }), /UNC/);
   });
 });
 
 test("shared-disk status distinguishes an active mapping from a disconnected record", async () => {
   const config = {
-    url: "http://files.example.test:5000",
-    username: "developer",
-    password: "secret",
-    basePath: "team/assets",
-    defaultDirectory: "",
-    persistent: true
+    sharePath: "\\\\files.example.test\\team\\assets"
   };
-  netUseOutput = "OK           \\\\files.example.test\\team     Microsoft Windows Network\r\n";
+  sharedNativeResult = { code: 0, status: 0 };
   const connected = await getSharedDiskStatus(config);
   assert.equal(connected.connected, true);
   assert.equal(connected.shareRoot, "\\\\files.example.test\\team");
 
-  netUseOutput = "Disconnected \\\\files.example.test\\team     Microsoft Windows Network\r\n";
+  sharedNativeResult = { code: 0, status: 2 };
   const disconnected = await getSharedDiskStatus(config);
   assert.equal(disconnected.connected, false);
   assert.match(disconnected.message, /未连接|重新登录/);

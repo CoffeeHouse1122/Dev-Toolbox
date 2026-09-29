@@ -122,11 +122,10 @@ test("existing history outputs receive exact file grants and never recursive dir
 
 test("shared-disk open targets stay inside the configured full base path", () => {
   const config = {
-    url: "http://files.internal:5000",
-    basePath: "team/assets/frontend"
+    sharePath: "\\\\files.internal\\team\\assets\\frontend"
   };
 
-  assert.equal(getSharedDiskShareRoot(config), "\\\\files.internal\\team\\");
+  assert.equal(getSharedDiskShareRoot(config), "\\\\files.internal\\team");
   assert.equal(getSharedDiskBaseRoot(config), "\\\\files.internal\\team\\assets\\frontend");
   assert.doesNotThrow(() => assertSharedDiskTarget(config, "\\\\files.internal\\team\\assets\\frontend"));
   assert.doesNotThrow(() => assertSharedDiskTarget(config, "\\\\files.internal\\team\\assets\\frontend\\icons\\logo.svg"));

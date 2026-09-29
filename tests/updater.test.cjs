@@ -182,6 +182,11 @@ test("release gate rejects wrong versions, corrupted packages, missing files and
     await fs.writeFile(path.join(root, filename), bytes);
     await fs.unlink(path.join(root, `${filename}.blockmap`));
     await assert.rejects(verifyRelease(root, "0.1.6", false), /ENOENT/);
+    await fs.writeFile(path.join(root, `${filename}.blockmap`), "blockmap");
+    await fs.mkdir(path.join(source, "dist/main"), { recursive: true });
+    await fs.writeFile(path.join(source, "dist/main/legacy.js"), "legacy fixture");
+    await asar.createPackage(source, path.join(resources, "app.asar"));
+    await assert.rejects(verifyRelease(root, "0.1.6", false), /Legacy compiled/);
   } finally { await fs.rm(root, { recursive: true, force: true }); }
 });
 
@@ -200,6 +205,8 @@ test("release workflow parses and keeps local packaging separate from draft-firs
   for (const command of ["pack", "dist", "dist:win", "dist:win:dir"]) assert.match(pkg.scripts[command], /--publish never/);
   assert.deepEqual(pkg.build.publish, { provider: "github", owner: "CoffeeHouse1122", repo: "Dev-Toolbox", private: false });
   assert.equal(pkg.build.win.verifyUpdateCodeSignature, false);
+  assert.ok(!pkg.build.files.includes("dist/**/*"), "Do not package stale compiled directories");
+  for (const directory of ["electron", "shared", "renderer"]) assert.ok(pkg.build.files.includes(`dist/${directory}/**/*`));
 });
 
 test("trusted IPC holds the actual task gate until a handler settles, while save IPC remains usable", async () => {

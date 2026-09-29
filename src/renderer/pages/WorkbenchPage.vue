@@ -58,7 +58,7 @@ const workbenches: Record<string, Workbench> = {
     title: "文件与网络工作台", code: "FULLSTACK_IO", description: "文件系统、接口、域名证书与本地网络调试。",
     tools: [
       ["/links", "网站与文档", "ri-bookmark-3-line", "Developer bookmarks"], ["/ip-query", "IP 查询", "ri-router-line", "IP / DNS"],
-      ["/shared-disk", "共享盘登录", "ri-hard-drive-3-line", "Windows share"], ["/rename", "文件重命名", "ri-edit-2-line", "Batch planner"],
+      ["/shared-disk", "共享连接", "ri-hard-drive-3-line", "Windows share"], ["/rename", "文件重命名", "ri-edit-2-line", "Batch planner"],
       ["/asset-manifest", "资源清单", "ri-file-list-3-line", "Hash manifest"],
       ["/certificate-scan", "证书扫描", "ri-shield-check-line", "TLS inspector"]
     ].map(([to, label, icon, hint]) => ({ to, label, icon, hint }))

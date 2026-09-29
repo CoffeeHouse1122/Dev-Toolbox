@@ -1,3 +1,4 @@
+import { parseSharedPath } from "../../../shared/shared-disk";
 import { ipcMain } from "electron";
 import type { IpcMainEvent, IpcMainInvokeEvent } from "electron";
 import fs from "node:fs";
@@ -86,37 +87,14 @@ export function authorizeExistingPath(rawPath: string) {
   exactPathGrants.add(canonicalPath);
 }
 
-type SharedDiskBoundaryConfig = {
-  url: string;
-  basePath: string;
-};
-
-function sharedDiskLocation(config: SharedDiskBoundaryConfig) {
-  let host = "";
-  try {
-    host = new URL(config.url).hostname;
-  } catch {
-    host = config.url.replace(/^https?:\/\//i, "").split(/[\\/]/, 1)[0].trim();
-  }
-  const segments = config.basePath
-    .replace(/\\/g, "/")
-    .split("/")
-    .map((segment) => segment.trim())
-    .filter(Boolean);
-  if (!host || /[\\\/@]/.test(host) || !segments.length || segments.some((segment) => segment === "." || segment === "..")) {
-    throw new Error("Invalid shared-disk host or base path.");
-  }
-  return { host, segments };
-}
+type SharedDiskBoundaryConfig = { sharePath: string };
 
 export function getSharedDiskShareRoot(config: SharedDiskBoundaryConfig) {
-  const { host, segments } = sharedDiskLocation(config);
-  return path.win32.normalize(`\\\\${host}\\${segments[0]}`);
+  return parseSharedPath(config.sharePath).shareRoot;
 }
 
 export function getSharedDiskBaseRoot(config: SharedDiskBoundaryConfig) {
-  const { host, segments } = sharedDiskLocation(config);
-  return path.win32.normalize(`\\\\${host}\\${segments.join("\\")}`);
+  return parseSharedPath(config.sharePath).baseRoot;
 }
 
 export function assertSharedDiskTarget(config: SharedDiskBoundaryConfig, rawTargetPath: string) {

@@ -54,7 +54,7 @@ function toolText(toolType: string) {
     uuid: "UUID",
     rename: "文件重命名",
     "batch-rename": "文件重命名",
-    "shared-disk": "共享盘登录",
+    "shared-disk": "共享连接",
     "image-compress": "图片压缩",
     "image-resize": "尺寸调整",
     "image-crop": "自由裁剪",

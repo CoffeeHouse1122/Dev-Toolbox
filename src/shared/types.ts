@@ -370,12 +370,14 @@ export interface OgImageOptions {
 }
 
 export interface SharedDiskConfig {
-  url: string;
+  sharePath: string;
+  authMode: "windows" | "account";
   username: string;
   password: string;
-  basePath: string;
   defaultDirectory: string;
-  persistent: boolean;
+  rememberCredentials: boolean;
+  hasSavedPassword?: boolean;
+  migrationNotice?: string;
 }
 
 export interface SharedDiskConnectResult {
@@ -389,6 +391,7 @@ export interface SharedDiskStatus {
   connected: boolean;
   shareRoot: string;
   message: string;
+  state?: "connected" | "disconnected" | "unknown";
 }
 
 export type AppCloseBehavior = "minimize-to-tray" | "exit";
@@ -542,8 +545,9 @@ export interface DevToolboxApi {
   loadSharedDiskConfig(): Promise<SharedDiskConfig>;
   saveSharedDiskConfig(config: SharedDiskConfig): Promise<SharedDiskConfig>;
   connectSharedDisk(config: SharedDiskConfig): Promise<SharedDiskConnectResult>;
-  disconnectSharedDisk(config: SharedDiskConfig): Promise<SharedDiskConnectResult>;
-  getSharedDiskStatus(config: SharedDiskConfig): Promise<SharedDiskStatus>;
+  disconnectSharedDisk(config: { sharePath: string }): Promise<SharedDiskConnectResult>;
+  getSharedDiskStatus(config: { sharePath: string }): Promise<SharedDiskStatus>;
+  forgetSharedDiskCredentials(): Promise<SharedDiskConfig>;
   openSharedDiskDirectory(targetPath: string): Promise<string>;
   imageToBase64(inputPath: string): Promise<Base64ImageResult>;
   base64ToImage(data: string, outputDir: string, fileName: string): Promise<ConversionResult>;
