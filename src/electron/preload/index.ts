@@ -117,6 +117,7 @@ const api: DevToolboxApi = {
   base64ToImage: (data: string, outputDir: string, fileName: string) =>
     ipcRenderer.invoke("base64:base64-to-image", data, outputDir, fileName),
   listHistory: (limit?: number) => ipcRenderer.invoke("history:list", limit),
+  openHistoryOutput: (recordId: string) => ipcRenderer.invoke("history:open-output", recordId),
   clearHistory: () => ipcRenderer.invoke("history:clear"),
   revealPath: (filePath: string) => ipcRenderer.invoke("shell:reveal-path", filePath),
   openExternal: (url: string) => ipcRenderer.invoke("shell:open-external", url),

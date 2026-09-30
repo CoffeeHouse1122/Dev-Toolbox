@@ -16,6 +16,7 @@ export interface HistoryService {
   }): Promise<void>;
   finishTask(id: string, status: TaskStatus, errorMessage?: string): Promise<void>;
   list(limit?: number): Promise<ConversionRecord[]>;
+  get(id: string): Promise<ConversionRecord | undefined>;
   clear(): Promise<void>;
 }
 
@@ -160,6 +161,15 @@ export function createHistoryService(): HistoryService {
     },
     async clear() {
       await mutate((db) => { db.run("delete from conversion_tasks"); });
+    },
+    async get(id) {
+      await mutationQueue;
+      const db = await openDb();
+      const result = db.exec(`select id, tool_type as toolType, source_path as sourcePath,
+        output_path as outputPath, status, options_json as optionsJson, error_message as errorMessage,
+        created_at as createdAt, finished_at as finishedAt from conversion_tasks where id = ? limit 1`, [id])[0];
+      if (!result?.values[0]) return undefined;
+      return Object.fromEntries(result.columns.map((column, index) => [column, result.values[0][index]])) as unknown as ConversionRecord;
     }
   };
 }

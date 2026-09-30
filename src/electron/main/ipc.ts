@@ -1,6 +1,7 @@
 import { app, dialog, shell } from "electron";
 import { z } from "zod";
 import { createHistoryService } from "./services/history.service";
+import { openHistoryOutput } from "./services/history-output.service";
 import { applyWatermark, compressImages, createFaviconPackage, convertImages, cropImage, resizeImages } from "./services/image.service";
 import { processSvgFiles } from "./services/svg.service";
 import { generatePwaIconPackages } from "./services/pwa-icon.service";
@@ -51,7 +52,6 @@ import {
   assertAuthorizedPath,
   assertSharedDiskTarget,
   authorizeDroppedPaths,
-  authorizeExistingPath,
   authorizeUserSelectedPaths,
   getSharedDiskBaseRoot,
   getSharedDiskShareRoot,
@@ -827,17 +827,15 @@ export function registerIpc() {
 
   handleTrustedIpc("history:list", async (_event, limit?: number) => {
     const selectedLimit = z.number().int().min(1).max(1_000).optional().parse(limit);
-    const records = await history.list(selectedLimit);
-    for (const record of records) {
-      if (!record.outputPath) continue;
-      try {
-        authorizeExistingPath(record.outputPath);
-      } catch {
-        // Stale or unavailable history paths remain visible but are not granted.
-      }
-    }
-    return records;
+    return history.list(selectedLimit);
   });
+
+  handleTrustedIpc("history:open-output", async (_event, id: unknown) =>
+    runWithLocalOpenLock<OpenDirectoryResult>(
+      { status: "blocked", path: "", message: "正在打开文件夹，请稍后再试。" },
+      () => openHistoryOutput(id, recordId => history.get(recordId), directory => shell.openPath(directory))
+    )
+  );
 
   handleTrustedIpc("history:clear", async () => {
     await history.clear();

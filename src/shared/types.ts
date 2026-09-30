@@ -561,6 +561,7 @@ export interface DevToolboxApi {
   imageToBase64(inputPath: string): Promise<Base64ImageResult>;
   base64ToImage(data: string, outputDir: string, fileName: string): Promise<ConversionResult>;
   listHistory(limit?: number): Promise<ConversionRecord[]>;
+  openHistoryOutput(recordId: string): Promise<OpenDirectoryResult>;
   clearHistory(): Promise<void>;
   revealPath(filePath: string): Promise<void>;
   openExternal(url: string): Promise<void>;
