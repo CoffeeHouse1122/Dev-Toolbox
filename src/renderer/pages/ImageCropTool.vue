@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, reactive, ref, watch } from "vue";
+import { computed, onBeforeUnmount, onDeactivated, reactive, ref, watch } from "vue";
 import type { ConversionResult, ImageOutputFormat } from "../../shared/types";
 import DropZone from "../components/DropZone.vue";
 import OutputPicker from "../components/OutputPicker.vue";
@@ -19,6 +19,8 @@ const quality = ref(92);
 const busy = ref(false);
 const result = ref<ConversionResult | null>(null);
 const stage = ref<HTMLElement | null>(null);
+const viewport = ref<HTMLElement | null>(null);
+const viewportSize = reactive({ width: 0, height: 0 });
 const imageUrl = ref("");
 const naturalWidth = ref(0);
 const naturalHeight = ref(0);
@@ -39,7 +41,27 @@ const formatOptions = [
 ];
 const handles: ResizeHandle[] = ["nw", "n", "ne", "e", "se", "s", "sw", "w"];
 
-const canRun = computed(() => input.value.length > 0 && outputDir.value && cropRect.value.width > 0 && cropRect.value.height > 0 && !busy.value);
+const canRun = computed(() => input.value.length > 0 && outputDir.value && naturalWidth.value > 0 && naturalHeight.value > 0 && !busy.value);
+// The selection's percentage coordinates must match the image, not a letterboxed container.
+const stageStyle = computed(() => {
+  if (!naturalWidth.value || !naturalHeight.value) return { width: "1px", height: "1px" };
+  const scale = Math.min(viewportSize.width / naturalWidth.value, viewportSize.height / naturalHeight.value);
+  return { width: `${naturalWidth.value * scale}px`, height: `${naturalHeight.value * scale}px` };
+});
+let viewportObserver: ResizeObserver | undefined;
+watch(viewport, element => {
+  viewportObserver?.disconnect();
+  if (!element) return;
+  viewportObserver = new ResizeObserver(([entry]) => {
+    if (entry.contentRect.width > 0 && entry.contentRect.height > 0) {
+      viewportSize.width = entry.contentRect.width;
+      viewportSize.height = entry.contentRect.height;
+    }
+  });
+  viewportObserver.observe(element);
+});
+onDeactivated(endDrag);
+onBeforeUnmount(() => { viewportObserver?.disconnect(); endDrag(); });
 const selectionStyle = computed(() => ({
   left: `${selection.x}%`,
   top: `${selection.y}%`,
@@ -165,6 +187,7 @@ function onPointerMove(event: PointerEvent) {
 
 function endDrag() {
   window.removeEventListener("pointermove", onPointerMove);
+  window.removeEventListener("pointerup", endDrag);
   drag.value = null;
 }
 
@@ -211,12 +234,13 @@ async function run() {
 
 <template>
   <TaskFlowLayout
+    class="crop-page"
     title="图片自由裁剪"
     description="框选比例区域并批量应用到所有图片"
     source-title="源图片"
-    source-description="添加图片后，当前裁剪比例会应用到整个队列"
+    source-description="同一裁剪比例应用到整个队列"
     settings-title="裁剪设置"
-    settings-description="先在右侧框选区域，再确认输出格式与质量"
+    settings-description="框选后确认格式与质量"
     preview-title="裁剪预览"
     preview-description="拖动选区或八个控制点调整裁剪区域"
     variant="preview-dominant"
@@ -235,7 +259,7 @@ async function run() {
     </template>
 
     <template #settings>
-      <div class="option-grid">
+      <div class="option-grid crop-options">
         <div class="field">
           <span>输出格式</span>
           <SelectMenu v-model="outputFormat" :options="formatOptions" />
@@ -244,30 +268,32 @@ async function run() {
           <span>质量</span>
           <Slider v-model="quality" :min="1" :max="100" aria-label="质量" />
         </label>
-        <div class="crop-stats span-2">
-          <span>起点 {{ cropRect.x }}, {{ cropRect.y }}</span>
-          <strong>{{ cropRect.width }} × {{ cropRect.height }}</strong>
+        <div class="crop-stats">
+          <span>{{ naturalWidth ? `起点 ${cropRect.x}, ${cropRect.y}` : "裁剪区域" }}</span>
+          <strong>{{ naturalWidth ? `${cropRect.width} × ${cropRect.height}` : "未选择图片" }}</strong>
         </div>
       </div>
     </template>
 
     <template #preview>
-      <div v-if="imageUrl" ref="stage" class="crop-stage task-flow-crop-stage" @pointerdown="startDraw">
-        <img class="crop-image" :src="imageUrl" alt="裁剪预览" draggable="false" @load="onImageLoad" />
-        <div class="crop-mask"></div>
-        <div class="crop-selection" :style="selectionStyle" @pointerdown.stop="startMove">
-          <button
-            v-for="handle in handles"
-            :key="handle"
-            type="button"
-            class="crop-handle"
-            :class="`crop-handle-${handle}`"
-            :aria-label="`调整 ${handle}`"
-            @pointerdown.stop="startResize(handle, $event)"
-          ></button>
+      <div ref="viewport" class="crop-viewport">
+        <div v-if="imageUrl" ref="stage" class="crop-stage task-flow-crop-stage" :style="stageStyle" @pointerdown="startDraw">
+          <img class="crop-image" :src="imageUrl" alt="裁剪预览" draggable="false" @load="onImageLoad" />
+          <div class="crop-mask"></div>
+          <div class="crop-selection" :style="selectionStyle" @pointerdown.stop="startMove">
+            <button
+              v-for="handle in handles"
+              :key="handle"
+              type="button"
+              class="crop-handle"
+              :class="`crop-handle-${handle}`"
+              :aria-label="`调整 ${handle}`"
+              @pointerdown.stop="startResize(handle, $event)"
+            ></button>
+          </div>
         </div>
+        <div v-else class="empty-state task-flow-crop-empty">选择图片后在此框选裁剪区域</div>
       </div>
-      <div v-else class="empty-state task-flow-crop-empty">选择图片后在此框选裁剪区域</div>
     </template>
 
     <template #result>
@@ -291,18 +317,54 @@ async function run() {
 </template>
 
 <style scoped>
+.crop-options { grid-template-columns: minmax(0, 1fr); }
+.crop-options > *, .crop-options :deep(.select-menu) { min-width: 0; }
+.crop-page :deep(.task-flow-preview-content) { align-content: stretch; grid-template-rows: minmax(0, 1fr); }
+
+@media (min-width: 1121px) and (min-height: 721px) {
+  .crop-page :deep(.task-flow-source-panel) {
+    display: grid;
+    grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.4fr);
+    align-items: center;
+    gap: 18px;
+  }
+  .crop-page :deep(.task-flow-source-panel > .panel-heading) { margin-bottom: 0; }
+  .crop-page :deep(.drop-zone-wrapper.compact.has-files .drop-file-item) { flex-basis: clamp(200px, calc((100% - 8px) / 2), 280px); }
+  .crop-page :deep(.task-flow-workbench) { grid-template-columns: minmax(260px, 0.62fr) minmax(0, 1.38fr); }
+  .crop-page :deep(.task-flow-layout.has-preview .task-flow-output-column) { grid-template-rows: minmax(0, 1fr) 140px; }
+}
+
+.crop-viewport {
+  display: grid;
+  place-items: center;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  padding: 10px;
+  overflow: hidden;
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  background: var(--surface-subtle);
+}
+
 .task-flow-crop-stage {
-  width: 100%;
-  max-height: 100%;
+  border: 0;
+  border-radius: 0;
+  overflow: visible;
 }
 
 .task-flow-crop-stage .crop-image {
-  max-height: 100%;
-  object-fit: contain;
+  width: 100%;
+  height: 100%;
 }
 
 .task-flow-crop-empty {
-  height: 100%;
-  min-height: 180px;
+  min-height: 0;
+  padding: 12px;
+  text-align: center;
+}
+
+@media (max-width: 1120px), (max-height: 720px) {
+  .crop-viewport { height: 340px; }
 }
 </style>
