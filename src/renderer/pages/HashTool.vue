@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed } from "vue";
+import { reportWorkspaceError } from "../composables/useWorkspaceToast";
 import Checkbox from "../components/Checkbox.vue";
 import TaskFlowLayout from "../components/TaskFlowLayout.vue";
 
@@ -32,7 +33,8 @@ async function computeHash() {
     }
     output.value = uppercase.value ? hex.toUpperCase() : hex;
   } catch (e: any) {
-    output.value = `错误: ${e.message}`;
+    output.value = "";
+    reportWorkspaceError(e, "计算哈希失败");
   } finally {
     busy.value = false;
   }
@@ -144,7 +146,8 @@ async function doEncrypt() {
     combined.set(new Uint8Array(cipher), salt.length + iv.length);
     output.value = `${encryptedPayloadPrefix}${bytesToBase64(combined)}`;
   } catch (e: any) {
-    output.value = `加密失败: ${e.message}`;
+    output.value = "";
+    reportWorkspaceError(e, "加密失败");
   } finally {
     busy.value = false;
   }
@@ -165,7 +168,8 @@ async function doDecrypt() {
     const plain = await crypto.subtle.decrypt({ name: "AES-GCM", iv }, key, cipher);
     output.value = new TextDecoder().decode(plain);
   } catch (e: any) {
-    output.value = `解密失败: ${e.message}`;
+    output.value = "";
+    reportWorkspaceError(e, "解密失败");
   } finally {
     busy.value = false;
   }

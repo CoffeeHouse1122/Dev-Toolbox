@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
+import { reportWorkspaceError, showWorkspaceToast } from "../composables/useWorkspaceToast";
 import type { DomainIpLookupResult, IpInfo } from "../../shared/types";
 
 const busy = ref(false);
@@ -20,6 +21,9 @@ async function refresh() {
   domainResult.value = null;
   try {
     info.value = await window.devToolbox.getIpInfo();
+    if (info.value.externalError) showWorkspaceToast(`获取外网 IP 失败：${info.value.externalError}`, "error");
+  } catch (cause) {
+    reportWorkspaceError(cause, "获取 IP 信息失败");
   } finally {
     busy.value = false;
   }
@@ -31,6 +35,10 @@ async function lookupDomain() {
   domainBusy.value = true;
   try {
     domainResult.value = await window.devToolbox.lookupDomainIp(domain);
+    if (domainResult.value.status === "error") showWorkspaceToast(domainResult.value.errorMessage || "域名解析失败", "error");
+  } catch (cause) {
+    domainResult.value = null;
+    reportWorkspaceError(cause, "域名解析失败");
   } finally {
     domainBusy.value = false;
   }
@@ -75,8 +83,7 @@ onMounted(() => {
                 {{ domainResult.status === "success" ? `${domainResult.addresses.length} 个地址` : "解析失败" }}
               </span>
             </div>
-            <p v-if="domainResult.status === 'error'" class="empty-state">{{ domainResult.errorMessage }}</p>
-            <div v-else class="domain-address-grid">
+            <div v-if="domainResult.status === 'success'" class="domain-address-grid">
               <article class="domain-address-card">
                 <span>IPv4</span>
                 <strong v-if="domainIpv4List.length">{{ domainIpv4List.map((item) => item.address).join(" / ") }}</strong>
@@ -95,7 +102,6 @@ onMounted(() => {
           <span>外网 IP</span>
           <strong>{{ info?.externalIp || "未获取" }}</strong>
           <small v-if="info?.externalSource">来源：{{ info.externalSource }}</small>
-          <small v-if="info?.externalError">获取失败：{{ info.externalError }}</small>
         </div>
 
         <div class="info-grid">

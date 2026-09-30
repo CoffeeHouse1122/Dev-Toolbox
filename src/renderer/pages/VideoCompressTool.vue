@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
+import { reportWorkspaceError } from "../composables/useWorkspaceToast";
 import type { ConversionResult, DevToolboxApi, MediaInfo, VideoCompressOptions } from "../../shared/types";
 // @ts-ignore VS Code inferred project may miss the local *.vue shim.
 import DropZone from "../components/DropZone.vue";
@@ -63,17 +64,24 @@ const infoRows = computed(() => {
 
 watch(
   () => input.value[0],
-  async (filePath) => {
+  async (filePath, _previous, onCleanup) => {
+    let cancelled = false;
+    onCleanup(() => { cancelled = true; });
     mediaInfo.value = null;
     mediaError.value = "";
+    infoBusy.value = false;
     if (!filePath) return;
     infoBusy.value = true;
     try {
-      mediaInfo.value = await devToolbox.getMediaInfo(filePath);
+      const info = await devToolbox.getMediaInfo(filePath);
+      if (!cancelled) mediaInfo.value = info;
     } catch (error) {
-      mediaError.value = error instanceof Error ? error.message : String(error);
+      if (!cancelled) {
+        mediaError.value = "读取失败";
+        reportWorkspaceError(error, "读取视频信息失败");
+      }
     } finally {
-      infoBusy.value = false;
+      if (!cancelled) infoBusy.value = false;
     }
   }
 );
@@ -148,8 +156,7 @@ async function run() {
     </template>
 
     <template #preview>
-      <p v-if="mediaError" class="error-text">{{ mediaError }}</p>
-      <div v-else-if="infoRows.length" class="info-list">
+      <div v-if="infoRows.length" class="info-list">
         <div v-for="row in infoRows" :key="row[0]" class="info-row media-info-row">
           <span>{{ row[0] }}</span>
           <strong>{{ row[1] }}</strong>

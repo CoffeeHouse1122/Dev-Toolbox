@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
+import { reportWorkspaceError } from "../composables/useWorkspaceToast";
 import type { CertificateScanResult } from "../../shared/types";
 
 type CertificateRowStatus = "pending" | CertificateScanResult["status"];
@@ -24,7 +25,6 @@ const domainInput = ref("");
 const rows = ref<CertificateRow[]>(loadRows());
 const timeoutSeconds = ref(8);
 const busy = ref(false);
-const errorMessage = ref("");
 
 const canScan = computed(() => rows.value.length > 0 && !busy.value);
 const scannedCount = computed(() => rows.value.filter((item) => item.status !== "pending").length);
@@ -115,7 +115,6 @@ function removeRow(index: number) {
 async function scan() {
   if (!canScan.value) return;
   busy.value = true;
-  errorMessage.value = "";
   rows.value = rows.value.map((item) => ({ ...item, status: "pending", errorMessage: undefined }));
 
   try {
@@ -141,7 +140,7 @@ async function scan() {
       };
     });
   } catch (error) {
-    errorMessage.value = error instanceof Error ? error.message : String(error);
+    reportWorkspaceError(error, "证书扫描失败");
   } finally {
     busy.value = false;
   }
@@ -269,7 +268,6 @@ watch(
           </span>
         </div>
 
-        <p v-if="errorMessage" class="certificate-error">{{ errorMessage }}</p>
 
         <div v-if="rows.length" class="certificate-table-wrap">
           <table class="certificate-table">
@@ -383,15 +381,6 @@ watch(
   color: var(--text);
   text-align: center;
   outline: none;
-}
-
-.certificate-error {
-  margin: 0 0 14px;
-  padding: 10px 12px;
-  border: 1px solid color-mix(in srgb, var(--danger) 32%, var(--border));
-  border-radius: 6px;
-  color: var(--danger);
-  background: color-mix(in srgb, var(--danger) 8%, var(--surface));
 }
 
 .certificate-result-head {

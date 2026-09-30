@@ -4,6 +4,7 @@ import SimpleBar from "simplebar";
 import App from "./App.vue";
 import { installGsap } from "./plugins/gsap";
 import { router } from "./router";
+import { reportWorkspaceError } from "./composables/useWorkspaceToast";
 import "remixicon/fonts/remixicon.css";
 import "simplebar/dist/simplebar.css";
 import "./styles/github-theme.css";
@@ -80,7 +81,13 @@ function disableSpellcheckIn(root: ParentNode = document) {
 
 window.addEventListener("focusin", (event) => disableSpellcheck(event.target));
 
-createApp(App).use(createPinia()).use(router).use(installGsap).mount("#app");
+const app = createApp(App);
+app.config.errorHandler = (error, _instance, info) => {
+	reportWorkspaceError(error);
+	console.error(`Renderer operation failed (${info})`);
+};
+window.addEventListener("unhandledrejection", event => reportWorkspaceError(event.reason));
+app.use(createPinia()).use(router).use(installGsap).mount("#app");
 disableSpellcheckIn();
 initSimpleBars();
 scheduleSimpleBarRecalculation();

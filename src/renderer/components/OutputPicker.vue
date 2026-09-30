@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from "vue";
+import { computed, onActivated, onDeactivated, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { useRoute } from "vue-router";
+import { clearWorkspaceToast, reportWorkspaceError, showWorkspaceToast } from "../composables/useWorkspaceToast";
 
 type OutputPickerEntry = {
   selectedPath?: string;
@@ -20,17 +21,29 @@ const emit = defineEmits<{
 }>();
 
 const route = useRoute();
+// KeepAlive pages must keep their own storage key when the global route changes.
+const initialRoutePath = route.path;
 const configLoaded = ref(false);
 const entryState = ref<OutputPickerEntry>({});
-const warningPath = ref("");
-const warningMessage = ref("");
+let toastId: number | undefined;
+let active = true;
 const isPickingDir = ref(false);
 const isOpeningDir = ref(false);
-const persistenceKey = computed(() => (props.storageKey?.trim() || route.path || "default-output").replace(/\s+/g, "-"));
+const persistenceKey = computed(() => (props.storageKey?.trim() || initialRoutePath || "default-output").replace(/\s+/g, "-"));
 
 function clearWarning() {
-  warningPath.value = "";
-  warningMessage.value = "";
+  if (toastId !== undefined) clearWorkspaceToast(toastId);
+  toastId = undefined;
+}
+
+function notifyDirectory(message: string, path: string, missing = false) {
+  if (!active) return;
+  toastId = showWorkspaceToast(`${message}${path ? `\n${path}` : ""}`, "error", 8000, {
+    action: { label: "重新选择", run: pickDir },
+    onDismiss: missing ? async () => {
+      if (active) await saveEntry({ ...entryState.value, dismissedMissingPath: path });
+    } : undefined
+  });
 }
 
 async function loadConfig() {
@@ -39,40 +52,38 @@ async function loadConfig() {
 }
 
 async function saveEntry(nextEntry: OutputPickerEntry) {
+  const key = persistenceKey.value;
   const saved = await loadConfig();
-  saved[persistenceKey.value] = nextEntry;
+  saved[key] = nextEntry;
   entryState.value = nextEntry;
   configLoaded.value = true;
   await window.devToolbox.saveToolConfig("output-picker", saved);
 }
 
 async function restoreEntry() {
+  const key = persistenceKey.value;
   const saved = await loadConfig();
-  const entry = saved[persistenceKey.value] ?? {};
+  if (!active || key !== persistenceKey.value) return;
+  const entry = saved[key] ?? {};
   entryState.value = entry;
   configLoaded.value = true;
 
   if (!props.modelValue && entry.selectedPath) {
-    if (await window.devToolbox.pathExists(entry.selectedPath)) {
+    const exists = await window.devToolbox.pathExists(entry.selectedPath);
+    if (!active || key !== persistenceKey.value) return;
+    if (exists) {
       emit("update:modelValue", entry.selectedPath);
       return;
     }
     if (entry.dismissedMissingPath !== entry.selectedPath) {
-      warningPath.value = entry.selectedPath;
-      warningMessage.value = "上次保存的输出目录已不存在，可重新选择或忽略此提醒。";
+      notifyDirectory("上次保存的输出目录已不存在，请重新选择；关闭提示可忽略此提醒。", entry.selectedPath, true);
     }
     return;
   }
 
   if (entry.lastOpenedPath && !(await window.devToolbox.pathExists(entry.lastOpenedPath)) && entry.dismissedMissingPath !== entry.lastOpenedPath) {
-    warningPath.value = entry.lastOpenedPath;
-    warningMessage.value = "上次打开的输出目录已不存在，可重新选择或忽略此提醒。";
+    if (key === persistenceKey.value) notifyDirectory("上次打开的输出目录已不存在，请重新选择。", entry.lastOpenedPath, true);
   }
-}
-
-async function dismissWarning() {
-  await saveEntry({ ...entryState.value, dismissedMissingPath: warningPath.value || entryState.value.dismissedMissingPath });
-  clearWarning();
 }
 
 async function pickDir() {
@@ -80,10 +91,12 @@ async function pickDir() {
   isPickingDir.value = true;
   try {
     const dir = await window.devToolbox.selectOutputDir(props.modelValue || entryState.value.lastOpenedPath || entryState.value.selectedPath);
-    if (!dir) return;
+    if (!dir || !active) return;
     emit("update:modelValue", dir);
     clearWarning();
     await saveEntry({ ...entryState.value, selectedPath: dir, dismissedMissingPath: "" });
+  } catch (cause) {
+    if (active) reportWorkspaceError(cause, "选择输出目录失败");
   } finally {
     isPickingDir.value = false;
   }
@@ -101,14 +114,14 @@ async function openDir() {
       return;
     }
     if (result.status === "blocked") {
-      warningPath.value = currentPath;
-      warningMessage.value = result.message || "一次只允许打开一个本地文件夹，请稍后再试。";
+      notifyDirectory(result.message || "一次只允许打开一个本地文件夹，请稍后再试。", currentPath);
       return;
     }
     if (result.status === "missing") {
-      warningPath.value = currentPath;
-      warningMessage.value = "当前输出目录已不存在，可重新选择或忽略此提醒。";
+      notifyDirectory("当前输出目录已不存在，请重新选择。", currentPath, true);
     }
+  } catch (cause) {
+    if (active) reportWorkspaceError(cause, "打开输出目录失败");
   } finally {
     isOpeningDir.value = false;
   }
@@ -117,14 +130,18 @@ async function openDir() {
 watch(
   () => props.modelValue,
   async (value) => {
-    if (!configLoaded.value || !value) return;
-    await saveEntry({ ...entryState.value, selectedPath: value, dismissedMissingPath: "" });
+    if (!configLoaded.value || !value || isPickingDir.value) return;
+    try { await saveEntry({ ...entryState.value, selectedPath: value, dismissedMissingPath: "" }); }
+    catch (cause) { if (active) reportWorkspaceError(cause, "保存输出目录失败"); }
   }
 );
 
 onMounted(() => {
-  void restoreEntry();
+  void restoreEntry().catch(cause => { if (active) reportWorkspaceError(cause, "读取输出目录失败"); });
 });
+onActivated(() => { active = true; });
+onDeactivated(() => { active = false; clearWarning(); });
+onBeforeUnmount(() => { active = false; clearWarning(); });
 </script>
 
 <template>
@@ -140,19 +157,6 @@ onMounted(() => {
         </button>
         <button type="button" class="icon-button" title="选择输出目录" :disabled="isPickingDir || isOpeningDir" @click="pickDir">
           <i class="ri-folder-open-line" aria-hidden="true"></i>
-        </button>
-      </div>
-    </div>
-    <div v-if="warningMessage" class="output-picker-warning">
-      <div>
-        <strong>目录提醒</strong>
-        <p>{{ warningMessage }}</p>
-        <small v-if="warningPath">{{ warningPath }}</small>
-      </div>
-      <div class="output-picker-warning-actions">
-        <button type="button" class="secondary-button" @click="pickDir">重新选择</button>
-        <button type="button" class="icon-button" title="忽略提醒" @click="dismissWarning">
-          <i class="ri-close-line" aria-hidden="true"></i>
         </button>
       </div>
     </div>

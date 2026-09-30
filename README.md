@@ -6,6 +6,8 @@
 
 主进程负责本地能力，preload 暴露受限 IPC，renderer 负责界面；沿用 `tsc + Vite + electron-builder` 构建链。开发约定见 [docs/AGENTS.md](docs/AGENTS.md)。
 
+目录失效、操作失败等临时反馈统一使用浮层 toast，不挤占页面空间；目录提醒支持重新选择和关闭后忽略。表单实时校验、任务进度、批量失败明细及可展开的任务日志仍保留在对应区域。
+
 ## 环境与启动
 
 - Windows 10 / 11 x64。

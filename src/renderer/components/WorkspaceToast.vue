@@ -3,7 +3,7 @@ import { computed } from "vue";
 import { useWorkspaceToast } from "../composables/useWorkspaceToast";
 import GsapTransition from "./GsapTransition.vue";
 
-const { toast, dismissToast } = useWorkspaceToast();
+const { toast, dismissToast, runAction } = useWorkspaceToast();
 const iconClass = computed(() => {
   if (toast.value.tone === "success") return "ri-checkbox-circle-line";
   if (toast.value.tone === "error") return "ri-error-warning-line";
@@ -19,19 +19,18 @@ const iconClass = computed(() => {
       :leave="{ opacity: 0, y: -6, scale: 0.99 }"
       :duration="0.18"
     >
-      <button
+      <div
         v-if="toast.visible"
-        type="button"
         class="workspace-toast"
         :class="toast.tone"
         :role="toast.tone === 'error' ? 'alert' : 'status'"
         :aria-live="toast.tone === 'error' ? 'assertive' : 'polite'"
-        title="点击关闭"
-        @click="dismissToast"
       >
         <i :class="iconClass" aria-hidden="true"></i>
         <span>{{ toast.message }}</span>
-      </button>
+        <button v-if="toast.actionLabel" type="button" class="toast-action" @click="runAction">{{ toast.actionLabel }}</button>
+        <button type="button" class="toast-close" title="关闭提示" aria-label="关闭提示" @click="dismissToast"><i class="ri-close-line" aria-hidden="true"></i></button>
+      </div>
     </GsapTransition>
   </div>
 </template>
@@ -65,9 +64,21 @@ const iconClass = computed(() => {
   font: inherit;
   line-height: 1.35;
   text-align: left;
-  cursor: pointer;
   pointer-events: auto;
 }
+
+.toast-action, .toast-close {
+  flex: 0 0 auto;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+.toast-action { padding: 6px; color: var(--accent-strong); font: inherit; white-space: nowrap; }
+.toast-close { display: grid; place-items: center; width: 28px; height: 28px; padding: 0; }
+.toast-action:hover, .toast-close:hover { background: var(--surface-subtle); }
+.toast-action:focus-visible, .toast-close:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 
 .workspace-toast span {
   min-width: 0;

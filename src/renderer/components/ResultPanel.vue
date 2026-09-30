@@ -1,8 +1,10 @@
 <script setup lang="ts">
+import { onActivated, onDeactivated, watch } from "vue";
+import { reportWorkspaceError, showWorkspaceToast } from "../composables/useWorkspaceToast";
 import type { ConversionItemResult, ConversionResult } from "../../shared/types";
 import GsapTransition from "./GsapTransition.vue";
 
-defineProps<{
+const props = defineProps<{
   result: ConversionResult | null;
   busy: boolean;
   title?: string;
@@ -10,8 +12,18 @@ defineProps<{
   compact?: boolean;
 }>();
 
-function reveal(path: string) {
-  void window.devToolbox.revealPath(path);
+let active = true;
+onActivated(() => { active = true; });
+onDeactivated(() => { active = false; });
+watch(() => props.result, result => {
+  if (active && result && ["error", "failed", "partial"].includes(result.status)) {
+    showWorkspaceToast(result.errorMessage || "任务未全部完成，请查看结果详情。", "error", 7000);
+  }
+});
+
+async function reveal(path: string) {
+  try { await window.devToolbox.revealPath(path); }
+  catch (cause) { reportWorkspaceError(cause, "打开结果失败"); }
 }
 
 function statusText(status: string) {
@@ -66,8 +78,6 @@ function issueItems(result: ConversionResult): ConversionItemResult[] {
         key="result-content"
         class="result-content"
       >
-        <p v-if="result.errorMessage" class="error-text">{{ result.errorMessage }}</p>
-
         <div v-if="result.files.length" class="file-list">
           <button
             v-for="(file, index) in result.files"
@@ -93,9 +103,9 @@ function issueItems(result: ConversionResult): ConversionItemResult[] {
           </article>
         </section>
 
-        <details v-if="result.logs.length" class="log-panel">
-          <summary>转换日志</summary>
-          <pre>{{ result.logs.join("\n") }}</pre>
+        <details v-if="result.logs.length || result.errorMessage" class="log-panel">
+          <summary>{{ result.errorMessage ? "查看任务详情" : "转换日志" }}</summary>
+          <pre>{{ [result.errorMessage, ...result.logs].filter(Boolean).join("\n") }}</pre>
         </details>
       </div>
     </GsapTransition>

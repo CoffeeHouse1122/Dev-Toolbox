@@ -8,11 +8,14 @@ const ts = require("typescript");
 function loadHashTool() {
   const source = fs.readFileSync(require.resolve("../src/renderer/pages/HashTool.vue"), "utf8").match(/<script setup lang="ts">([\s\S]*?)<\/script>/)[1];
   const exportsObject = {};
+  const errors = [];
+  const moduleRequire = name => name === "../composables/useWorkspaceToast"
+    ? { reportWorkspaceError: (cause, prefix) => errors.push({ cause, prefix }) } : require(name);
   const compiled = ts.transpileModule(`${source}\nexport { md5, doEncrypt, doDecrypt, input, encryptKey, output };`, {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 }
   }).outputText;
-  vm.runInNewContext(compiled, { exports: exportsObject, require, TextEncoder, TextDecoder, Uint8Array, crypto: webcrypto, atob, btoa });
-  return exportsObject;
+  vm.runInNewContext(compiled, { exports: exportsObject, require: moduleRequire, TextEncoder, TextDecoder, Uint8Array, crypto: webcrypto, atob, btoa });
+  return { ...exportsObject, errors };
 }
 
 test("renderer MD5 matches known hashes for empty, ASCII, Unicode and multi-block inputs", async () => {
@@ -34,5 +37,6 @@ test("renderer AES round-trips Unicode and rejects an incorrect password", async
   assert.equal(tool.output.value, "本地测试 / navigation");
   tool.encryptKey.value = "incorrect-test-password";
   await tool.doDecrypt();
-  assert.match(tool.output.value, /^解密失败:/);
+  assert.equal(tool.output.value, "", "errors must not be presented as successful output");
+  assert.equal(tool.errors.at(-1).prefix, "解密失败");
 });

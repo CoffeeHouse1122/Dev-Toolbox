@@ -2317,41 +2317,6 @@ textarea:focus,
   align-items: end;
 }
 
-.output-picker-warning {
-  display: flex;
-  align-items: start;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 10px 12px;
-  border: 1px solid color-mix(in srgb, var(--danger) 28%, var(--border));
-  border-radius: 8px;
-  background: color-mix(in srgb, var(--danger) 6%, var(--surface-subtle));
-}
-
-.output-picker-warning strong,
-.output-picker-warning p,
-.output-picker-warning small {
-  display: block;
-  margin: 0;
-}
-
-.output-picker-warning p {
-  margin-top: 4px;
-  color: var(--text);
-}
-
-.output-picker-warning small {
-  margin-top: 6px;
-  color: var(--muted);
-  word-break: break-all;
-}
-
-.output-picker-warning-actions {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-}
-
 .drop-zone {
   text-align: center;
 }
