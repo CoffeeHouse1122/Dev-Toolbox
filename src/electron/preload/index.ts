@@ -68,6 +68,7 @@ const api: DevToolboxApi = {
     ipcRenderer.invoke("dialog:select-files", filters ? toPlain(filters) : undefined, multiSelections),
   selectOutputDir: (defaultPath?: string) => ipcRenderer.invoke("dialog:select-output-dir", defaultPath),
   pathExists: (targetPath: string) => ipcRenderer.invoke("file:path-exists", targetPath),
+  checkOutputDirectory: (targetPath: string) => ipcRenderer.invoke("file:check-output-directory", targetPath),
   openDirectory: (targetPath: string) => ipcRenderer.invoke("shell:open-directory", targetPath),
   convertFavicon: (options: FaviconOptions) => ipcRenderer.invoke("convert:favicon", toPlain(options)),
   processSvgFiles: (options: SvgToolboxOptions) => ipcRenderer.invoke("convert:svg-toolbox", toPlain(options)),

@@ -13,14 +13,16 @@ let pickedDir = "C:\\test-output";
 let pickFails = false;
 let qrRejects = false;
 let pendingPath;
+let directoryStatus;
+let chooserDefault;
 for (const [channel, handler] of Object.entries({
   "config:load": (_e, key) => key === "output-picker" ? saved : null,
   "config:save": (_e, key, value) => { if (key === "output-picker") saved = value; return value; },
   "window:get-state": () => ({ isMaximized: false, isAlwaysOnTop: false }),
   "update:current-version": () => "0.1.8",
   "update:state": () => ({ status: "disabled", activeTasks: 0 }),
-  "file:path-exists": async (_e, value) => { if (pendingPath) await pendingPath; return !value.includes("missing"); },
-  "dialog:select-output-dir": () => { if (pickFails) throw new Error("测试：无法选择目录"); return pickedDir; },
+  "file:check-output-directory": async (_e, value) => { if (pendingPath) await pendingPath; return { status: directoryStatus || (value.includes("missing") ? "missing" : "ready") }; },
+  "dialog:select-output-dir": (_e, defaultPath) => { chooserDefault = defaultPath; if (pickFails) throw new Error("测试：无法选择目录"); return pickedDir; },
   "shell:open-directory": () => ({ status: openStatus, message: openStatus === "blocked" ? "测试：已有目录正在打开" : "" }),
   "dialog:select-files": () => ["C:\\test-input.mp4"],
   "media:info": () => { throw new Error("测试：无法读取媒体信息"); },
@@ -40,6 +42,10 @@ app.whenReady().then(async () => {
     contextIsolation: true, sandbox: true, nodeIntegration: false, offscreen: true, backgroundThrottling: false
   } });
   const evaluate = script => win.webContents.executeJavaScript(script);
+  const reload = async () => {
+    const loaded = new Promise(resolve => win.webContents.once('did-finish-load', resolve));
+    win.reload(); await loaded;
+  };
   const q = selector => `document.querySelector(${JSON.stringify(selector)})`;
   const click = async selector => {
     await waitFor(`${q(selector)} && !${q(selector)}.disabled`);
@@ -59,7 +65,7 @@ app.whenReady().then(async () => {
   };
   const page = path.resolve(__dirname, "../dist/renderer/index.html");
   await win.loadFile(page, { hash: "/qr-code" });
-  await toast("上次保存的输出目录已不存在");
+  await toast("输出目录不存在或所在磁盘未连接");
   assert.equal(await evaluate("!!document.querySelector('.output-picker-warning')"), false);
   assert.equal(await evaluate("getComputedStyle(document.querySelector('.workspace-toast-region')).position"), "absolute");
   const footerHeight = await evaluate("document.querySelector('.task-flow-action-bar').getBoundingClientRect().height");
@@ -70,7 +76,7 @@ app.whenReady().then(async () => {
   await waitFor("!document.querySelector('.workspace-toast')");
   assert.equal(saved["/qr-code"].dismissedMissingPath, "C:\\missing-qr");
   assert.equal(await evaluate("document.querySelector('.task-flow-action-bar').getBoundingClientRect().height"), footerHeight);
-  await win.reload();
+  await reload();
   await waitFor("!!document.querySelector('.output-picker')");
   await pause(300);
   assert.equal(await evaluate("!!document.querySelector('.workspace-toast')"), false);
@@ -90,7 +96,7 @@ app.whenReady().then(async () => {
   assert.equal(saved["/image-compress"].dismissedMissingPath, "", "a blocked operation must not dismiss a missing path");
   openStatus = "missing";
   await click("[title='打开输出目录']");
-  await toast("当前输出目录已不存在");
+  await toast("输出目录不存在或所在磁盘未连接");
   await click(".toast-action");
   await waitFor("!document.querySelector('.workspace-toast')");
   openStatus = "opened";
@@ -142,6 +148,33 @@ app.whenReady().then(async () => {
   assert.equal(await evaluate("!!document.querySelector('.certificate-error')"), false);
   await close();
 
+  // A saved path is not a persisted grant: keep it visible without enabling jobs.
+  saved["/qr-code"] = { selectedPath: "C:\\existing-output", dismissedMissingPath: "C:\\existing-output" };
+  directoryStatus = "needs-authorization";
+  await win.loadFile(page, { hash: "/qr-code" });
+  await reload();
+  await toast("需要重新授权");
+  assert.equal(await evaluate("document.querySelector('.output-picker input').value"), "C:\\existing-output");
+  assert.equal(await evaluate("document.querySelector('.task-flow-actions .primary-button').disabled"), true);
+  assert.equal(await evaluate("document.querySelector('[title=\"打开输出目录\"]').disabled"), true);
+  assert.equal(await evaluate("document.querySelector('.workspace-toast').textContent.includes('不存在')"), false);
+  assert.equal(await evaluate("document.querySelector('.toast-action').textContent"), "确认目录");
+  fs.writeFileSync(path.join(output, 'authorization-required.png'), (await win.webContents.capturePage()).toPNG());
+  pickedDir = null; await click('.toast-action');
+  assert.equal(chooserDefault, "C:\\existing-output");
+  assert.equal(saved['/qr-code'].selectedPath, 'C:\\existing-output');
+  assert.equal(await evaluate("document.querySelector('.task-flow-actions .primary-button').disabled"), true);
+  pickedDir = 'C:\\existing-output'; await click('[title="选择输出目录"]');
+  await waitFor("!document.querySelector('.task-flow-actions .primary-button').disabled");
+  assert.equal(await evaluate("document.querySelector('.output-picker').textContent.includes('待确认授权')"), false);
+  directoryStatus = 'unavailable';
+  await reload(); await toast('暂时无法访问输出目录');
+  assert.equal(await evaluate("document.querySelector('.workspace-toast').textContent.includes('不存在')"), false);
+  directoryStatus = 'ready';
+  await reload(); await waitFor("!!document.querySelector('.task-flow-actions .primary-button') && !document.querySelector('.task-flow-actions .primary-button').disabled");
+  assert.equal(await evaluate("document.querySelector('.output-picker input').value"), 'C:\\existing-output');
+  directoryStatus = undefined;
+
   // An asynchronous missing-path check must not show an action for an inactive page.
   saved["/qr-code"] = { selectedPath: "C:\\missing-late" };
   let resolvePath;
@@ -154,7 +187,7 @@ app.whenReady().then(async () => {
   resolvePath();
   await pause(350);
   assert.equal(await evaluate("!!document.querySelector('.workspace-toast')"), false);
-  console.log("Toast UI passed: no layout shifts, reselect/cancel/dismiss persistence, inactive-page guard, task details and cross-module errors.");
+  console.log("Toast UI passed: no layout shifts, restart authorization/confirmation/cancellation, unavailable versus missing paths, reselect/dismiss persistence, inactive-page guard, task details and cross-module errors.");
   win.destroy();
   clearTimeout(watchdog);
   app.exit(0);

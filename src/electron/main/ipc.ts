@@ -2,6 +2,7 @@ import { app, dialog, shell } from "electron";
 import { z } from "zod";
 import { createHistoryService } from "./services/history.service";
 import { openHistoryOutput } from "./services/history-output.service";
+import { checkOutputDirectory } from "./services/output-directory.service";
 import { applyWatermark, compressImages, createFaviconPackage, convertImages, cropImage, resizeImages } from "./services/image.service";
 import { processSvgFiles } from "./services/svg.service";
 import { generatePwaIconPackages } from "./services/pwa-icon.service";
@@ -135,6 +136,7 @@ const pwaIconPackageSchema = z.object({
 }).strict();
 
 const localPathSchema = z.string().min(1).max(32_768);
+const outputDirectoryPathSchema = localPathSchema.refine(value => path.isAbsolute(value) && !value.includes("\0"), "输出目录必须是有效的绝对路径。");
 const dialogFiltersSchema = z.array(z.object({
   name: z.string().min(1).max(100),
   extensions: z.array(z.string().regex(/^(?:\*|[a-z0-9][a-z0-9+_-]{0,31})$/i)).min(1).max(100)
@@ -246,19 +248,20 @@ async function pathExists(targetPath: string) {
 
 async function openDirectory(targetPath: string): Promise<OpenDirectoryResult> {
   const normalizedPath = path.normalize(targetPath);
-  assertAuthorizedPath(normalizedPath);
-  if (!(await pathExists(normalizedPath))) {
-    return { status: "missing", path: normalizedPath, message: "目标文件夹不存在。" };
-  }
+  const checked = await checkOutputDirectory(normalizedPath);
+  if (checked.status !== "ready") return { status: checked.status, message: checked.message, path: normalizedPath };
   if (!acquireLocalOpenLock()) {
     return { status: "blocked", path: normalizedPath, message: "本地文件夹正在打开，请稍后再试。" };
   }
-  const errorMessage = await shell.openPath(normalizedPath);
-  if (errorMessage) {
+  try {
+    const errorMessage = await shell.openPath(normalizedPath);
+    if (!errorMessage) return { status: "opened", path: normalizedPath };
     releaseLocalOpenLock();
-    return { status: "missing", path: normalizedPath, message: errorMessage };
+    return { status: "unavailable", path: normalizedPath, message: "无法打开输出目录，请检查系统权限或网络连接。" };
+  } catch {
+    releaseLocalOpenLock();
+    return { status: "unavailable", path: normalizedPath, message: "无法打开输出目录，请稍后重试。" };
   }
-  return { status: "opened", path: normalizedPath };
 }
 
 const watermarkSchema = z
@@ -516,11 +519,12 @@ export function registerIpc() {
   );
 
   handleTrustedIpc("dialog:select-output-dir", async (_event, rawDefaultPath?: unknown): Promise<string | null> => {
-    const defaultPath = rawDefaultPath === undefined ? undefined : localPathSchema.parse(rawDefaultPath);
+    const defaultPath = rawDefaultPath === undefined ? undefined : outputDirectoryPathSchema.parse(rawDefaultPath);
     return runWithLocalOpenLock(null, async () => {
       const result = await dialog.showOpenDialog({
         properties: ["openDirectory", "createDirectory"],
-        defaultPath: defaultPath && isAuthorizedPath(defaultPath) ? defaultPath : undefined
+        // This only positions the user-controlled chooser; grants follow confirmation.
+        defaultPath
       });
 
       if (result.canceled || !result.filePaths[0]) return null;
@@ -533,6 +537,10 @@ export function registerIpc() {
     const selectedPath = localPathSchema.parse(targetPath);
     return isAuthorizedPath(selectedPath) && pathExists(selectedPath);
   });
+
+  handleTrustedIpc("file:check-output-directory", async (_event, targetPath: unknown) =>
+    checkOutputDirectory(outputDirectoryPathSchema.parse(targetPath))
+  );
 
   handleTrustedIpc("convert:favicon", async (_event, raw: FaviconOptions) => {
     const options = faviconSchema.parse(raw);

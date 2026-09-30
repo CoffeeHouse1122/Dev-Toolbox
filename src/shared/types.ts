@@ -456,8 +456,13 @@ export interface WindowFrameState {
   isAlwaysOnTop: boolean;
 }
 
+export interface OutputDirectoryCheck {
+  status: "ready" | "needs-authorization" | "missing" | "unavailable";
+  message?: string;
+}
+
 export interface OpenDirectoryResult {
-  status: "opened" | "blocked" | "missing";
+  status: "opened" | "blocked" | "missing" | "needs-authorization" | "unavailable";
   path: string;
   message?: string;
 }
@@ -519,6 +524,7 @@ export interface DevToolboxApi {
   selectFiles(filters?: DialogFileFilter[], multiSelections?: boolean): Promise<string[]>;
   selectOutputDir(defaultPath?: string): Promise<string | null>;
   pathExists(targetPath: string): Promise<boolean>;
+  checkOutputDirectory(targetPath: string): Promise<OutputDirectoryCheck>;
   openDirectory(targetPath: string): Promise<OpenDirectoryResult>;
   convertFavicon(options: FaviconOptions): Promise<ConversionResult>;
   processSvgFiles(options: SvgToolboxOptions): Promise<ConversionResult>;

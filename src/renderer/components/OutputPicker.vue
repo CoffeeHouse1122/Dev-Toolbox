@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onActivated, onDeactivated, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { useRoute } from "vue-router";
+import type { OutputDirectoryCheck } from "../../shared/types";
 import { clearWorkspaceToast, reportWorkspaceError, showWorkspaceToast } from "../composables/useWorkspaceToast";
 
 type OutputPickerEntry = {
@@ -29,6 +30,8 @@ let toastId: number | undefined;
 let active = true;
 const isPickingDir = ref(false);
 const isOpeningDir = ref(false);
+const pendingAuthorization = ref("");
+let selectionRevision = 0;
 const persistenceKey = computed(() => (props.storageKey?.trim() || initialRoutePath || "default-output").replace(/\s+/g, "-"));
 
 function clearWarning() {
@@ -36,14 +39,26 @@ function clearWarning() {
   toastId = undefined;
 }
 
-function notifyDirectory(message: string, path: string, missing = false) {
+function notifyDirectory(message: string, path: string, missing = false, needsAuthorization = false) {
   if (!active) return;
-  toastId = showWorkspaceToast(`${message}${path ? `\n${path}` : ""}`, "error", 8000, {
-    action: { label: "重新选择", run: pickDir },
+  clearWarning();
+  toastId = showWorkspaceToast(`${message}${path ? `\n${path}` : ""}`, needsAuthorization ? "info" : "error", 8000, {
+    action: { label: needsAuthorization ? "确认目录" : "重新选择", run: pickDir },
     onDismiss: missing ? async () => {
       if (active) await saveEntry({ ...entryState.value, dismissedMissingPath: path });
     } : undefined
   });
+}
+
+function notifyCheck(result: OutputDirectoryCheck, path: string) {
+  if (result.status === "needs-authorization") {
+    pendingAuthorization.value = path;
+    notifyDirectory(result.message || "上次保存的输出目录需要重新授权，请确认目录后使用。", path, false, true);
+  } else if (result.status === "missing") {
+    if (entryState.value.dismissedMissingPath !== path) notifyDirectory("输出目录不存在或所在磁盘未连接，请检查后重新选择；关闭提示可忽略此提醒。", path, true);
+  } else if (result.status === "unavailable") {
+    notifyDirectory(result.message || "暂时无法访问输出目录，请检查系统权限、磁盘或网络连接。", path);
+  }
 }
 
 async function loadConfig() {
@@ -62,36 +77,39 @@ async function saveEntry(nextEntry: OutputPickerEntry) {
 
 async function restoreEntry() {
   const key = persistenceKey.value;
+  const revision = selectionRevision;
   const saved = await loadConfig();
-  if (!active || key !== persistenceKey.value) return;
+  if (!active || key !== persistenceKey.value || revision !== selectionRevision) return;
   const entry = saved[key] ?? {};
   entryState.value = entry;
   configLoaded.value = true;
 
   if (!props.modelValue && entry.selectedPath) {
-    const exists = await window.devToolbox.pathExists(entry.selectedPath);
-    if (!active || key !== persistenceKey.value) return;
-    if (exists) {
+    const result = await window.devToolbox.checkOutputDirectory(entry.selectedPath);
+    if (!active || key !== persistenceKey.value || revision !== selectionRevision || props.modelValue) return;
+    if (result.status === "ready") {
+      pendingAuthorization.value = "";
       emit("update:modelValue", entry.selectedPath);
       return;
     }
-    if (entry.dismissedMissingPath !== entry.selectedPath) {
-      notifyDirectory("上次保存的输出目录已不存在，请重新选择；关闭提示可忽略此提醒。", entry.selectedPath, true);
-    }
+    notifyCheck(result, entry.selectedPath);
     return;
   }
 
-  if (entry.lastOpenedPath && !(await window.devToolbox.pathExists(entry.lastOpenedPath)) && entry.dismissedMissingPath !== entry.lastOpenedPath) {
-    if (key === persistenceKey.value) notifyDirectory("上次打开的输出目录已不存在，请重新选择。", entry.lastOpenedPath, true);
+  if (!props.modelValue && entry.lastOpenedPath) {
+    const result = await window.devToolbox.checkOutputDirectory(entry.lastOpenedPath);
+    if (active && key === persistenceKey.value && revision === selectionRevision && !props.modelValue) notifyCheck(result, entry.lastOpenedPath);
   }
 }
 
 async function pickDir() {
   if (isPickingDir.value) return;
+  selectionRevision++;
   isPickingDir.value = true;
   try {
-    const dir = await window.devToolbox.selectOutputDir(props.modelValue || entryState.value.lastOpenedPath || entryState.value.selectedPath);
+    const dir = await window.devToolbox.selectOutputDir(props.modelValue || pendingAuthorization.value || entryState.value.selectedPath || entryState.value.lastOpenedPath);
     if (!dir || !active) return;
+    pendingAuthorization.value = "";
     emit("update:modelValue", dir);
     clearWarning();
     await saveEntry({ ...entryState.value, selectedPath: dir, dismissedMissingPath: "" });
@@ -117,9 +135,9 @@ async function openDir() {
       notifyDirectory(result.message || "一次只允许打开一个本地文件夹，请稍后再试。", currentPath);
       return;
     }
-    if (result.status === "missing") {
-      notifyDirectory("当前输出目录已不存在，请重新选择。", currentPath, true);
-    }
+    // A directory that became unusable must not remain a runnable output target.
+    emit("update:modelValue", "");
+    notifyCheck({ status: result.status, message: result.message }, currentPath);
   } catch (cause) {
     if (active) reportWorkspaceError(cause, "打开输出目录失败");
   } finally {
@@ -148,8 +166,8 @@ onBeforeUnmount(() => { active = false; clearWarning(); });
   <div class="output-picker-stack">
     <div class="field-row output-picker">
       <label class="field grow">
-        <span>输出目录</span>
-        <input :value="modelValue" readonly placeholder="请选择输出目录" />
+        <span>{{ pendingAuthorization && !modelValue ? "输出目录 · 待确认授权" : "输出目录" }}</span>
+        <input :value="modelValue || pendingAuthorization" readonly placeholder="请选择输出目录" />
       </label>
       <div class="output-picker-actions">
         <button type="button" class="icon-button" title="打开输出目录" :disabled="!modelValue || isOpeningDir || isPickingDir" @click="openDir">
