@@ -602,11 +602,11 @@ onBeforeUnmount(() => {
               <RouterLink
                 :to="workbenchRoute(group.id)"
                 class="nav-workbench-link"
-                :title="`${group.label} · 工具总览`"
-                :aria-label="`${group.label} · 工具总览`"
+                :title="`${sidebarGroupLabel(group)}总览`"
+                :aria-label="`${sidebarGroupLabel(group)}总览`"
                 @click="closeMobileNav"
               >
-                <span>总览</span><i class="ri-arrow-right-s-line" aria-hidden="true"></i>
+                <i class="ri-layout-grid-line" aria-hidden="true"></i>
               </RouterLink>
             </div>
             <button v-else type="button" class="nav-group-head" :aria-expanded="!collapsedGroups[group.id]" :aria-controls="`nav-group-${group.id}`" @click="toggleGroupCollapse(group.id)">

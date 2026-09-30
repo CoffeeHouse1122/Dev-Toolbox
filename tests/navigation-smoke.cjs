@@ -64,7 +64,9 @@ app.whenReady().then(async () => {
   assert.equal(await evaluate("document.querySelectorAll('.nav-workbench-link').length"), 7);
   assert.equal(await evaluate("new Set([...document.querySelectorAll('.nav-workbench-link')].map(el => el.getAttribute('aria-label'))).size"), 7);
   assert.equal(await evaluate(`document.querySelectorAll('${active}').length`), 1);
-  assert.equal(await evaluate("[...document.querySelectorAll('.nav-workbench-link')].every(el => el.textContent.trim() === '总览')"), true);
+  assert.equal(await evaluate("[...document.querySelectorAll('.nav-workbench-link')].every(el => el.textContent.trim() === '' && el.children.length === 1 && el.querySelector('i.ri-layout-grid-line[aria-hidden=true]'))"), true);
+  assert.equal(await evaluate(`${query(heading("system"))}.title`), "文件与网络总览");
+  assert.equal(await evaluate("[...document.querySelectorAll('.nav-workbench-link')].every(el => el.title === el.getAttribute('aria-label') && el.title.endsWith('总览'))"), true);
 
   // Collapsing must not navigate. The overview remains reachable while collapsed.
   await click(toggle("system-files") + " .nav-workbench-label");
@@ -111,6 +113,7 @@ app.whenReady().then(async () => {
     const surface = theme === "dark" ? "rgb(22, 27, 34)" : "rgb(255, 255, 255)";
     await waitFor(`getComputedStyle(document.querySelector('.workbench-tool-card')).backgroundColor === '${surface}'`);
     await new Promise(resolve => setTimeout(resolve, 300));
+    assert.equal(await evaluate("[...document.querySelectorAll('.nav-workbench-link')].every(el => { const box = el.getBoundingClientRect(); const style = getComputedStyle(el); const icon = getComputedStyle(el.firstElementChild, '::before'); return box.width === 32 && box.height === 32 && style.borderTopWidth === '0px' && style.fontSize === '16px' && icon.content !== 'none' && icon.content !== ''; })"), true);
     fs.writeFileSync(path.join(output, `${theme}.png`), (await win.webContents.capturePage()).toPNG());
     assert.equal(await evaluate("[...document.querySelectorAll('.nav-workbench-link')].every(el => el.getBoundingClientRect().right <= document.querySelector('.sidebar').getBoundingClientRect().right)"), true);
   }
