@@ -114,7 +114,7 @@ async function run(dryRun = false) {
     </template>
 
     <template #result>
-      <ResultPanel :result="result" :busy="busy" title="执行结果" empty-text="校验或重命名后在此显示结果" compact paged />
+      <ResultPanel :result="result" :busy="busy" title="执行结果" empty-text="校验或重命名后在此显示结果" compact />
     </template>
 
     <template #summary>

@@ -269,7 +269,9 @@ async function run() {
   }
   .watermark-page :deep(.task-flow-source-panel > .panel-heading) { margin-bottom: 0; }
   .watermark-page :deep(.task-flow-workbench) { grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); }
-  .watermark-page :deep(.task-flow-output-column) { grid-template-rows: minmax(0, 1fr) minmax(130px, 0.58fr); }
+  .watermark-page :deep(.task-flow-layout.has-preview .task-flow-output-column) { grid-template-rows: minmax(0, 1fr) minmax(148px, 0.58fr); }
+  .watermark-page .watermark-plan { gap: 6px; }
+  .watermark-page .watermark-plan dl { gap: 6px; }
   .watermark-options :deep(.select-popover) {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     width: calc(200% + 12px);

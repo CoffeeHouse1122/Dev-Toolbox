@@ -124,7 +124,7 @@ async function run() {
     </template>
 
     <template #result>
-      <ResultPanel :result="result" :busy="busy" title="转化结果" empty-text="转化后可在此打开输出资源" compact paged />
+      <ResultPanel :result="result" :busy="busy" title="转化结果" empty-text="转化后可在此打开输出资源" compact />
     </template>
 
     <template #destination>

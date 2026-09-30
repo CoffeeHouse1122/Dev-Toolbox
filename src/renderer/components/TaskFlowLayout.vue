@@ -208,7 +208,7 @@ const countLabel = computed(() => props.fileLabel || `${props.fileCount} 个文�
 }
 
 .task-flow-layout.has-preview .task-flow-output-column {
-  grid-template-rows: minmax(0, 1.35fr) minmax(0, 0.8fr);
+  grid-template-rows: minmax(0, 1.35fr) minmax(164px, 0.8fr);
 }
 
 .task-flow-layout.has-preview.without-result .task-flow-output-column {
@@ -216,7 +216,7 @@ const countLabel = computed(() => props.fileLabel || `${props.fileCount} 个文�
 }
 
 .task-flow-preview-dominant .task-flow-layout.has-preview .task-flow-output-column {
-  grid-template-rows: minmax(0, 1.75fr) minmax(0, 0.68fr);
+  grid-template-rows: minmax(0, 1.75fr) minmax(164px, 0.68fr);
 }
 
 .task-flow-preview-dominant .task-flow-layout.has-preview.without-result .task-flow-output-column {
@@ -239,7 +239,6 @@ const countLabel = computed(() => props.fileLabel || `${props.fileCount} 个文�
 
 .task-flow-result-slot :deep(.result-panel .result-content) {
   min-height: 0;
-  overflow: auto;
 }
 
 .task-flow-action-bar {

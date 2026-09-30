@@ -171,7 +171,7 @@ async function run() {
   .svg-page :deep(.task-flow-source-panel > .panel-heading) { margin-bottom: 0; }
   .svg-page :deep(.drop-zone-wrapper.compact.has-files .drop-file-item) { flex-basis: clamp(200px, calc((100% - 8px) / 2), 280px); }
   .svg-page :deep(.task-flow-workbench) { grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr); }
-  .svg-page :deep(.task-flow-layout.has-preview .task-flow-output-column) { grid-template-rows: minmax(0, 1fr) 140px; }
+  .svg-page :deep(.task-flow-layout.has-preview .task-flow-output-column) { grid-template-rows: minmax(0, 1fr) 164px; }
 }
 
 .svg-preview-stage,

@@ -86,7 +86,7 @@ async function run() {
     </template>
 
     <template #result>
-      <ResultPanel :result="result" :busy="busy" title="生成结果" empty-text="生成后可在此打开 SEO 文件" compact paged />
+      <ResultPanel :result="result" :busy="busy" title="生成结果" empty-text="生成后可在此打开 SEO 文件" compact />
     </template>
 
     <template #destination>

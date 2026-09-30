@@ -115,9 +115,11 @@ app.whenReady().then(async () => {
   await click(".task-flow-actions .primary-button");
   await toast("输出目录无写入权限");
   assert.equal(await evaluate("!!document.querySelector('.result-content > .error-text')"), false);
-  assert.equal(await evaluate("document.querySelector('.log-panel').open"), false);
-  await click(".log-panel summary");
-  assert.equal(await evaluate("document.querySelector('.log-panel pre').textContent.includes('输出目录无写入权限')"), true);
+  assert.equal(await evaluate("!!document.querySelector('.result-panel .log-panel')"), false);
+  await click(".result-details-button");
+  await waitFor("!!document.querySelector('.app-dialog[open]')");
+  assert.equal(await evaluate("document.querySelector('.app-dialog[open]').textContent.includes('输出目录无写入权限')"), true);
+  await click(".app-dialog[open] footer button");
   await close();
   qrRejects = true;
   await click(".task-flow-actions .primary-button");

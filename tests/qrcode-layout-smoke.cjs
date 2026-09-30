@@ -30,7 +30,7 @@ for (const [channel, handler] of Object.entries({
       : await QRCode.toBuffer(options.text, settings);
     imageType = options.format === "svg" ? "image/svg+xml" : "image/png";
     await new Promise(resolve => { releaseGeneration = resolve; });
-    return { status: "success", files: [`C:\\fixtures\\output\\${options.fileName}.${options.format}`], logs: [] };
+    return { status: "success", files: [`C:\\fixtures\\output\\${options.fileName}.${options.format}`], logs: Array.from({ length: 100 }, (_, i) => `生成日志 ${i + 1}`) };
   }
 })) ipcMain.handle(channel, handler);
 
@@ -60,6 +60,13 @@ app.whenReady().then(async () => {
     const dimensions = await evaluate(`['.qr-page', '.task-flow-settings-content', '.task-flow-preview-content', '.qr-preview-stage', '.result-panel', '.qr-options'].map(selector => { const el = document.querySelector(selector); return { selector, width: el.clientWidth, scrollWidth: el.scrollWidth, height: el.clientHeight, scrollHeight: el.scrollHeight }; })`);
     fs.writeFileSync(path.join(output, `${label}.png`), (await win.webContents.capturePage()).toPNG());
     assert.ok(dimensions.every(item => item.scrollWidth <= item.width + 1 && item.scrollHeight <= item.height + 1), `${label}: ${JSON.stringify(dimensions)}`);
+    assert.equal(await evaluate(`(() => {
+      const parent = document.querySelector('.result-panel').getBoundingClientRect();
+      return [...document.querySelectorAll('.result-content, .result-panel .file-list, .result-panel .file-item, .result-toolbar')].every(el => {
+        const box = el.getBoundingClientRect();
+        return el.scrollHeight <= el.clientHeight + 1 && el.scrollWidth <= el.clientWidth + 1 && box.bottom <= parent.bottom && box.right <= parent.right;
+      });
+    })()`), true, `${label}: generated file and log action must not scroll or clip`);
     assert.equal(await evaluate(`(() => {
       const panel = document.querySelector('.task-flow-settings-content').getBoundingClientRect();
       return [...document.querySelectorAll('.qr-options input, .qr-options button')].every(el => {
@@ -95,6 +102,10 @@ app.whenReady().then(async () => {
     assert.equal(submitted.format, format);
     assert.equal(submitted.text, "https://github.com/");
     assert.equal(submitted.size, 512);
+    await click('.result-details-button');
+    await waitFor("!!document.querySelector('.app-dialog[open]')");
+    assert.equal(await evaluate("document.querySelector('.result-dialog-log').textContent.includes('生成日志 100')"), true);
+    await click('.app-dialog footer button');
   }
   await setValue('.qr-options .field:nth-child(5) input', '#ffffff');
   await assertFits("invalid-color");

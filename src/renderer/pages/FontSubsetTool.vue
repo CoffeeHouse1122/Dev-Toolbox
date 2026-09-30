@@ -238,7 +238,7 @@ async function run() {
 
 .subset-output-column {
   display: grid;
-  grid-template-rows: minmax(0, 1.55fr) minmax(0, 0.8fr);
+  grid-template-rows: minmax(0, 1.55fr) minmax(164px, 0.8fr);
   gap: 14px;
   min-width: 0;
   min-height: 0;
@@ -338,7 +338,6 @@ async function run() {
 
 .subset-output-column :deep(.result-panel.compact .result-content) {
   min-height: 0;
-  overflow: auto;
 }
 
 .subset-output-picker {

@@ -144,7 +144,7 @@ async function run() {
     </template>
 
     <template #result>
-      <ResultPanel :result="result" :busy="busy" title="生成结果" empty-text="生成后可在此打开 OG 图片" compact paged />
+      <ResultPanel :result="result" :busy="busy" title="生成结果" empty-text="生成后可在此打开 OG 图片" compact />
     </template>
 
     <template #destination>

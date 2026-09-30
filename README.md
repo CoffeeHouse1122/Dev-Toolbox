@@ -57,6 +57,8 @@ npm run dev
 
 `npm run test:video-ui` 验证视频转化页单屏布局、输出预设、结果分页及日志弹窗，使用隔离配置和模拟输出；已纳入 `npm run check`。
 
+`npm run test:result-ui` 自动发现使用公共结果组件的工具，注入布局测试数据，验证普通窗口下单文件、多文件、长路径、运行中与失败状态不溢出，分页可访问全部文件，日志与失败明细可通过弹窗查看。结果列表按可用高度自适应分页，不在卡片内堆叠日志；该检查使用隔离配置，不执行真实文件转换，已纳入 `npm run check`。
+
 `npm run test:font-face-ui` 验证字体声明页单屏布局、下拉选项完整性及 CSS 实时生成，使用隔离配置；已纳入 `npm run check`。
 
 `npm run test:url-codec-ui` 验证 URL 编解码页单屏布局、四种模式、异常输入及长文本访问，使用隔离配置；已纳入 `npm run check`。

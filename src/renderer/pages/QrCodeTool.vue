@@ -170,7 +170,7 @@ async function run() {
   }
   .qr-page :deep(.task-flow-source-panel > .panel-heading) { margin-bottom: 0; }
   .qr-page :deep(.task-flow-workbench) { grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr); }
-  .qr-page :deep(.task-flow-layout.has-preview .task-flow-output-column) { grid-template-rows: minmax(0, 1fr) 140px; }
+  .qr-page :deep(.task-flow-layout.has-preview .task-flow-output-column) { grid-template-rows: minmax(0, 1fr) 164px; }
 }
 
 .qr-preview-stage,

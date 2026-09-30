@@ -331,7 +331,7 @@ async function run() {
   .crop-page :deep(.task-flow-source-panel > .panel-heading) { margin-bottom: 0; }
   .crop-page :deep(.drop-zone-wrapper.compact.has-files .drop-file-item) { flex-basis: clamp(200px, calc((100% - 8px) / 2), 280px); }
   .crop-page :deep(.task-flow-workbench) { grid-template-columns: minmax(260px, 0.62fr) minmax(0, 1.38fr); }
-  .crop-page :deep(.task-flow-layout.has-preview .task-flow-output-column) { grid-template-rows: minmax(0, 1fr) 140px; }
+  .crop-page :deep(.task-flow-layout.has-preview .task-flow-output-column) { grid-template-rows: minmax(0, 1fr) 164px; }
 }
 
 .crop-viewport {
