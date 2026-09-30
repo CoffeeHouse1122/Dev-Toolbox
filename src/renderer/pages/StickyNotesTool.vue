@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import ToolTitle from "../components/ToolTitle.vue";
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from "vue";
 import { onBeforeRouteLeave } from "vue-router";
 import { toPng } from "html-to-image";
@@ -1704,7 +1705,7 @@ onBeforeUnmount(() => {
       <aside id="notes-sidebar" class="notes-side">
         <section class="tool-main notes-control-panel">
           <div class="section-title notes-panel-title">
-            <h2>桌面便签</h2>
+            <ToolTitle tool-id="sticky-notes" />
             <span class="status-pill" :class="{ running: busy }">{{ activeCountLabel }}</span>
           </div>
           <div class="notes-action-grid">

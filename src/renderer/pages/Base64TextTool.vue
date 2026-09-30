@@ -49,7 +49,7 @@ const charCount = computed(() => ({ input: input.value.length, output: output.va
 
 <template>
   <TaskFlowLayout
-    title="Base64 文本编解码"
+    tool-id="base64-text"
     description="文本字符串与 Base64 互转，支持指定字符编码"
     :source-title="mode === 'encode' ? '待编码文本' : '待解码 Base64'"
     source-description="内容变化后即时转换，无需额外执行"

@@ -117,7 +117,7 @@ function loadSample() {
 
 <template>
   <TaskFlowLayout
-    title="JWT 解析器"
+    tool-id="jwt"
     description="本地解码 JWT 的 Header / Payload / Signature，所有数据不会发送到任何服务端"
     source-title="编码后的 Token"
     source-description="粘贴 JWT 后立即拆分并解码，无需上传或执行"

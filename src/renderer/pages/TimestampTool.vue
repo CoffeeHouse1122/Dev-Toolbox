@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import ToolTitle from "../components/ToolTitle.vue";
 import { computed, ref } from "vue";
 
 const now = new Date();
@@ -67,7 +68,7 @@ function syncTimestampFromDate() {
   <section class="tool-page">
     <div class="tool-header">
       <div>
-        <h2>时间戳转换</h2>
+        <ToolTitle tool-id="timestamp" />
         <p>日期时间、秒级时间戳与毫秒级时间戳互转</p>
       </div>
       <button type="button" class="secondary-button" @click="useNow"><i class="ri-time-line" aria-hidden="true"></i>当前时间</button>

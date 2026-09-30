@@ -34,7 +34,7 @@ async function run() {
 
 <template>
   <TaskFlowLayout
-    title="Markdown 转 HTML / PNG / PDF"
+    tool-id="markdown-export"
     description="在本地渲染 Markdown，并导出可发布或归档的文档"
     source-title="Markdown 内容"
     source-description="编辑正文后，选择输出格式和文件名完成导出"

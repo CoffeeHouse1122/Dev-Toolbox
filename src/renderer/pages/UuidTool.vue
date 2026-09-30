@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import ToolTitle from "../components/ToolTitle.vue";
 import { ref } from "vue";
 
 const count = ref(5);
@@ -17,7 +18,7 @@ generate();
   <section class="tool-page">
     <div class="tool-header">
       <div>
-        <h2>UUID 生成器</h2>
+        <ToolTitle tool-id="uuid" />
         <p>生成 RFC 4122 UUID v4</p>
       </div>
       <button type="button" class="primary-button" @click="generate"><i class="ri-refresh-line" aria-hidden="true"></i>生成</button>

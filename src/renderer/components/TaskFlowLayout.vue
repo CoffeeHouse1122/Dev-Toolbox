@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { computed, useSlots } from "vue";
+import ToolTitle from "./ToolTitle.vue";
 
 const props = withDefaults(
   defineProps<{
-    title: string;
+    toolId: string;
     description: string;
     sourceTitle: string;
     sourceDescription?: string;
@@ -39,7 +40,7 @@ const countLabel = computed(() => props.fileLabel || `${props.fileCount} 个文�
   <section class="tool-page task-flow-page" :class="`task-flow-${variant}`">
     <header class="tool-header task-flow-header">
       <div>
-        <h2>{{ title }}</h2>
+        <ToolTitle :tool-id="toolId" />
         <p>{{ description }}</p>
       </div>
     </header>

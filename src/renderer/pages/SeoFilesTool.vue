@@ -45,7 +45,7 @@ async function run() {
 <template>
   <TaskFlowLayout
     class="seo-files-page"
-    title="robots.txt / sitemap.xml"
+    tool-id="seo-files"
     description="生成站点爬虫策略与搜索引擎索引清单"
     source-title="站点信息"
     source-description="填写网站根地址，页面路径将基于该地址生成索引"

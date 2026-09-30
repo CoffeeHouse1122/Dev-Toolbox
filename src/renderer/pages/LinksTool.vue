@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import ToolTitle from "../components/ToolTitle.vue";
 import { computed, ref, watch, type CSSProperties } from "vue";
 import { showWorkspaceToast } from "../composables/useWorkspaceToast";
 import GsapTransition from "../components/GsapTransition.vue";
@@ -331,7 +332,7 @@ watch(
   <section class="tool-page links-tool">
     <div class="tool-header">
       <div>
-        <h2>常用网站和技术文档</h2>
+        <ToolTitle tool-id="links" />
         <p>维护本地常用链接，使用系统默认浏览器打开，支持导入导出</p>
       </div>
       <div class="header-actions">

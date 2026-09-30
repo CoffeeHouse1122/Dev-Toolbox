@@ -74,7 +74,7 @@ async function run() {
 <template>
   <TaskFlowLayout
     class="watermark-page"
-    title="添加水印"
+    tool-id="watermark"
     description="支持图片与 PDF，支持文字、图案、全屏铺满和角标水印"
     source-title="源文件"
     source-description="图片与 PDF 可混合添加，按队列处理"

@@ -50,7 +50,7 @@ async function run() {
 
 <template>
   <TaskFlowLayout
-    title="Favicon 图标包"
+    tool-id="favicon"
     description="生成 ICO、PNG 图标和 manifest"
     source-title="源图片"
     source-description="添加一个或多个图标源图，分别生成完整资源包"

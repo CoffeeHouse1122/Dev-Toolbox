@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import ToolTitle from "../components/ToolTitle.vue";
 import { computed, ref, watch } from "vue";
 
 // 所有颜色通道值
@@ -153,7 +154,7 @@ const colorFormats = computed(() => ({
   <section class="tool-page">
     <div class="tool-header">
       <div>
-        <h2>颜色转换器</h2>
+        <ToolTitle tool-id="color-converter" />
         <p>HEX ↔ RGB ↔ HSL ↔ CMYK 实时互转</p>
       </div>
     </div>

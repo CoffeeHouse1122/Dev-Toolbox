@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import ToolTitle from "../components/ToolTitle.vue";
 import { computed, ref } from "vue";
 
 type DiffMode = "unified" | "side-by-side";
@@ -174,7 +175,7 @@ async function pasteRight() {
   <section class="tool-page">
     <div class="tool-header">
       <div>
-        <h2>文本 Diff</h2>
+        <ToolTitle tool-id="diff" />
         <p>本地逐行对比两段文本，支持统一视图与并排视图，所有数据不离开本机</p>
       </div>
       <div class="header-actions">

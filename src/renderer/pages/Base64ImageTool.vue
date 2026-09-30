@@ -83,7 +83,7 @@ async function decodeImage() {
 
 <template>
   <TaskFlowLayout
-    title="Base64 图片转换"
+    tool-id="base64-image"
     description="图片转 Data URL，或从 Base64 还原图片文件"
     :source-title="mode === 'encode' ? '源图片' : 'Base64 内容'"
     :source-description="mode === 'encode' ? '可批量编码图片，多文件将输出结构化 JSON' : '粘贴 Base64 或完整 Data URL'"

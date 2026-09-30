@@ -32,7 +32,7 @@ const operationLabel = computed(() => ({
 <template>
   <TaskFlowLayout
     class="url-codec-page"
-    title="URL 编解码"
+    tool-id="url-codec"
     description="在完整 URL 与参数片段之间进行本地编码或解码"
     source-title="待处理内容"
     source-description="粘贴完整 URL、查询参数值或路径片段"

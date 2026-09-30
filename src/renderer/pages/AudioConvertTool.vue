@@ -51,7 +51,7 @@ async function run() {
 
 <template>
   <TaskFlowLayout
-    title="音频格式转换"
+    tool-id="audio-convert"
     description="批量转换 MP3、WAV、AAC、OGG、FLAC、M4A"
     source-title="源音频"
     source-description="可继续添加音频，任务将按队列顺序批量转换"

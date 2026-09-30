@@ -32,7 +32,7 @@ async function run() {
 
 <template>
   <TaskFlowLayout
-    title="WOFF2 字体转换"
+    tool-id="woff2"
     description="支持 TTF、OTF、WOFF、WOFF2"
     source-title="源字体"
     source-description="添加待转换字体，任务将按队列顺序处理"

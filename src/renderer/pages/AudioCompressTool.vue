@@ -96,7 +96,7 @@ async function run() {
 
 <template>
   <TaskFlowLayout
-    title="音频压缩"
+    tool-id="audio-compress"
     :description="`${outputFormat.toUpperCase()} · ${bitrate} · ${sampleRate || '原采样率'}`"
     source-title="源音频"
     source-description="可继续添加音频，任务将按队列顺序批量压缩"

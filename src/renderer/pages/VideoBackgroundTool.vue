@@ -73,7 +73,7 @@ async function run() {
 <template>
   <TaskFlowLayout
     class="video-convert-page"
-    title="视频转化"
+    tool-id="video-background"
     :description="`${selectedFileName} · ${crfTone} · ${width || '原始'}px`"
     source-title="源视频"
     source-description="按队列顺序生成视频资源包"

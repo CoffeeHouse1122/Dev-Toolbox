@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import ToolTitle from "../components/ToolTitle.vue";
 import { computed, ref, watch } from "vue";
 import type { ConversionResult, FontSubsetOptions } from "../../shared/types";
 import DropZone from "../components/DropZone.vue";
@@ -81,7 +82,7 @@ async function run() {
     <component :is="'style'">{{ previewFontStyle }}</component>
     <div class="tool-header">
       <div>
-        <h2>字体子集化</h2>
+        <ToolTitle tool-id="font-subset" />
         <p>按字符裁剪中文 Web 字体，减少线上字体包体积</p>
       </div>
     </div>

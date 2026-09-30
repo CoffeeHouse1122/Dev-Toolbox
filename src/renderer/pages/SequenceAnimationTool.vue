@@ -48,7 +48,7 @@ async function run() {
 
 <template>
   <TaskFlowLayout
-    title="序列帧转动图"
+    tool-id="sequence-animation"
     description="把连续图片帧转换为 GIF、APNG 或 Animated WebP"
     source-title="序列帧图片"
     source-description="按队列顺序合成动图，可先按文件名进行自然排序"

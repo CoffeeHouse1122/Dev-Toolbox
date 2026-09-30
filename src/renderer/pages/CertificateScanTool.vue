@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import ToolTitle from "../components/ToolTitle.vue";
 import { computed, ref, watch } from "vue";
 import { reportWorkspaceError } from "../composables/useWorkspaceToast";
 import type { CertificateScanResult } from "../../shared/types";
@@ -188,7 +189,7 @@ watch(
   <section class="tool-page certificate-tool">
     <div class="tool-header">
       <div>
-        <h2>证书扫描</h2>
+        <ToolTitle tool-id="certificate-scan" />
         <p>使用本机 TLS 连接读取 HTTPS 证书，批量检查证书有效期</p>
       </div>
       <div class="header-actions">

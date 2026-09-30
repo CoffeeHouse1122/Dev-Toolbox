@@ -37,7 +37,7 @@ watch(
 
 <template>
   <TaskFlowLayout
-    title="字体预览器"
+    tool-id="font-preview"
     description="加载本地字体，快速检查中文、数字和英文效果"
     source-title="源字体"
     source-description="可持续追加多个字体，并在预览区切换或并排比较"

@@ -48,7 +48,7 @@ async function run() {
 
 <template>
   <TaskFlowLayout
-    title="CSS / JS 压缩"
+    tool-id="code-minify"
     description="CSS 自动前缀，JS 兼容转换、压缩与所有 console.* 调用移除"
     source-title="源代码文件"
     source-description="添加 CSS / JS 文件，任务将按队列顺序处理"

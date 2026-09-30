@@ -38,7 +38,7 @@ async function run() {
 
 <template>
   <TaskFlowLayout
-    title="前端静态资源清单"
+    tool-id="asset-manifest"
     description="扫描构建目录，生成包含体积、类型、哈希的 manifest JSON"
     source-title="构建产物目录"
     source-description="选择 dist、build 或静态资源目录作为清单扫描来源"

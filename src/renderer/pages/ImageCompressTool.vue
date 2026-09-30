@@ -35,7 +35,7 @@ async function run() {
 
 <template>
   <TaskFlowLayout
-    title="图片压缩"
+    tool-id="image-compress"
     description="PNG / JPG / WebP / AVIF 单个或批量压缩"
     source-title="源图片"
     source-description="添加待压缩图片，任务将按队列顺序处理"

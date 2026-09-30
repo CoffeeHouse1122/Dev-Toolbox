@@ -35,7 +35,7 @@ const css = computed(() => `@font-face {
 <template>
   <TaskFlowLayout
     class="font-face-page"
-    title="@font-face CSS 生成器"
+    tool-id="font-face"
     description="按字体文件路径生成可直接使用的 Web 字体声明"
     source-title="字体来源"
     source-description="填写字体族名和资源地址，右侧 CSS 将实时更新"

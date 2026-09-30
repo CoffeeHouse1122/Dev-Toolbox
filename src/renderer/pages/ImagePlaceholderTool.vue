@@ -34,7 +34,7 @@ async function run() {
 
 <template>
   <TaskFlowLayout
-    title="图片占位符生成"
+    tool-id="image-placeholder"
     description="输出 BlurHash、dominant color 与 tiny base64 placeholder"
     source-title="源图片"
     source-description="添加待分析图片，任务将按队列顺序处理"

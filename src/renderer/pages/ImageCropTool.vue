@@ -235,7 +235,7 @@ async function run() {
 <template>
   <TaskFlowLayout
     class="crop-page"
-    title="图片自由裁剪"
+    tool-id="image-crop"
     description="框选比例区域并批量应用到所有图片"
     source-title="源图片"
     source-description="同一裁剪比例应用到整个队列"

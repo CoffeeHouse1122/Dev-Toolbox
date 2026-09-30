@@ -27,7 +27,7 @@ const state = computed(() => {
 
 <template>
   <TaskFlowLayout
-    title="正则测试器"
+    tool-id="regex-tester"
     description="实时查看匹配结果、索引和捕获组"
     source-title="测试文本"
     source-description="编辑样本文本后，右侧匹配列表会即时同步"

@@ -29,7 +29,7 @@ const css = computed(() => validationError.value ? "" : `${property.value.trim()
 
 <template>
   <TaskFlowLayout
-    title="CSS Clamp 字号生成器"
+    tool-id="css-clamp"
     description="根据视口范围生成平滑响应式字号"
     source-title="响应范围"
     source-description="设置字号上下限及其对应的视口断点"

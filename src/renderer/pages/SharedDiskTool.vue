@@ -182,7 +182,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <TaskFlowLayout class="shared-connection" title="Windows 共享连接" description="连接 SMB 共享，在资源管理器中打开文件；不用于 NAS 网页登录"
+  <TaskFlowLayout class="shared-connection" tool-id="shared-disk" description="连接 SMB 共享，在资源管理器中打开文件；不用于 NAS 网页登录"
     source-title="共享位置" source-description="填写 UNC 路径，不使用 http:// 或端口" :file-label="dirty ? '尚未保存' : '本机配置'"
     settings-title="登录凭据" settings-description="选择连接时使用的身份" preview-title="连接状态" preview-description="识别 Windows 已有会话，无需重复登录">
     <template #source>

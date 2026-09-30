@@ -107,7 +107,7 @@ async function run() {
 
 <template>
   <TaskFlowLayout
-    title="视频压缩"
+    tool-id="video-compress"
     :description="`${qualityTone} · CRF ${crf} · ${width || '原始尺寸'}`"
     source-title="源视频"
     source-description="可继续添加视频，任务将按队列顺序批量压缩"

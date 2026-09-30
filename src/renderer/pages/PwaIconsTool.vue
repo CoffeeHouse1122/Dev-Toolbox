@@ -56,7 +56,7 @@ async function run() {
 <template>
   <TaskFlowLayout
     class="pwa-page"
-    title="PWA 与移动图标包"
+    tool-id="pwa-icons"
     description="生成 PWA、Android、iOS 与浏览器常用图标资源"
     source-title="应用图标源图"
     source-description="批量生成独立资源目录与 ZIP"

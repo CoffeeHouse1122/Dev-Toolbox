@@ -65,7 +65,7 @@ async function run() {
 <template>
   <TaskFlowLayout
     class="svg-page"
-    title="SVG 工具箱"
+    tool-id="svg-toolbox"
     description="批量清理 SVG，并按需导出 SVG、PNG 或 WebP"
     source-title="SVG 文件"
     source-description="支持批量添加，保持原文件不变"

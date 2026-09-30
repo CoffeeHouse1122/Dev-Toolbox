@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import ToolTitle from "../components/ToolTitle.vue";
 import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import type { ClipboardEntry } from "../../shared/types";
 import { showWorkspaceToast } from "../composables/useWorkspaceToast";
@@ -85,7 +86,7 @@ onBeforeUnmount(() => {
   <section class="tool-page">
     <div class="tool-header">
       <div>
-        <h2>剪贴板历史</h2>
+        <ToolTitle tool-id="clipboard-history" />
         <p>本地后台监听剪贴板，记录最近的文本和图片，支持固定、写回、检索（应用关闭后清空）</p>
       </div>
       <div class="header-actions">

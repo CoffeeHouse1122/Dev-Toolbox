@@ -51,7 +51,7 @@ async function run() {
 
 <template>
   <TaskFlowLayout
-    title="视频转 GIF / Animated WebP"
+    tool-id="video-animation"
     description="截取片段并生成动图资源"
     source-title="源视频"
     source-description="可继续添加视频，任务将按队列顺序批量转换"

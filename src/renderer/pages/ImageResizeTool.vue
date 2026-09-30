@@ -32,7 +32,7 @@ async function run() {
 
 <template>
   <TaskFlowLayout
-    title="图片尺寸调整"
+    tool-id="image-resize"
     description="按宽高或比例缩放，支持批量"
     source-title="源图片"
     source-description="添加待调整图片，任务将按队列顺序处理"

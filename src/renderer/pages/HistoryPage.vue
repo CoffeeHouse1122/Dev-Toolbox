@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import ToolTitle from "../components/ToolTitle.vue";
+import { useToolName } from "../composables/useToolName";
 import { onDeactivated, onMounted, ref } from "vue";
 import type { ConversionRecord } from "../../shared/types";
 import AppDialog from "../components/AppDialog.vue";
@@ -73,59 +75,10 @@ function statusClass(status: string) {
   return status;
 }
 
+const toolName = useToolName();
 function toolText(toolType: string) {
-  const map: Record<string, string> = {
-    favicon: "图标生成",
-    "svg-toolbox": "SVG 工具箱",
-    "pwa-icons": "PWA 图标包",
-    webp: "图片转换",
-    woff2: "WOFF2 转换",
-    "video-background": "视频转化",
-    "base64-image": "Base64 图片",
-    "video-animation": "视频动图",
-    "sequence-animation": "序列帧动图",
-    "video-mute": "视频去音频",
-    "video-compress": "视频压缩",
-    "audio-compress": "音频压缩",
-    "code-minify": "CSS / JS 压缩",
-    "video-loop": "视频循环播放",
-    "markdown-export": "Markdown 导出",
-    "url-codec": "URL 编解码",
-    timestamp: "时间戳",
-    uuid: "UUID",
-    rename: "文件重命名",
-    "batch-rename": "文件重命名",
-    "shared-disk": "共享连接",
-    "image-compress": "图片压缩",
-    "image-resize": "尺寸调整",
-    "image-crop": "自由裁剪",
-    watermark: "添加水印",
-    sprite: "雪碧图",
-    "image-placeholder": "图片占位符",
-    "ip-query": "IP 查询",
-    "qr-code": "二维码生成",
-    "audio-convert": "音频转换",
-    "regex-tester": "正则测试器",
-    "font-preview": "字体预览",
-    "font-subset": "字体子集化",
-    "font-face": "@font-face",
-    "asset-manifest": "资源清单",
-    "seo-files": "robots / sitemap",
-    "meta-tags": "HTML Meta",
-    "css-clamp": "Clamp 字号",
-    "og-image": "OG 图片",
-    links: "网站与文档",
-    jwt: "JWT 解析",
-    "data-convert": "JSON / YAML / TOML",
-    diff: "文本 Diff",
-    "clipboard-history": "剪贴板历史",
-    "base64-text": "Base64 文本",
-    hash: "Hash / 加解密",
-    "color-converter": "颜色转换器",
-    "certificate-scan": "证书扫描",
-    "sticky-notes": "桌面便签"
-  };
-  return map[toolType] ?? toolType;
+  if (toolType === "sprite") return "雪碧图";
+  return toolName(toolType === "batch-rename" ? "rename" : toolType);
 }
 
 onMounted(refresh);
@@ -135,7 +88,7 @@ onMounted(refresh);
   <section class="tool-page history-page">
     <div class="tool-header">
       <div>
-        <h2>历史记录</h2>
+        <ToolTitle tool-id="history" />
         <p>点击记录查看详情，可在详情中打开输出目录</p>
       </div>
       <div class="history-actions">

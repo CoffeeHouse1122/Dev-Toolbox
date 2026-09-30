@@ -72,7 +72,7 @@ async function run() {
 <template>
   <TaskFlowLayout
     class="og-image-page"
-    title="Open Graph 图片生成器"
+    tool-id="og-image"
     description="生成适合社交分享的 Open Graph 封面图"
     source-title="分享内容"
     source-description="编辑分享文案，实时预览内容与配色"

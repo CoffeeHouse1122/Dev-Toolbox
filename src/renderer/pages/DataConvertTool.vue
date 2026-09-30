@@ -85,7 +85,7 @@ function loadSample() {
 
 <template>
   <TaskFlowLayout
-    title="JSON ↔ YAML ↔ TOML"
+    tool-id="data-convert"
     description="本地双向互转结构化配置，支持 JSON、YAML、TOML 三种格式"
     source-title="源数据"
     source-description="粘贴结构化配置，解析与转换结果会实时更新"

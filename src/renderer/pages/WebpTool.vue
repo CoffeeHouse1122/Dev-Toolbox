@@ -51,7 +51,7 @@ async function run() {
 
 <template>
   <TaskFlowLayout
-    title="图片格式转换"
+    tool-id="webp"
     description="支持 WebP、PNG、JPEG、AVIF，支持单个或批量"
     source-title="源图片"
     source-description="添加待转换图片，任务将按队列顺序处理"

@@ -62,7 +62,7 @@ async function run() {
 <template>
   <TaskFlowLayout
     class="qr-page"
-    title="二维码生成"
+    tool-id="qr-code"
     description="把链接、文本或配置片段生成 PNG / SVG 二维码"
     source-title="编码内容"
     source-description="输入链接、文本或配置片段"

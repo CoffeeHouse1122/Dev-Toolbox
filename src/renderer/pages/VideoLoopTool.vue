@@ -75,7 +75,7 @@ onBeforeUnmount(releaseLoopVideo);
 
 <template>
   <TaskFlowLayout
-    title="视频循环播放"
+    tool-id="video-loop"
     description="模拟网页背景视频的真实循环播放，直接观察首尾衔接和跳帧"
     source-title="源视频"
     source-description="可一次添加多个视频，并在预览区逐个切换检查"

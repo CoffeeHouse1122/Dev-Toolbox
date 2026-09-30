@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import ToolTitle from "../components/ToolTitle.vue";
 import { computed, inject, onMounted, onUnmounted, ref } from "vue";
 import { useThemeStore, type ThemeMode, type UiFont } from "../stores/theme";
 import type { AppCloseBehavior, AppDiagnostics, AppSettings, UpdateStatus } from "../../shared/types";
@@ -119,7 +120,7 @@ onUnmounted(() => {
   <section class="tool-page">
     <div class="tool-header">
       <div>
-        <h2>设置</h2>
+        <ToolTitle tool-id="settings" />
         <p>外观、关闭行为与本地存储</p>
       </div>
     </div>

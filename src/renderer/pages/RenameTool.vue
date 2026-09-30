@@ -64,7 +64,7 @@ async function run(dryRun = false) {
 <template>
   <TaskFlowLayout
     class="rename-page"
-    title="文件名重命名"
+    tool-id="rename"
     description="支持单个或批量，使用 {name} 和 {n} 生成新名称"
     source-title="待重命名文件"
     source-description="按队列顺序生成序号，执行前可先校验完整计划"

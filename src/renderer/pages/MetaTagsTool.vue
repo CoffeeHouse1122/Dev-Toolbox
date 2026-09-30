@@ -33,7 +33,7 @@ const html = computed(() => `<title>${esc(title.value)}</title>
 
 <template>
   <TaskFlowLayout
-    title="HTML Meta 标签生成器"
+    tool-id="meta-tags"
     description="生成 SEO、Open Graph 与 Twitter Card 标签"
     source-title="页面摘要"
     source-description="编辑核心标题和描述，右侧代码会即时同步"

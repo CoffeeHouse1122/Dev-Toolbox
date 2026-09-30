@@ -21,7 +21,7 @@ async function run() {
 
 <template>
   <TaskFlowLayout
-    title="视频去音频"
+    tool-id="video-mute"
     description="批量移除音轨，保留视频画面"
     source-title="源视频"
     source-description="可继续添加视频，任务将按队列顺序移除音轨"

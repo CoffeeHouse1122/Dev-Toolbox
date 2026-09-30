@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import ToolTitle from "../components/ToolTitle.vue";
 import { computed, onMounted, ref } from "vue";
 import { reportWorkspaceError, showWorkspaceToast } from "../composables/useWorkspaceToast";
 import type { DomainIpLookupResult, IpInfo } from "../../shared/types";
@@ -53,7 +54,7 @@ onMounted(() => {
   <section class="tool-page">
     <div class="tool-header">
       <div>
-        <h2>IP 查询</h2>
+        <ToolTitle tool-id="ip-query" />
         <p>显示本机内网地址，并尝试获取当前外网 IP</p>
       </div>
       <button type="button" class="primary-button" :disabled="busy" @click="refresh">

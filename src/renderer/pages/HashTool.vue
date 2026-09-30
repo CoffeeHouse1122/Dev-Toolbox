@@ -196,7 +196,7 @@ const weakHashWarning = computed(() => mode.value === "hash" && (algorithm.value
 
 <template>
   <TaskFlowLayout
-    title="Hash / 加解密"
+    tool-id="hash"
     description="MD5 / SHA 哈希及 AES-GCM 对称加解密"
     :source-title="mode === 'decrypt' ? '待解密密文' : mode === 'hash' ? '待计算文本' : '待加密文本'"
     :source-description="mode === 'decrypt' ? '支持 DTBX1 与旧版 Base64 密文' : '输入内容后配置处理参数，再执行本次任务'"
