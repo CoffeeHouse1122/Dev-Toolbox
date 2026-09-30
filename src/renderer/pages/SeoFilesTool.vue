@@ -44,6 +44,7 @@ async function run() {
 
 <template>
   <TaskFlowLayout
+    class="seo-files-page"
     title="robots.txt / sitemap.xml"
     description="生成站点爬虫策略与搜索引擎索引清单"
     source-title="站点信息"
@@ -62,7 +63,7 @@ async function run() {
     </template>
 
     <template #settings>
-      <div class="option-grid">
+      <div class="option-grid seo-options">
         <Checkbox v-model="includeRobots" class="check-row" label="robots.txt" />
         <Checkbox v-model="includeSitemap" class="check-row" label="sitemap.xml" />
         <div class="field">
@@ -73,11 +74,11 @@ async function run() {
           <span>priority</span>
           <input v-model="priority" />
         </label>
-        <label class="field span-2">
+        <label class="field seo-path-field">
           <span>Sitemap 页面路径</span>
           <textarea v-model="pages" class="tool-textarea compact seo-paths-textarea"></textarea>
         </label>
-        <label class="field span-2">
+        <label class="field seo-path-field">
           <span>Robots Disallow 路径</span>
           <textarea v-model="disallow" class="tool-textarea compact seo-paths-textarea"></textarea>
         </label>
@@ -85,7 +86,7 @@ async function run() {
     </template>
 
     <template #result>
-      <ResultPanel :result="result" :busy="busy" title="生成结果" empty-text="生成后可在此打开 SEO 文件" compact />
+      <ResultPanel :result="result" :busy="busy" title="生成结果" empty-text="生成后可在此打开 SEO 文件" compact paged />
     </template>
 
     <template #destination>
@@ -108,12 +109,34 @@ async function run() {
 
 <style scoped>
 .seo-source-row {
-  max-width: 720px;
+  min-width: 0;
 }
 
+.field, .field input, .seo-options :deep(.select-menu) { min-width: 0; }
+.seo-path-field { grid-template-rows: auto minmax(0, 1fr); min-height: 0; }
 .seo-paths-textarea {
-  min-height: 72px;
-  max-height: 118px;
+  display: block;
+  min-height: 110px;
   resize: vertical;
+}
+.seo-files-page :deep(.result-panel.paged .file-list) { grid-template-columns: minmax(0, 1fr); }
+
+@media (min-width: 1121px) and (min-height: 721px) {
+  .seo-files-page :deep(.task-flow-source-panel) {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
+    align-items: center;
+    gap: 24px;
+  }
+  .seo-files-page :deep(.task-flow-source-panel > .panel-heading) { margin-bottom: 0; }
+  .seo-files-page :deep(.task-flow-workbench) { grid-template-columns: minmax(0, 1.3fr) minmax(0, 0.7fr); }
+  .seo-files-page :deep(.task-flow-settings-content) { grid-template-rows: minmax(0, 1fr); align-content: stretch; }
+  .seo-options { grid-template-rows: auto auto minmax(0, 1fr); }
+  .seo-paths-textarea { height: 100%; resize: none; }
+  .seo-options :deep(.select-popover) { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 720px) {
+  .seo-path-field { grid-column: 1 / -1; }
 }
 </style>

@@ -59,6 +59,8 @@ npm run dev
 
 `npm run test:url-codec-ui` 验证 URL 编解码页单屏布局、四种模式、异常输入及长文本访问，使用隔离配置；已纳入 `npm run check`。
 
+`npm run test:seo-files-ui` 验证 robots / sitemap 页单屏布局、完整路径输入、输出组合及日志弹窗，使用隔离配置和模拟输出；已纳入 `npm run check`。
+
 ## 发布到 GitHub
 
 推送新的 `v*` 标签会触发 [Release Dev Toolbox](https://github.com/CoffeeHouse1122/Dev-Toolbox/actions/workflows/release.yml)，自动检查、打包并发布，无需手动创建 Release 或上传安装包。
