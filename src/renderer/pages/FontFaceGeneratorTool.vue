@@ -34,6 +34,7 @@ const css = computed(() => `@font-face {
 
 <template>
   <TaskFlowLayout
+    class="font-face-page"
     title="@font-face CSS 生成器"
     description="按字体文件路径生成可直接使用的 Web 字体声明"
     source-title="字体来源"
@@ -97,8 +98,14 @@ const css = computed(() => `@font-face {
 <style scoped>
 .font-source-grid {
   display: grid;
-  grid-template-columns: minmax(220px, 0.8fr) minmax(320px, 1.2fr);
+  grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
   gap: 12px;
+}
+
+.field,
+.field input,
+.option-grid :deep(.select-menu) {
+  min-width: 0;
 }
 
 .font-face-code {
@@ -106,6 +113,21 @@ const css = computed(() => `@font-face {
   height: 100%;
   min-height: 240px;
   resize: none;
+}
+
+@media (min-width: 1121px) and (min-height: 721px) {
+  .font-face-page :deep(.task-flow-workbench) {
+    grid-template-columns: minmax(0, 0.72fr) minmax(0, 1.28fr);
+  }
+
+  .font-face-page :deep(.task-flow-preview-content) {
+    grid-template-rows: minmax(0, 1fr);
+    align-content: stretch;
+  }
+
+  .font-face-code {
+    min-height: 0;
+  }
 }
 
 @media (max-width: 900px) {
