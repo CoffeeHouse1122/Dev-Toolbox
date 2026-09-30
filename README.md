@@ -61,6 +61,8 @@ npm run dev
 
 `npm run test:seo-files-ui` 验证 robots / sitemap 页单屏布局、完整路径输入、输出组合及日志弹窗，使用隔离配置和模拟输出；已纳入 `npm run check`。
 
+`npm run test:og-image-ui` 验证 OG 图片页单屏布局、不同宽高比的完整预览、实时配色及生成状态，使用隔离配置和模拟输出；已纳入 `npm run check`。
+
 ## 发布到 GitHub
 
 推送新的 `v*` 标签会触发 [Release Dev Toolbox](https://github.com/CoffeeHouse1122/Dev-Toolbox/actions/workflows/release.yml)，自动检查、打包并发布，无需手动创建 Release 或上传安装包。
