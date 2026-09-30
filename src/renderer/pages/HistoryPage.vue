@@ -136,7 +136,7 @@ onMounted(refresh);
     <div class="tool-header">
       <div>
         <h2>历史记录</h2>
-        <p>点击记录查看详情；打开输出目录请使用右侧按钮</p>
+        <p>点击记录查看详情，可在详情中打开输出目录</p>
       </div>
       <div class="history-actions">
         <button type="button" class="secondary-button history-refresh" :disabled="loading || !!openingRecord" @click="refresh">刷新</button>
@@ -156,7 +156,6 @@ onMounted(refresh);
           <span>输出目录</span>
           <span>完成时间</span>
         </div>
-        <span class="history-operation-label">操作</span>
       </div>
       <div
         v-for="record in records"
@@ -175,10 +174,6 @@ onMounted(refresh);
           <span :title="record.outputPath">{{ record.outputPath || "—" }}</span>
           <span :title="record.finishedAt || record.createdAt">{{ formatTime(record.finishedAt || record.createdAt) }}</span>
         </button>
-        <button type="button" class="secondary-button history-open-output" :title="outputHint(record)"
-          :disabled="!!openingRecord || !record.outputPath || !!unavailable[record.id]" @click="openOutput(record)">
-          {{ openingRecord === record.id ? "打开中…" : unavailable[record.id] ? "位置不可用" : "打开输出目录" }}
-        </button>
       </div>
       <div v-if="records.length === 0" class="empty-state">{{ loading ? "加载中…" : "暂无记录" }}</div>
     </section>
@@ -194,7 +189,10 @@ onMounted(refresh);
         <template v-if="unavailable[selectedRecord.id]"><dt>位置状态</dt><dd>{{ unavailable[selectedRecord.id] }} 刷新列表后可重试。</dd></template>
       </dl>
       <template #actions>
-        <button v-if="selectedRecord" type="button" class="secondary-button" :disabled="!!openingRecord || !selectedRecord.outputPath || !!unavailable[selectedRecord.id]" @click="openOutput(selectedRecord)">打开输出目录</button>
+        <button v-if="selectedRecord" type="button" class="secondary-button history-open-output" :title="outputHint(selectedRecord)"
+          :disabled="!!openingRecord || !selectedRecord.outputPath || !!unavailable[selectedRecord.id]" @click="openOutput(selectedRecord)">
+          {{ openingRecord === selectedRecord.id ? "打开中…" : unavailable[selectedRecord.id] ? "位置不可用" : "打开输出目录" }}
+        </button>
         <button type="button" class="secondary-button history-detail-close" @click="selectedRecord = null">关闭</button>
       </template>
     </AppDialog>
@@ -203,12 +201,10 @@ onMounted(refresh);
 
 <style scoped>
 .history-actions { display: flex; gap: 8px; }
-.history-entry { display: grid; grid-template-columns: minmax(0, 1fr) 112px; gap: 8px; align-items: center; }
+.history-entry { display: grid; grid-template-columns: minmax(0, 1fr); }
 .history-row { grid-template-columns: 100px 62px minmax(0, 1fr) minmax(0, 1fr) 142px; gap: 8px; min-width: 0; }
 .history-row > span { min-width: 0; }
 .history-row > span:last-child { font-size: 12px; }
-.history-open-output { padding: 5px 8px; font-size: 12px; }
-.history-operation-label { color: var(--muted); font-size: 12px; text-align: center; }
 .history-details { margin: 0; display: grid; grid-template-columns: 72px minmax(0, 1fr); gap: 12px; }
 .history-details dt { color: var(--muted); }
 .history-details dd { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }

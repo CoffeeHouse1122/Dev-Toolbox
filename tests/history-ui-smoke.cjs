@@ -39,8 +39,14 @@ app.whenReady().then(async () => {
     throw new Error(`Timed out: ${expression}`);
   }
   async function click(selector) { await evaluate(`document.querySelector(${JSON.stringify(selector)}).click()`); }
+  async function details(index) {
+    await evaluate(`document.querySelectorAll('button.history-row')[${index}].click()`);
+    await waitFor("!!document.querySelector('.app-dialog[open]')");
+  }
   await win.loadFile(path.resolve(__dirname, '../dist/renderer/index.html'), { hash: '/history' });
-  await waitFor("document.querySelectorAll('.history-open-output').length === 5");
+  await waitFor("document.querySelectorAll('button.history-row').length === 5");
+  assert.equal(await evaluate("document.querySelectorAll('.history-table .history-open-output, .history-operation-label').length"), 0, 'no operation column in list');
+  assert.equal(await evaluate("document.querySelector('.table-head').children.length"), 5);
   for (const theme of ['dark', 'light']) {
     await evaluate(`document.documentElement.dataset.theme = '${theme}'`); await pause(120);
     assert.equal(await evaluate("document.querySelector('.history-table').scrollWidth <= document.querySelector('.history-table').clientWidth + 1"), true);
@@ -58,30 +64,35 @@ app.whenReady().then(async () => {
   win.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Return' });
   win.webContents.sendInputEvent({ type: 'char', keyCode: '\r' });
   win.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Return' });
-  await waitFor("!!document.querySelector('.app-dialog[open]')"); await click('.history-detail-close');
+  await waitFor("!!document.querySelector('.app-dialog[open]')");
   await click('.history-open-output');
   await waitFor("document.querySelector('.history-open-output').textContent.includes('打开中')");
-  assert.equal(await evaluate("!!document.querySelector('.app-dialog[open]')"), false);
+  assert.equal(await evaluate("!!document.querySelector('.app-dialog[open]')"), true);
   await waitFor("!document.querySelector('.history-open-output').disabled"); assert.deepEqual(openCalls, ['folder']);
-  await evaluate("document.querySelectorAll('.history-open-output')[1].click()");
-  await waitFor("document.querySelectorAll('.history-open-output')[1].textContent.includes('位置不可用')");
-  assert.ok((await evaluate("document.body.textContent")).includes('输出文件或目录已移动、删除'));
-  assert.equal(await evaluate("document.querySelectorAll('.history-open-output')[2].disabled"), true);
-  await evaluate("document.querySelectorAll('button.history-row')[3].click()"); await waitFor("!!document.querySelector('.app-dialog[open]')");
+  await click('.history-detail-close'); await details(1); await click('.history-open-output');
+  await waitFor("document.querySelector('.history-open-output').textContent.includes('位置不可用')");
+  assert.ok((await evaluate("document.querySelector('.history-details').textContent")).includes('输出文件或目录已移动、删除'));
+  assert.equal(await evaluate("document.querySelector('.history-open-output').disabled"), true);
+  await click('.history-detail-close'); await details(2);
+  assert.equal(await evaluate("document.querySelector('.history-open-output').disabled"), true);
+  await click('.history-detail-close'); await details(3);
   assert.ok((await evaluate("document.querySelector('.history-details').textContent")).includes('模拟转换失败原因'));
   await click('.history-detail-close'); await click('.history-refresh');
-  await waitFor("!document.querySelectorAll('.history-open-output')[1].disabled");
-  await evaluate("document.querySelectorAll('.history-open-output')[4].click()");
+  await waitFor("!document.querySelector('.history-refresh').disabled");
+  await details(1);
+  assert.equal(await evaluate("document.querySelector('.history-open-output').disabled"), false);
+  await click('.history-detail-close'); await details(4); await click('.history-open-output');
   await waitFor("document.body.textContent.includes('无法打开历史输出目录，请刷新后重试。')");
   assert.equal(revealCalls, 0);
+  await click('.history-detail-close');
   await waitFor("!document.querySelector('.history-refresh').disabled");
   failList = true; await click('.history-refresh');
   await waitFor("document.body.textContent.includes('历史记录读取失败')");
-  assert.equal(await evaluate("document.querySelectorAll('.history-open-output').length"), 5, 'failed refresh preserves the list');
+  assert.equal(await evaluate("document.querySelectorAll('button.history-row').length"), 5, 'failed refresh preserves the list');
   failList = false; await click('.history-refresh'); await waitFor("!document.querySelector('.history-refresh').disabled");
   await evaluate("[...document.querySelectorAll('.history-actions button')].find(el => el.textContent.includes('清空')).click()");
-  await waitFor("document.querySelectorAll('.history-open-output').length === 0");
+  await waitFor("document.querySelectorAll('button.history-row').length === 0");
   assert.equal(await evaluate("document.querySelector('.history-table .empty-state').textContent"), '暂无记录');
-  console.log('History UI passed: row/keyboard details, explicit ID-only folder action, no generic reveal, missing/empty outputs, retry, Chinese error feedback, both themes and clear.');
+  console.log('History UI passed: no list operation column, row/keyboard details, detail-only ID-based folder action, no generic reveal, missing/empty outputs, retry, Chinese error feedback, both themes and clear.');
   win.destroy(); clearTimeout(watchdog); app.exit(0);
 }).catch(error => { console.error(error); app.exit(1); });
