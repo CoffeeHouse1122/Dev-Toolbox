@@ -79,17 +79,17 @@ npm run dev
 
 推送新的 `v*` 标签会触发 [Release Dev Toolbox](https://github.com/CoffeeHouse1122/Dev-Toolbox/actions/workflows/release.yml)，自动检查、打包并发布，无需手动创建 Release 或上传安装包。
 
-先提交待发布代码，确认在 `main`、与远程同步且工作区干净。以下以 **0.1.8** 为例，后续发布统一替换版本号：
+先提交待发布代码，确认在 `main`、与远程同步且工作区干净。以下以 **0.1.9** 为例，后续发布统一替换版本号：
 
 ```powershell
-npm version 0.1.8 --no-git-tag-version
+npm version 0.1.9 --no-git-tag-version
 git diff -- package.json package-lock.json
 git status --short
 git add -- package.json package-lock.json
-git commit -m "发布 0.1.8 版本"
-git tag -a v0.1.8 -m "发布 0.1.8 版本"
+git commit -m "发布 0.1.9 版本"
+git tag -a v0.1.9 -m "发布 0.1.9 版本"
 git push origin main
-git push origin v0.1.8
+git push origin v0.1.9
 ```
 
 按顺序执行，任一步失败先处理再继续。标签须与 `package.json` 版本一致，不重复创建或覆盖已发布标签。
