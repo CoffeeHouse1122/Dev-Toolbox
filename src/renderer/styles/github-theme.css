@@ -352,30 +352,6 @@ button {
   border-top: 0;
 } */
 
-.nav-group-head {
-  display: grid;
-  grid-template-columns: 18px minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 6px;
-  width: 100%;
-  margin: 0;
-  padding: 8px 10px;
-  border: 0;
-  background: transparent;
-  color: var(--muted);
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  text-align: left;
-  cursor: pointer;
-  border-radius: 6px;
-}
-
-.nav-group-head:hover {
-  background: var(--surface-subtle);
-}
-
 .nav-group-chevron {
   font-size: 14px;
   text-align: center;
@@ -384,13 +360,14 @@ button {
 .nav-group-count {
   display: inline-grid;
   place-items: center;
-  min-width: 22px;
+  width: 24px;
   height: 16px;
-  padding: 0 6px;
+  padding: 0;
   border-radius: 999px;
   background: var(--surface-subtle);
   color: var(--muted);
   font-size: 10px;
+  font-variant-numeric: tabular-nums;
 }
 
 .nav-group-items {
@@ -400,7 +377,7 @@ button {
 
 .nav-workbench-head {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) 32px;
   align-items: center;
   gap: 2px;
   min-height: 36px;
@@ -458,7 +435,6 @@ button {
   color: var(--accent-strong);
 }
 
-.nav-group-head:focus-visible,
 .nav-group-toggle:focus-visible,
 .nav-workbench-link:focus-visible {
   outline: 2px solid var(--accent);

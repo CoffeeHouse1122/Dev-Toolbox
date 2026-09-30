@@ -64,9 +64,17 @@ app.whenReady().then(async () => {
   assert.equal(await evaluate("document.querySelectorAll('.nav-workbench-link').length"), 7);
   assert.equal(await evaluate("new Set([...document.querySelectorAll('.nav-workbench-link')].map(el => el.getAttribute('aria-label'))).size"), 7);
   assert.equal(await evaluate(`document.querySelectorAll('${active}').length`), 1);
-  assert.equal(await evaluate("[...document.querySelectorAll('.nav-workbench-link')].every(el => el.textContent.trim() === '' && el.children.length === 1 && el.querySelector('i.ri-layout-grid-line[aria-hidden=true]'))"), true);
+  assert.equal(await evaluate("[...document.querySelectorAll('.nav-workbench-link')].every(el => el.textContent.trim() === '' && el.children.length === 1 && el.querySelector('i.ri-dashboard-line[aria-hidden=true]'))"), true);
   assert.equal(await evaluate(`${query(heading("system"))}.title`), "文件与网络总览");
   assert.equal(await evaluate("[...document.querySelectorAll('.nav-workbench-link')].every(el => el.title === el.getAttribute('aria-label') && el.title.endsWith('总览'))"), true);
+  for (const id of ["favorites", "system"]) {
+    assert.equal(await evaluate(`${query(toggle(id))}.parentElement.querySelector('.nav-workbench-link') === null`), true);
+    const before = await evaluate(`${query(toggle(id))}.getAttribute('aria-expanded')`);
+    await click(toggle(id));
+    assert.notEqual(await evaluate(`${query(toggle(id))}.getAttribute('aria-expanded')`), before);
+    assert.equal(await evaluate("location.hash"), "#/workbench/seo");
+    await click(toggle(id));
+  }
 
   // Collapsing must not navigate. The overview remains reachable while collapsed.
   await click(toggle("system-files") + " .nav-workbench-label");
@@ -113,6 +121,8 @@ app.whenReady().then(async () => {
     const surface = theme === "dark" ? "rgb(22, 27, 34)" : "rgb(255, 255, 255)";
     await waitFor(`getComputedStyle(document.querySelector('.workbench-tool-card')).backgroundColor === '${surface}'`);
     await new Promise(resolve => setTimeout(resolve, 300));
+    const headerPositions = await evaluate("[...document.querySelectorAll('.nav-group-toggle')].map(el => ({ group: el.getAttribute('aria-controls'), positions: ['.nav-group-chevron', '.nav-workbench-label', '.nav-group-count'].map(selector => el.querySelector(selector).getBoundingClientRect().x) }))");
+    assert.equal(headerPositions.every(item => item.positions.every((x, index) => Math.abs(x - headerPositions[0].positions[index]) < 1)), true, `all category headers including favorites and system align: ${JSON.stringify(headerPositions)}`);
     assert.equal(await evaluate("[...document.querySelectorAll('.nav-workbench-link')].every(el => { const box = el.getBoundingClientRect(); const style = getComputedStyle(el); const icon = getComputedStyle(el.firstElementChild, '::before'); return box.width === 32 && box.height === 32 && style.borderTopWidth === '0px' && style.fontSize === '16px' && icon.content !== 'none' && icon.content !== ''; })"), true);
     fs.writeFileSync(path.join(output, `${theme}.png`), (await win.webContents.capturePage()).toPNG());
     assert.equal(await evaluate("[...document.querySelectorAll('.nav-workbench-link')].every(el => el.getBoundingClientRect().right <= document.querySelector('.sidebar').getBoundingClientRect().right)"), true);
@@ -128,6 +138,9 @@ app.whenReady().then(async () => {
   assert.equal(await evaluate(`${query(toggle("system-files"))}.getAttribute('aria-expanded')`), "true");
   assert.deepEqual(await evaluate("[...document.querySelectorAll('.workbench-tool-card')].map(el => el.querySelector('strong').textContent)"),
     await evaluate("[...document.querySelectorAll('#nav-group-system-files .nav-item span')].map(el => el.textContent)"));
+  await evaluate("document.querySelectorAll('.nav-group-toggle[aria-expanded=true]').forEach(el => el.click())");
+  await new Promise(resolve => setTimeout(resolve, 300));
+  fs.writeFileSync(path.join(output, "collapsed.png"), (await win.webContents.capturePage()).toPNG());
   console.log(`Navigation UI passed (${reducedMotion ? "reduced" : "normal"} motion): unique category entries, separate expand/navigation, exact active state, keyboard activation, pinning and both themes.`);
   win.destroy();
   clearTimeout(watchdog);
