@@ -35,7 +35,10 @@ test('history output opens only persisted directories without restoring generic 
   const openFolder = async target => { opened.push(target); return ''; };
   assert.equal((await openHistoryOutput('folder-record', id => reopened.get(id), openFolder)).status, 'opened');
   assert.equal((await openHistoryOutput('file-record', id => reopened.get(id), openFolder)).status, 'opened');
-  assert.deepEqual(opened, [fs.realpathSync(directory), fs.realpathSync(directory)], 'never execute the recorded output file');
+  // Windows short paths can differ between the JS sync resolver and the native async resolver.
+  const expectedDirectory = await fs.promises.realpath(directory);
+  assert.deepEqual(opened, [expectedDirectory, expectedDirectory], 'never execute the recorded output file');
+  assert.ok(opened.every(target => fs.statSync(target).isDirectory()), 'only directories may be opened');
   assert.equal(isAuthorizedPath(directory), false);
   assert.equal(isAuthorizedPath(executable), false);
   assert.equal((await openHistoryOutput(executable, id => reopened.get(id), openFolder)).status, 'missing', 'a renderer-supplied path is not a record ID');
