@@ -72,14 +72,15 @@ async function run() {
 
 <template>
   <TaskFlowLayout
+    class="video-convert-page"
     title="视频转化"
     :description="`${selectedFileName} · ${crfTone} · ${width || '原始'}px`"
     source-title="源视频"
-    source-description="可继续添加视频，任务将按队列顺序生成资源包"
+    source-description="按队列顺序生成视频资源包"
     settings-title="转化设置"
     settings-description="队列中的视频共用以下输出预设"
     preview-title="输出内容"
-    preview-description="根据当前预设确认每个视频将生成的资源"
+    preview-description=""
     :file-count="input.length"
   >
     <template #source>
@@ -117,13 +118,13 @@ async function run() {
         <div v-for="item in outputItems" :key="item.name" class="video-output-item" :class="{ active: item.active }">
           <i :class="item.icon" aria-hidden="true"></i>
           <span>{{ item.name }}</span>
-          <small>{{ item.detail }}</small>
+          <small :title="item.detail">{{ item.detail }}</small>
         </div>
       </div>
     </template>
 
     <template #result>
-      <ResultPanel :result="result" :busy="busy" title="转化结果" empty-text="转化后可在此打开输出资源" compact />
+      <ResultPanel :result="result" :busy="busy" title="转化结果" empty-text="转化后可在此打开输出资源" compact paged />
     </template>
 
     <template #destination>
@@ -143,3 +144,29 @@ async function run() {
     </template>
   </TaskFlowLayout>
 </template>
+
+<style scoped>
+.video-form-grid > *, .video-form-grid input, .video-form-grid :deep(.select-menu), .video-form-grid :deep(.slider-control) { min-width: 0; }
+.video-convert-page :deep(.task-flow-header > div) { min-width: 0; max-width: 100%; }
+.video-convert-page :deep(.task-flow-header p) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.video-convert-page :deep(.task-flow-preview-panel .panel-heading p:empty) { display: none; }
+.output-summary-list { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.video-output-item { grid-template-columns: 22px minmax(0, 1fr); gap: 2px 6px; min-height: 44px; padding: 6px; }
+.video-output-item i { width: 22px; height: 22px; font-size: 15px; }
+.video-output-item span { font-size: 12px; }
+.video-output-item small { font-size: 11px; }
+
+@media (min-width: 1121px) and (min-height: 721px) {
+  .video-convert-page :deep(.task-flow-source-panel) {
+    display: grid;
+    grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.4fr);
+    align-items: center;
+    gap: 18px;
+  }
+  .video-convert-page :deep(.task-flow-source-panel > .panel-heading) { margin-bottom: 0; }
+  .video-convert-page :deep(.drop-zone-wrapper.compact.has-files .drop-file-item) { flex-basis: clamp(200px, calc((100% - 8px) / 2), 280px); }
+  .video-convert-page :deep(.task-flow-workbench) { grid-template-columns: minmax(0, 0.62fr) minmax(0, 1.38fr); }
+  .video-convert-page :deep(.task-flow-layout.has-preview .task-flow-output-column) { grid-template-rows: 174px minmax(0, 1fr); }
+}
+@media (max-width: 720px) { .output-summary-list { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+</style>

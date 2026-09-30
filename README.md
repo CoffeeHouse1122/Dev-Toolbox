@@ -53,6 +53,8 @@ npm run dev
 
 `npm run test:pwa-ui` 验证 PWA 页单屏布局、完整手机预览、图标包清单及安全留白比例，使用隔离配置和模拟输出；已纳入 `npm run check`。
 
+`npm run test:video-ui` 验证视频转化页单屏布局、输出预设、结果分页及日志弹窗，使用隔离配置和模拟输出；已纳入 `npm run check`。
+
 ## 发布到 GitHub
 
 推送新的 `v*` 标签会触发 [Release Dev Toolbox](https://github.com/CoffeeHouse1122/Dev-Toolbox/actions/workflows/release.yml)，自动检查、打包并发布，无需手动创建 Release 或上传安装包。
