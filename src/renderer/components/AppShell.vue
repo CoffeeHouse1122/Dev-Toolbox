@@ -13,6 +13,8 @@ const navStorageKey = "dev-toolbox.nav.v1";
 const collapsedStorageKey = "dev-toolbox.nav-collapsed.v1";
 const sidebarCollapsedStorageKey = "dev-toolbox.sidebar-collapsed.v1";
 const theme = useThemeStore();
+const unsubscribeOutputNotice = window.devToolbox.onOutputAuthorizationNotice(message => showWorkspaceToast(message, "info", 8000));
+onBeforeUnmount(unsubscribeOutputNotice);
 const editingNav = ref(false);
 const navImportInput = ref<HTMLInputElement | null>(null);
 const navConfigLoaded = ref(false);

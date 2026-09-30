@@ -3,6 +3,7 @@ import { z } from "zod";
 import { createHistoryService } from "./services/history.service";
 import { openHistoryOutput } from "./services/history-output.service";
 import { checkOutputDirectory } from "./services/output-directory.service";
+import { outputAuthorizations } from "./services/output-authorizations.service";
 import { applyWatermark, compressImages, createFaviconPackage, convertImages, cropImage, resizeImages } from "./services/image.service";
 import { processSvgFiles } from "./services/svg.service";
 import { generatePwaIconPackages } from "./services/pwa-icon.service";
@@ -518,7 +519,7 @@ export function registerIpc() {
     }
   );
 
-  handleTrustedIpc("dialog:select-output-dir", async (_event, rawDefaultPath?: unknown): Promise<string | null> => {
+  handleTrustedIpc("dialog:select-output-dir", async (event, rawDefaultPath?: unknown): Promise<string | null> => {
     const defaultPath = rawDefaultPath === undefined ? undefined : outputDirectoryPathSchema.parse(rawDefaultPath);
     return runWithLocalOpenLock(null, async () => {
       const result = await dialog.showOpenDialog({
@@ -528,7 +529,8 @@ export function registerIpc() {
       });
 
       if (result.canceled || !result.filePaths[0]) return null;
-      authorizeUserSelectedPaths([result.filePaths[0]], true);
+      const state = await outputAuthorizations().rememberSelection(result.filePaths[0]);
+      if (state.warning) event.sender.send("output-authorizations:notice", state.warning);
       return result.filePaths[0];
     });
   });
@@ -541,6 +543,8 @@ export function registerIpc() {
   handleTrustedIpc("file:check-output-directory", async (_event, targetPath: unknown) =>
     checkOutputDirectory(outputDirectoryPathSchema.parse(targetPath))
   );
+  handleTrustedIpc("output-authorizations:state", () => outputAuthorizations().getState());
+  handleTrustedIpc("output-authorizations:clear", () => outputAuthorizations().clear());
 
   handleTrustedIpc("convert:favicon", async (_event, raw: FaviconOptions) => {
     const options = faviconSchema.parse(raw);

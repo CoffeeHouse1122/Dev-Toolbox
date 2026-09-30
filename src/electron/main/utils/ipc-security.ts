@@ -7,6 +7,7 @@ import path from "node:path";
 import { domainToASCII, fileURLToPath } from "node:url";
 import { z } from "zod";
 import { getRendererIndexPath } from "./app-paths";
+import { matchesOutputDirectory, type OutputDirectoryIdentity } from "./output-directory-identity";
 import { isUpdateBlockingTask, updateTaskGate } from "../services/update-task-gate";
 
 type IpcResult<T> = T | Promise<T>;
@@ -18,6 +19,7 @@ function normalizeFilePath(value: string) {
 
 const exactPathGrants = new Set<string>();
 const directoryPathGrants = new Set<string>();
+let outputDirectoryGrants: OutputDirectoryIdentity[] = [];
 let userDataRoot = "";
 
 function requireAbsolutePath(rawPath: string) {
@@ -57,6 +59,12 @@ export function initializePathAuthorization(userDataPath: string) {
   userDataRoot = canonicalizePath(userDataPath);
   exactPathGrants.clear();
   directoryPathGrants.clear();
+  outputDirectoryGrants = [];
+}
+
+// Only the main-process chooser/verified encrypted store may populate these grants.
+export function setOutputDirectoryGrants(grants: OutputDirectoryIdentity[]) {
+  outputDirectoryGrants = grants.map(grant => ({ ...grant }));
 }
 
 export function authorizeUserSelectedPaths(rawPaths: string[], recursive = false) {
@@ -113,10 +121,16 @@ export function assertSharedDiskTarget(config: SharedDiskBoundaryConfig, rawTarg
 export function isAuthorizedPath(rawPath: string) {
   try {
     const candidate = canonicalizePath(rawPath);
+    // Private authorization metadata is never available through generic file APIs.
+    if (userDataRoot && (isWithinPath(candidate, path.join(userDataRoot, "security")) ||
+      isWithinPath(normalizeFilePath(rawPath), path.join(userDataRoot, "security")))) return false;
     if (userDataRoot && isWithinPath(candidate, userDataRoot)) return true;
     if (exactPathGrants.has(candidate)) return true;
     for (const directory of directoryPathGrants) {
       if (isWithinPath(candidate, directory)) return true;
+    }
+    for (const grant of outputDirectoryGrants) {
+      if (isWithinPath(candidate, grant.canonicalPath) && matchesOutputDirectory(grant)) return true;
     }
     return false;
   } catch {

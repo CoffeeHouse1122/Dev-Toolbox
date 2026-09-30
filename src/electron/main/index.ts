@@ -2,6 +2,7 @@ import { app, BrowserWindow, Menu, Tray, net, protocol, nativeImage, session } f
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { registerIpc } from "./ipc";
+import { outputAuthorizations } from "./services/output-authorizations.service";
 import { loadAppSettings, getCachedSettings } from "./services/settings.service";
 import { getPreloadEntryPath, getRendererIndexPath, getRuntimeIconPath } from "./utils/app-paths";
 import {
@@ -367,6 +368,7 @@ onTrustedIpc("theme:background", (_event, raw: unknown) => {
 
 app.whenReady().then(async () => {
   initializePathAuthorization(app.getPath("userData"));
+  await outputAuthorizations().initialize();
   session.defaultSession.setPermissionCheckHandler((webContents, permission) =>
     Boolean(webContents && isTrustedRendererUrl(webContents.getURL()) && isAllowedRendererPermission(permission))
   );

@@ -69,6 +69,13 @@ const api: DevToolboxApi = {
   selectOutputDir: (defaultPath?: string) => ipcRenderer.invoke("dialog:select-output-dir", defaultPath),
   pathExists: (targetPath: string) => ipcRenderer.invoke("file:path-exists", targetPath),
   checkOutputDirectory: (targetPath: string) => ipcRenderer.invoke("file:check-output-directory", targetPath),
+  getOutputAuthorizations: () => ipcRenderer.invoke("output-authorizations:state"),
+  clearOutputAuthorizations: () => ipcRenderer.invoke("output-authorizations:clear"),
+  onOutputAuthorizationNotice: (handler: (message: string) => void) => {
+    const listener = (_event: unknown, message: string) => handler(message);
+    ipcRenderer.on("output-authorizations:notice", listener);
+    return () => ipcRenderer.off("output-authorizations:notice", listener);
+  },
   openDirectory: (targetPath: string) => ipcRenderer.invoke("shell:open-directory", targetPath),
   convertFavicon: (options: FaviconOptions) => ipcRenderer.invoke("convert:favicon", toPlain(options)),
   processSvgFiles: (options: SvgToolboxOptions) => ipcRenderer.invoke("convert:svg-toolbox", toPlain(options)),

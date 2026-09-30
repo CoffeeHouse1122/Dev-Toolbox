@@ -10,7 +10,7 @@ export async function checkOutputDirectory(
 ): Promise<OutputDirectoryCheck> {
   if (!authorized(targetPath)) return {
     status: "needs-authorization",
-    message: "此输出目录尚未在本次启动中授权，请在目录选择窗口中确认后使用。"
+    message: "此输出目录尚未授权或原授权已失效，请在目录选择窗口中确认；有效授权会在重启后保留。"
   };
   try {
     if (!(await stat(targetPath)).isDirectory()) return { status: "unavailable", message: "该位置不是文件夹，请重新选择输出目录。" };

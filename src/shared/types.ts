@@ -461,6 +461,12 @@ export interface OutputDirectoryCheck {
   message?: string;
 }
 
+export interface OutputAuthorizationsState {
+  rememberedCount: number;
+  sessionCount: number;
+  warning: string;
+}
+
 export interface OpenDirectoryResult {
   status: "opened" | "blocked" | "missing" | "needs-authorization" | "unavailable";
   path: string;
@@ -525,6 +531,9 @@ export interface DevToolboxApi {
   selectOutputDir(defaultPath?: string): Promise<string | null>;
   pathExists(targetPath: string): Promise<boolean>;
   checkOutputDirectory(targetPath: string): Promise<OutputDirectoryCheck>;
+  getOutputAuthorizations(): Promise<OutputAuthorizationsState>;
+  clearOutputAuthorizations(): Promise<OutputAuthorizationsState>;
+  onOutputAuthorizationNotice(handler: (message: string) => void): () => void;
   openDirectory(targetPath: string): Promise<OpenDirectoryResult>;
   convertFavicon(options: FaviconOptions): Promise<ConversionResult>;
   processSvgFiles(options: SvgToolboxOptions): Promise<ConversionResult>;

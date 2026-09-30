@@ -53,7 +53,7 @@ function notifyDirectory(message: string, path: string, missing = false, needsAu
 function notifyCheck(result: OutputDirectoryCheck, path: string) {
   if (result.status === "needs-authorization") {
     pendingAuthorization.value = path;
-    notifyDirectory(result.message || "上次保存的输出目录需要重新授权，请确认目录后使用。", path, false, true);
+    notifyDirectory(result.message || "上次保存的输出目录需要重新授权，请确认目录后使用；有效授权会在重启后保留。", path, false, true);
   } else if (result.status === "missing") {
     if (entryState.value.dismissedMissingPath !== path) notifyDirectory("输出目录不存在或所在磁盘未连接，请检查后重新选择；关闭提示可忽略此提醒。", path, true);
   } else if (result.status === "unavailable") {
@@ -155,11 +155,21 @@ watch(
 );
 
 onMounted(() => {
+  window.addEventListener("output-authorizations-cleared", onAuthorizationsCleared);
   void restoreEntry().catch(cause => { if (active) reportWorkspaceError(cause, "读取输出目录失败"); });
 });
-onActivated(() => { active = true; });
+function onAuthorizationsCleared() {
+  selectionRevision++;
+  pendingAuthorization.value = props.modelValue || pendingAuthorization.value;
+  emit("update:modelValue", "");
+  clearWarning();
+}
+onActivated(() => {
+  active = true;
+  if (pendingAuthorization.value && !props.modelValue) void restoreEntry().catch(cause => reportWorkspaceError(cause, "读取输出目录失败"));
+});
 onDeactivated(() => { active = false; clearWarning(); });
-onBeforeUnmount(() => { active = false; clearWarning(); });
+onBeforeUnmount(() => { active = false; clearWarning(); window.removeEventListener("output-authorizations-cleared", onAuthorizationsCleared); });
 </script>
 
 <template>

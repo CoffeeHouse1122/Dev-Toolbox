@@ -3,6 +3,7 @@ import { computed, inject, onMounted, onUnmounted, ref } from "vue";
 import { useThemeStore, type ThemeMode, type UiFont } from "../stores/theme";
 import type { AppCloseBehavior, AppDiagnostics, AppSettings, UpdateStatus } from "../../shared/types";
 import Checkbox from "../components/Checkbox.vue";
+import OutputAuthorizationSettings from "../components/OutputAuthorizationSettings.vue";
 import { showWorkspaceToast } from "../composables/useWorkspaceToast";
 
 const theme = useThemeStore();
@@ -192,6 +193,7 @@ onUnmounted(() => {
         </div>
         <p class="settings-helper-text">调整左侧工具分组、显示状态和置顶顺序。</p>
       </div>
+      <OutputAuthorizationSettings />
       <div class="settings-block diagnostics-block">
         <div class="settings-block-head">
           <h3>诊断</h3>

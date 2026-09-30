@@ -10,7 +10,7 @@ const { checkOutputDirectory } = require('../dist/electron/main/services/output-
 const security = require('../dist/electron/main/utils/ipc-security.js');
 Module._load = originalLoad;
 
-test('existing output directories require explicit selection again after restart, without false missing results', async () => {
+test('legacy session-only directories require confirmation after restart, without false missing results', async () => {
   const fixture = fs.mkdtempSync(path.join(os.tmpdir(), 'output-directory-test-'));
   try {
     const userData = path.join(fixture, 'user-data');
