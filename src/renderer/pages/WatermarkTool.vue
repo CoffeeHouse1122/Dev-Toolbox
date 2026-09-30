@@ -73,14 +73,15 @@ async function run() {
 
 <template>
   <TaskFlowLayout
+    class="watermark-page"
     title="添加水印"
     description="支持图片与 PDF，支持文字、图案、全屏铺满和角标水印"
     source-title="源文件"
-    source-description="可混合添加图片与 PDF，任务会按队列顺序处理"
+    source-description="图片与 PDF 可混合添加，按队列处理"
     settings-title="水印设置"
     settings-description="所有源文件共用以下水印与输出规则"
     preview-title="输出计划"
-    preview-description="执行前确认本次水印内容和处理范围"
+    preview-description=""
     :file-count="input.length"
   >
     <template #source>
@@ -96,13 +97,13 @@ async function run() {
     </template>
 
     <template #settings>
-      <OptionGrid>
-        <label class="field span-2">
+      <div class="watermark-content-grid">
+        <label class="field">
           <span>水印文案</span>
-          <textarea v-model="text" class="tool-textarea compact" placeholder="可换行；留空时仅使用图案"></textarea>
+          <textarea v-model="text" class="tool-textarea compact watermark-text" rows="2" placeholder="可换行；留空时仅使用图案"></textarea>
         </label>
 
-        <div class="field span-2">
+        <div class="field">
           <span>水印图案</span>
           <div class="watermark-pattern-row">
             <DropZone
@@ -117,7 +118,8 @@ async function run() {
             </button>
           </div>
         </div>
-
+      </div>
+      <OptionGrid class="watermark-options">
         <div class="field">
           <span>位置与方式</span>
           <SelectMenu v-model="position" :options="positionOptions" />
@@ -150,7 +152,7 @@ async function run() {
           <span>图片质量</span>
           <Slider v-model="quality" :min="1" :max="100" aria-label="图片质量" />
         </label>
-        <Checkbox v-model="keepMetadata" class="check-row span-2" label="图片输出保留元数据" />
+        <Checkbox v-model="keepMetadata" class="check-row watermark-metadata" label="图片输出保留元数据" />
       </OptionGrid>
     </template>
 
@@ -166,7 +168,7 @@ async function run() {
           <div><dt>处理范围</dt><dd>{{ input.length || 0 }} 个文件</dd></div>
           <div><dt>位置</dt><dd>{{ positionOptions.find((item) => item.value === position)?.label }}</dd></div>
           <div><dt>输出</dt><dd>{{ formatOptions.find((item) => item.value === outputFormat)?.label }}</dd></div>
-          <div><dt>内容</dt><dd>{{ patternPath ? "文字 + 图案" : text.trim() ? "文字" : "未设置" }}</dd></div>
+          <div><dt>内容</dt><dd>{{ patternPath ? (text.trim() ? "文字 + 图案" : "图案") : text.trim() ? "文字" : "未设置" }}</dd></div>
         </dl>
       </div>
     </template>
@@ -192,18 +194,106 @@ async function run() {
 </template>
 
 <style scoped>
+.watermark-content-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.watermark-text {
+  min-height: 64px;
+  height: 64px;
+  max-height: 64px;
+  resize: none;
+}
+
+.watermark-pattern-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 34px;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.watermark-pattern-row :deep(.drop-zone) {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr);
+  grid-template-rows: auto auto;
+  gap: 2px 8px;
+  min-height: 64px;
+  height: 64px;
+  padding: 8px;
+  text-align: left;
+}
+
+.watermark-pattern-row :deep(.drop-icon),
+.watermark-pattern-row :deep(.drop-preview) {
+  grid-column: 1;
+  grid-row: 1 / 3;
+  align-self: center;
+  width: 32px;
+  height: 32px;
+  min-height: 0;
+  margin: 0;
+  font-size: 16px;
+}
+
+.watermark-pattern-row :deep(.drop-preview-media) { width: 100%; height: 100%; object-fit: contain; }
+/* The single selected pattern is already named above and has its own remove action. */
+.watermark-pattern-row :deep(.drop-file-list) { display: none; }
+.watermark-pattern-row :deep(.drop-title),
+.watermark-pattern-row :deep(.drop-files) {
+  grid-column: 2;
+  width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.watermark-options { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px 12px; }
+.watermark-content-grid > *, .watermark-options > * { min-width: 0; }
+.watermark-metadata { align-self: end; min-height: 36px; }
+.watermark-options :deep(.slider-control) { min-width: 0; }
+.watermark-options :deep(.select-menu) { min-width: 0; }
+.watermark-page :deep(.task-flow-settings-content) { gap: 10px; }
+.watermark-page :deep(.task-flow-preview-panel .panel-heading p:empty) { display: none; }
+.watermark-page :deep(.task-flow-preview-content) { align-content: stretch; }
+
+@media (min-width: 1121px) and (min-height: 721px) {
+  .watermark-page :deep(.task-flow-source-panel) {
+    display: grid;
+    grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.4fr);
+    align-items: center;
+    gap: 18px;
+  }
+  .watermark-page :deep(.task-flow-source-panel > .panel-heading) { margin-bottom: 0; }
+  .watermark-page :deep(.task-flow-workbench) { grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); }
+  .watermark-page :deep(.task-flow-output-column) { grid-template-rows: minmax(0, 1fr) minmax(130px, 0.58fr); }
+  .watermark-options :deep(.select-popover) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: calc(200% + 12px);
+  }
+}
+
+@media (max-width: 720px) {
+  .watermark-content-grid { grid-template-columns: 1fr; }
+  .watermark-options { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
 .watermark-plan {
   display: grid;
-  grid-template-rows: minmax(110px, 1fr) auto;
-  gap: 12px;
-  min-height: 100%;
+  grid-template-rows: minmax(80px, 1fr) auto;
+  gap: 10px;
+  min-height: 0;
+  height: 100%;
 }
 
 .watermark-plan-mark {
   display: grid;
   place-items: center;
   min-width: 0;
-  padding: 18px;
+  padding: 12px;
   overflow: hidden;
   border: 1px dashed var(--border-strong);
   border-radius: 7px;
@@ -232,9 +322,11 @@ async function run() {
 
 .watermark-plan dl div {
   display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
   gap: 3px;
   min-width: 0;
-  padding: 8px 10px;
+  padding: 6px 8px;
   border-radius: 6px;
   background: var(--surface-subtle);
 }
@@ -252,5 +344,6 @@ async function run() {
   font-weight: 700;
   text-overflow: ellipsis;
   white-space: nowrap;
+  text-align: right;
 }
 </style>

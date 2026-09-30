@@ -43,6 +43,8 @@ npm run dev
 
 构建后可用 `npm run test:workspace-ui` 验证共享连接布局、确认弹窗和链接卡片；测试使用隔离数据及模拟共享，不会操作真实 Windows 连接。
 
+`npm run test:watermark-ui` 验证水印页在常用窗口尺寸下的布局、图案选择和输出交互，使用隔离配置及模拟文件；已纳入 `npm run check`。
+
 ## 发布到 GitHub
 
 推送新的 `v*` 标签会触发 [Release Dev Toolbox](https://github.com/CoffeeHouse1122/Dev-Toolbox/actions/workflows/release.yml)，自动检查、打包并发布，无需手动创建 Release 或上传安装包。
