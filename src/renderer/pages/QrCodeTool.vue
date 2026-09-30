@@ -61,26 +61,26 @@ async function run() {
 
 <template>
   <TaskFlowLayout
+    class="qr-page"
     title="二维码生成"
     description="把链接、文本或配置片段生成 PNG / SVG 二维码"
     source-title="编码内容"
-    source-description="输入需要写入二维码的链接、文本或配置片段"
+    source-description="输入链接、文本或配置片段"
     settings-title="二维码设置"
     settings-description="设置文件格式、画布尺寸、边距与颜色"
     preview-title="二维码预览"
-    preview-description="生成后在此检查实际输出图片"
+    preview-description=""
     :file-label="`${text.trim().length} 字符`"
     variant="preview-dominant"
   >
     <template #source>
       <label class="field">
-        <span>内容</span>
-        <textarea v-model="text" class="tool-textarea compact qr-source-textarea" placeholder="输入需要编码的文本"></textarea>
+        <textarea v-model="text" class="tool-textarea compact qr-source-textarea" aria-label="编码内容" placeholder="输入需要编码的文本"></textarea>
       </label>
     </template>
 
     <template #settings>
-      <div class="option-grid">
+      <div class="option-grid qr-options">
           <label class="field">
             <span>文件名</span>
             <input v-model="fileName" />
@@ -144,8 +144,33 @@ async function run() {
 <style scoped>
 .qr-source-textarea {
   min-height: 72px;
-  max-height: 112px;
-  resize: vertical;
+  height: 72px;
+  max-height: 72px;
+  resize: none;
+}
+
+.qr-options > *,
+.qr-options input,
+.qr-options :deep(.select-menu) {
+  min-width: 0;
+}
+
+.qr-page :deep(.task-flow-preview-content) {
+  align-content: stretch;
+  grid-template-rows: minmax(0, 1fr);
+}
+.qr-page :deep(.task-flow-preview-panel .panel-heading p:empty) { display: none; }
+
+@media (min-width: 1121px) and (min-height: 721px) {
+  .qr-page :deep(.task-flow-source-panel) {
+    display: grid;
+    grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.4fr);
+    align-items: center;
+    gap: 18px;
+  }
+  .qr-page :deep(.task-flow-source-panel > .panel-heading) { margin-bottom: 0; }
+  .qr-page :deep(.task-flow-workbench) { grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr); }
+  .qr-page :deep(.task-flow-layout.has-preview .task-flow-output-column) { grid-template-rows: minmax(0, 1fr) 140px; }
 }
 
 .qr-preview-stage,
@@ -154,10 +179,13 @@ async function run() {
   place-items: center;
   width: 100%;
   height: 100%;
-  min-height: 170px;
+  min-height: 0;
+  min-width: 0;
 }
 
 .qr-preview-stage {
+  grid-template-rows: minmax(0, 1fr);
+  padding: 12px;
   overflow: hidden;
   border: 1px dashed var(--border);
   border-radius: 8px;
@@ -169,11 +197,12 @@ async function run() {
 
 .qr-preview-stage img {
   display: block;
-  width: min(72%, 260px);
-  max-height: calc(100% - 20px);
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  max-width: 260px;
+  max-height: 100%;
   object-fit: contain;
-  border-radius: 6px;
-  box-shadow: 0 10px 26px rgb(0 0 0 / 18%);
 }
 
 .qr-preview-empty {
@@ -186,5 +215,9 @@ async function run() {
 .qr-preview-empty i {
   font-size: 34px;
   opacity: 0.72;
+}
+
+@media (max-width: 1120px), (max-height: 720px) {
+  .qr-preview-stage { height: 260px; }
 }
 </style>

@@ -45,6 +45,8 @@ npm run dev
 
 `npm run test:watermark-ui` 验证水印页在常用窗口尺寸下的布局、图案选择和输出交互，使用隔离配置及模拟文件；已纳入 `npm run check`。
 
+`npm run test:qrcode-ui` 验证二维码页的单屏布局、PNG/SVG 预览及生成状态，使用隔离配置和模拟输出；已纳入 `npm run check`。
+
 ## 发布到 GitHub
 
 推送新的 `v*` 标签会触发 [Release Dev Toolbox](https://github.com/CoffeeHouse1122/Dev-Toolbox/actions/workflows/release.yml)，自动检查、打包并发布，无需手动创建 Release 或上传安装包。
