@@ -49,6 +49,8 @@ npm run dev
 
 `npm run test:crop-ui` 验证裁剪页单屏布局、不同图片比例、拖动控制点及批量导出坐标，使用隔离配置和模拟图片；已纳入 `npm run check`。
 
+`npm run test:svg-ui` 验证 SVG 工具箱三种输出模式的单屏布局、完整预览与处理状态，使用隔离配置和模拟输出；已纳入 `npm run check`。
+
 ## 发布到 GitHub
 
 推送新的 `v*` 标签会触发 [Release Dev Toolbox](https://github.com/CoffeeHouse1122/Dev-Toolbox/actions/workflows/release.yml)，自动检查、打包并发布，无需手动创建 Release 或上传安装包。

@@ -64,10 +64,11 @@ async function run() {
 
 <template>
   <TaskFlowLayout
+    class="svg-page"
     title="SVG 工具箱"
     description="批量清理 SVG，并按需导出 SVG、PNG 或 WebP"
     source-title="SVG 文件"
-    source-description="添加一个或多个 SVG，任务会保持原文件不变"
+    source-description="支持批量添加，保持原文件不变"
     settings-title="优化与导出"
     settings-description="统一应用精度、尺寸与输出格式"
     preview-title="安全输出预览"
@@ -88,13 +89,13 @@ async function run() {
     </template>
 
     <template #settings>
-      <OptionGrid>
-        <div class="field span-2">
+      <OptionGrid class="svg-options">
+        <div class="field">
           <span>输出格式</span>
           <SelectMenu v-model="outputFormat" :options="formatOptions" />
         </div>
-        <label class="field span-2">
-          <span>数值精度：{{ precision }}</span>
+        <label class="field">
+          <span>数值精度</span>
           <Slider v-model="precision" :min="0" :max="6" aria-label="SVG 数值精度" />
         </label>
         <template v-if="isRaster">
@@ -107,7 +108,7 @@ async function run() {
             <input v-model.number="height" type="number" min="1" max="8192" placeholder="保持原始" />
           </label>
           <label v-if="outputFormat === 'webp'" class="field span-2">
-            <span>WebP 质量：{{ quality }}</span>
+            <span>WebP 质量</span>
             <Slider v-model="quality" :min="1" :max="100" aria-label="WebP 质量" />
           </label>
         </template>
@@ -118,7 +119,7 @@ async function run() {
 
     <template #preview>
       <div class="svg-preview-stage">
-        <img v-if="previewUrl" :src="previewUrl" alt="SVG 源文件预览" />
+        <img v-if="previewUrl" :src="previewUrl" alt="处理结果预览" />
         <div v-else class="svg-preview-empty">
           <i class="ri-shapes-line" aria-hidden="true"></i>
           <strong>等待 SVG</strong>
@@ -150,16 +151,42 @@ async function run() {
 </template>
 
 <style scoped>
+.svg-options > *,
+.svg-options input,
+.svg-options :deep(.select-menu),
+.svg-options :deep(.slider-control) { min-width: 0; }
+
+.svg-page :deep(.task-flow-preview-content) {
+  align-content: stretch;
+  grid-template-rows: minmax(0, 1fr);
+}
+
+@media (min-width: 1121px) and (min-height: 721px) {
+  .svg-page :deep(.task-flow-source-panel) {
+    display: grid;
+    grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.4fr);
+    align-items: center;
+    gap: 18px;
+  }
+  .svg-page :deep(.task-flow-source-panel > .panel-heading) { margin-bottom: 0; }
+  .svg-page :deep(.drop-zone-wrapper.compact.has-files .drop-file-item) { flex-basis: clamp(200px, calc((100% - 8px) / 2), 280px); }
+  .svg-page :deep(.task-flow-workbench) { grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr); }
+  .svg-page :deep(.task-flow-layout.has-preview .task-flow-output-column) { grid-template-rows: minmax(0, 1fr) 140px; }
+}
+
 .svg-preview-stage,
 .svg-preview-empty {
   display: grid;
   place-items: center;
   width: 100%;
   height: 100%;
-  min-height: 180px;
+  min-height: 0;
+  min-width: 0;
 }
 
 .svg-preview-stage {
+  grid-template-rows: minmax(0, 1fr);
+  padding: 12px;
   overflow: hidden;
   border: 1px dashed var(--border);
   border-radius: 8px;
@@ -171,8 +198,11 @@ async function run() {
 
 .svg-preview-stage > img {
   display: block;
-  width: min(78%, 420px);
-  height: min(78%, 320px);
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  max-width: 420px;
+  max-height: 100%;
   object-fit: contain;
   filter: drop-shadow(0 12px 24px rgb(0 0 0 / 18%));
 }
@@ -196,5 +226,9 @@ async function run() {
 
 .svg-preview-empty span {
   font-size: 12px;
+}
+
+@media (max-width: 1120px), (max-height: 720px) {
+  .svg-preview-stage { height: 280px; }
 }
 </style>
