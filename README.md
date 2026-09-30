@@ -63,6 +63,8 @@ npm run dev
 
 `npm run test:og-image-ui` 验证 OG 图片页单屏布局、不同宽高比的完整预览、实时配色及生成状态，使用隔离配置和模拟输出；已纳入 `npm run check`。
 
+`npm run test:rename-ui` 验证重命名页单屏布局、队列及计划分页、排序移除和校验交互，使用隔离配置与模拟文件操作，不修改实际文件；已纳入 `npm run check`。
+
 ## 发布到 GitHub
 
 推送新的 `v*` 标签会触发 [Release Dev Toolbox](https://github.com/CoffeeHouse1122/Dev-Toolbox/actions/workflows/release.yml)，自动检查、打包并发布，无需手动创建 Release 或上传安装包。

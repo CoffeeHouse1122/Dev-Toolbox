@@ -11,6 +11,7 @@ const props = defineProps<{
   compact?: boolean;
   appendSelection?: boolean;
   actionLabel?: string;
+  pageSize?: number;
 }>();
 
 const emit = defineEmits<{
@@ -18,6 +19,15 @@ const emit = defineEmits<{
 }>();
 
 const isDragging = ref(false);
+const selectionPage = ref(0);
+const selectionPageSize = computed(() => Math.max(0, Math.floor(props.pageSize ?? 0)));
+const selectionPageCount = computed(() => selectionPageSize.value ? Math.max(1, Math.ceil(props.modelValue.length / selectionPageSize.value)) : 1);
+const visibleSelection = computed(() => {
+  const start = selectionPageSize.value ? selectionPage.value * selectionPageSize.value : 0;
+  const paths = selectionPageSize.value ? props.modelValue.slice(start, start + selectionPageSize.value) : props.modelValue;
+  return paths.map((filePath, index) => ({ filePath, index: start + index }));
+});
+watch(selectionPageCount, count => { selectionPage.value = Math.min(selectionPage.value, count - 1); });
 const previewUrl = ref("");
 const previewVideoRef = ref<HTMLVideoElement | null>(null);
 let previewRequestId = 0;
@@ -115,6 +125,7 @@ function moveFile(index: number, offset: number) {
   if (target < 0 || target >= props.modelValue.length) return;
   const paths = [...props.modelValue];
   [paths[index], paths[target]] = [paths[target], paths[index]];
+  if (selectionPageSize.value) selectionPage.value = Math.floor(target / selectionPageSize.value);
   emit("update:modelValue", paths);
 }
 
@@ -127,7 +138,7 @@ function onKeydown(event: KeyboardEvent) {
 </script>
 
 <template>
-  <div class="drop-zone-wrapper" :class="{ compact, 'has-files': modelValue.length > 0 }">
+  <div class="drop-zone-wrapper" :class="{ compact, 'has-files': modelValue.length > 0, 'paged-selection': selectionPageSize > 0 }">
     <div
       class="drop-zone"
       :class="{ active: isDragging, compact, 'has-preview': Boolean(previewUrl) }"
@@ -152,7 +163,7 @@ function onKeydown(event: KeyboardEvent) {
       </span>
     </div>
     <ol v-if="modelValue.length" class="drop-file-list" aria-label="已选文件与顺序">
-      <li v-for="(filePath, index) in modelValue" :key="filePath" class="drop-file-item">
+      <li v-for="{ filePath, index } in visibleSelection" :key="filePath" class="drop-file-item">
         <span :title="filePath">{{ index + 1 }}. {{ filePath.split(/[\\/]/).pop() }}</span>
         <span class="drop-file-actions">
           <button v-if="multiple !== false" type="button" class="icon-button" :disabled="index === 0" title="上移" @click="moveFile(index, -1)"><i class="ri-arrow-up-line"></i></button>
@@ -161,6 +172,11 @@ function onKeydown(event: KeyboardEvent) {
         </span>
       </li>
     </ol>
+    <nav v-if="selectionPageCount > 1" class="selection-pagination" aria-label="文件队列分页">
+      <button type="button" class="icon-button" title="上一页文件" :disabled="selectionPage === 0" @click="selectionPage--"><i class="ri-arrow-left-s-line"></i></button>
+      <span aria-live="polite">{{ selectionPage + 1 }}/{{ selectionPageCount }}</span>
+      <button type="button" class="icon-button" title="下一页文件" :disabled="selectionPage + 1 >= selectionPageCount" @click="selectionPage++"><i class="ri-arrow-right-s-line"></i></button>
+    </nav>
   </div>
 </template>
 
@@ -303,7 +319,17 @@ function onKeydown(event: KeyboardEvent) {
   flex: 0 0 min(280px, 42vw);
 }
 
+.drop-zone-wrapper.compact.has-files.paged-selection { grid-template-columns: minmax(0, 1fr) auto auto; }
+.drop-zone-wrapper.compact.has-files.paged-selection .drop-zone { grid-column: 3; }
+.drop-zone-wrapper.compact.has-files.paged-selection .drop-file-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); overflow: visible; }
+.drop-zone-wrapper.compact.has-files.paged-selection .drop-file-item { min-width: 0; }
+.selection-pagination { grid-column: 2; grid-row: 1; display: flex; align-items: center; gap: 4px; font-size: 11px; color: var(--muted); }
+.selection-pagination .icon-button { width: 26px; height: 28px; }
+
 @media (max-width: 720px) {
+  .drop-zone-wrapper.compact.has-files.paged-selection { grid-template-columns: minmax(0, 1fr) auto; }
+  .drop-zone-wrapper.compact.has-files.paged-selection .drop-file-list { grid-template-columns: minmax(0, 1fr); }
+  .drop-zone-wrapper.compact.has-files.paged-selection .drop-zone { grid-column: 1 / -1; grid-row: 2; }
   .drop-zone.compact {
     grid-template-areas:
       "icon title"
