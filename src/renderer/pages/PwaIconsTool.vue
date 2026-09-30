@@ -23,7 +23,8 @@ const previewUrl = computed(() => previewPath.value && !/\.svg$/i.test(previewPa
   ? `devtoolbox-file://preview/${encodeURIComponent(previewPath.value)}`
   : "");
 const colorsValid = computed(() => /^#[0-9a-f]{6}$/i.test(themeColor.value) && /^#[0-9a-f]{6}$/i.test(backgroundColor.value));
-const maskablePreviewPadding = computed(() => `${maskablePaddingPercent.value * 0.48}px`);
+// Match the exported inset on both sides, independently of the preview's size.
+const maskablePreviewStyle = computed(() => ({ transform: `scale(${1 - 2 * maskablePaddingPercent.value / 100})` }));
 const canRun = computed(() => (
   input.value.length > 0
   && Boolean(outputDir.value)
@@ -54,14 +55,15 @@ async function run() {
 
 <template>
   <TaskFlowLayout
+    class="pwa-page"
     title="PWA 与移动图标包"
     description="生成 PWA、Android、iOS 与浏览器常用图标资源"
     source-title="应用图标源图"
-    source-description="支持批量添加；每个源图都会生成独立目录和 ZIP"
+    source-description="批量生成独立资源目录与 ZIP"
     settings-title="应用与安全区域"
-    settings-description="设置 Manifest 文案、主题色与 Maskable 留白"
+    settings-description="设置名称、配色与 Maskable 留白"
     preview-title="移动端效果"
-    preview-description="模拟主屏幕图标与启动主题色"
+    preview-description=""
     variant="preview-dominant"
     :file-count="input.length"
   >
@@ -78,7 +80,7 @@ async function run() {
     </template>
 
     <template #settings>
-      <OptionGrid>
+      <OptionGrid class="pwa-options">
         <label class="field">
           <span>应用名称</span>
           <input v-model="appName" type="text" maxlength="80" placeholder="My App" />
@@ -107,13 +109,6 @@ async function run() {
         </label>
       </OptionGrid>
       <p v-if="!colorsValid" class="error-banner">主题色和背景色需使用 6 位 HEX，例如 #0d9488。</p>
-      <div class="package-list" aria-label="图标包内容">
-        <span><i class="ri-checkbox-circle-line"></i>PWA 192 / 512</span>
-        <span><i class="ri-checkbox-circle-line"></i>Maskable 192 / 512</span>
-        <span><i class="ri-checkbox-circle-line"></i>Apple Touch 180</span>
-        <span><i class="ri-checkbox-circle-line"></i>Favicon 32</span>
-        <span><i class="ri-checkbox-circle-line"></i>Manifest + HTML</span>
-      </div>
     </template>
 
     <template #preview>
@@ -121,12 +116,19 @@ async function run() {
         <div class="phone-preview">
           <div class="phone-status"><span>9:41</span><i class="ri-wifi-line"></i></div>
           <div class="launcher-icon" :style="{ backgroundColor }">
-            <img v-if="previewUrl" :src="previewUrl" :style="{ padding: maskablePreviewPadding }" alt="应用图标预览" />
+            <img v-if="previewUrl" :src="previewUrl" :style="maskablePreviewStyle" alt="应用图标预览" />
             <i v-else class="ri-apps-2-line" aria-hidden="true"></i>
           </div>
           <strong>{{ shortName.trim() || "App" }}</strong>
-          <small>{{ previewUrl ? "Maskable 安全区域预览" : (previewPath ? "SVG 将在安全处理后写入图标包" : "添加图标后显示预览") }}</small>
         </div>
+        <div class="package-list" aria-label="图标包内容">
+          <span><i class="ri-checkbox-circle-line"></i>PWA 192 / 512</span>
+          <span><i class="ri-checkbox-circle-line"></i>Maskable 192 / 512</span>
+          <span><i class="ri-checkbox-circle-line"></i>Apple Touch 180</span>
+          <span><i class="ri-checkbox-circle-line"></i>Favicon 32</span>
+          <span><i class="ri-checkbox-circle-line"></i>Manifest + HTML</span>
+        </div>
+        <small class="pwa-preview-caption">{{ previewUrl ? "Maskable 安全区域预览" : (previewPath ? "SVG 将在安全处理后写入图标包" : "添加图标后显示预览") }}</small>
       </div>
     </template>
 
@@ -153,6 +155,23 @@ async function run() {
 </template>
 
 <style scoped>
+.pwa-options > *, .pwa-options input, .pwa-options :deep(.slider-control) { min-width: 0; }
+.pwa-page :deep(.task-flow-preview-content) { align-content: stretch; grid-template-rows: minmax(0, 1fr); }
+.pwa-page :deep(.task-flow-preview-panel .panel-heading p:empty) { display: none; }
+
+@media (min-width: 1121px) and (min-height: 721px) {
+  .pwa-page :deep(.task-flow-source-panel) {
+    display: grid;
+    grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.4fr);
+    align-items: center;
+    gap: 18px;
+  }
+  .pwa-page :deep(.task-flow-source-panel > .panel-heading) { margin-bottom: 0; }
+  .pwa-page :deep(.drop-zone-wrapper.compact.has-files .drop-file-item) { flex-basis: clamp(200px, calc((100% - 8px) / 2), 280px); }
+  .pwa-page :deep(.task-flow-workbench) { grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr); }
+  .pwa-page :deep(.task-flow-layout.has-preview .task-flow-output-column) { grid-template-rows: minmax(0, 1fr) 140px; }
+}
+
 .color-control {
   display: grid;
   grid-template-columns: 40px minmax(0, 1fr);
@@ -169,9 +188,11 @@ async function run() {
 
 .package-list {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 7px;
-  padding: 10px;
+  grid-template-columns: minmax(0, 1fr);
+  align-content: center;
+  width: 100%;
+  gap: 5px;
+  padding: 8px;
   border: 1px solid var(--border);
   border-radius: 7px;
   background: var(--surface-subtle);
@@ -194,9 +215,13 @@ async function run() {
 .pwa-preview-stage {
   display: grid;
   place-items: center;
+  grid-template-columns: minmax(0, 1fr) minmax(160px, 0.9fr);
+  grid-template-rows: minmax(0, 1fr) auto;
+  gap: 8px 12px;
+  padding: 10px;
   width: 100%;
   height: 100%;
-  min-height: 190px;
+  min-height: 0;
   overflow: hidden;
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -208,10 +233,14 @@ async function run() {
 .phone-preview {
   display: grid;
   justify-items: center;
-  gap: 8px;
-  width: min(68%, 270px);
-  min-height: 210px;
-  padding: 14px 18px 18px;
+  grid-template-rows: 10px minmax(0, 1fr) auto;
+  gap: 6px;
+  width: min(100%, 240px);
+  height: 100%;
+  max-height: 260px;
+  min-width: 0;
+  min-height: 0;
+  padding: 10px 14px;
   border: 1px solid rgb(255 255 255 / 24%);
   border-radius: 24px;
   background: color-mix(in srgb, var(--surface) 88%, transparent);
@@ -230,9 +259,12 @@ async function run() {
 .launcher-icon {
   display: grid;
   place-items: center;
-  width: 96px;
-  height: 96px;
-  margin-top: 5px;
+  aspect-ratio: 1;
+  height: 100%;
+  max-height: 96px;
+  max-width: 100%;
+  min-height: 0;
+  align-self: center;
   overflow: hidden;
   border-radius: 22px;
   box-shadow: 0 10px 22px rgb(0 0 0 / 24%);
@@ -247,22 +279,33 @@ async function run() {
 
 .launcher-icon > i {
   color: var(--accent-strong);
-  font-size: 38px;
+  font-size: 24px;
 }
 
 .phone-preview strong {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  text-align: center;
   color: var(--text);
   font-size: 13px;
 }
 
-.phone-preview small {
+.pwa-preview-caption {
+  grid-column: 1 / -1;
+  max-width: 100%;
+  padding: 3px 8px;
+  border-radius: 4px;
+  background: var(--surface);
   color: var(--muted);
-  font-size: 10px;
+  font-size: 11px;
+  text-align: center;
+}
+
+@media (max-width: 1120px), (max-height: 720px) {
+  .pwa-preview-stage { height: 300px; }
 }
 
 @media (max-width: 720px) {
-  .package-list {
-    grid-template-columns: 1fr;
-  }
+  .pwa-preview-stage { grid-template-columns: minmax(0, 1fr) minmax(140px, 1fr); }
 }
 </style>

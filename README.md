@@ -51,6 +51,8 @@ npm run dev
 
 `npm run test:svg-ui` 验证 SVG 工具箱三种输出模式的单屏布局、完整预览与处理状态，使用隔离配置和模拟输出；已纳入 `npm run check`。
 
+`npm run test:pwa-ui` 验证 PWA 页单屏布局、完整手机预览、图标包清单及安全留白比例，使用隔离配置和模拟输出；已纳入 `npm run check`。
+
 ## 发布到 GitHub
 
 推送新的 `v*` 标签会触发 [Release Dev Toolbox](https://github.com/CoffeeHouse1122/Dev-Toolbox/actions/workflows/release.yml)，自动检查、打包并发布，无需手动创建 Release 或上传安装包。
